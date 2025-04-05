@@ -4,6 +4,20 @@ A Model Context Protocol server that exposes CAP's CDS model as resources.
 
 It's in an **alpha state** and uses a builtin CDS model ([CAP's bookshop sample](https://github.com/SAP-samples/cloud-cap-samples/tree/main/bookshop)).
 
+## Motivation
+
+The server is supposed to help AI models answer questions like
+- _Which CDS services are there in this project?_
+- _What are the entities about?_
+- _How do they relate?_
+
+On top, MCP tools can be provided that can
+- Create projects.
+- Fill it will content, like adding test data, handler stubs.
+- Read the application configuration.
+
+and more.
+
 ## Setup
 
 ```sh
