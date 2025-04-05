@@ -2,7 +2,7 @@
 
 A Model Context Protocol server that exposes CAP's CDS model as resources.
 
-It's in an **alpha state** that uses a builtin CDS model ([CAP's bookshop sample](https://github.com/SAP-samples/cloud-cap-samples/tree/main/bookshop)).
+It's in an **alpha state** and uses a builtin CDS model ([CAP's bookshop sample](https://github.com/SAP-samples/cloud-cap-samples/tree/main/bookshop)).
 
 ## Setup
 
@@ -13,6 +13,10 @@ npm install
 ```
 
 ## Usage in VS Code
+
+> [!CAUTION]
+> At SAP, MCP in VS Code seems to be centrally **disabled** at the moment.
+> Error is: _Unable to write chat.mcp.enabled because it is configured in system policy._
 
 Use command `MCP: Add Server...` to register the server once.
 - Select `command`.
