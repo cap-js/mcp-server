@@ -21,7 +21,7 @@ and more.
 ## Setup
 
 ```sh
-git clone https://github.com/chgeo/cds-mcp
+git clone https://github.com/cap-js/cds-mcp
 cd cds-mcp
 npm install
 ```
