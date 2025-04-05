@@ -7,7 +7,7 @@ It's in an **alpha state** that uses a builtin CDS model ([CAP's bookshop sample
 ## Setup
 
 ```sh
-git clone ...
+git clone https://github.com/chgeo/cds-mcp
 cd cds-mcp
 npm install
 ```
