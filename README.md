@@ -31,6 +31,8 @@ See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-serve
 You can test the server with the _MCP Inspector tool_.
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
+![MCP Inspector](assets/MCP-Inspector.png)
+
 ## Components
 
 ### Resources

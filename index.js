@@ -20,11 +20,11 @@ const server = new McpServer({
 })
 
 const resourceInfo = [
-  { name: 'CDS Entities',    uri: 'cds://entities/', kind: 'entity' },
-  { name: 'CDS Services',    uri: 'cds://services/', kind: 'service' },
-  { name: 'CDS Types',       uri: 'cds://types/',    kind: 'type' },
-  { name: 'CDS Aspects',     uri: 'cds://aspects/',  kind: 'aspect' },
-  { name: 'CDS Definitions', uri: 'cds://definitions/' },
+  { name: 'Entities',    uri: 'cds://entities/', kind: 'entity' },
+  { name: 'Services',    uri: 'cds://services/', kind: 'service' },
+  { name: 'Types',       uri: 'cds://types/',    kind: 'type' },
+  { name: 'Aspects',     uri: 'cds://aspects/',  kind: 'aspect' },
+  { name: 'Definitions', uri: 'cds://definitions/' },
 ]
 resourceInfo.forEach(({ name, uri, kind }) => {
   server.resource(name, uri, () => {
