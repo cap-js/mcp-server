@@ -11,7 +11,7 @@ The server is supposed to help AI models answer questions like
 - _What are the entities about?_
 - _How do they relate?_
 
-On top, MCP tools can be provided that can
+On top, [MCP tools](https://modelcontextprotocol.io/docs/concepts/tools) could be provided that can
 - Create projects.
 - Fill it will content, like adding test data, handler stubs.
 - Read the application configuration.
@@ -51,7 +51,7 @@ See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspecto
 
 ### Resources
 
-The server provides resources for
+The server provides [resources](https://modelcontextprotocol.io/docs/concepts/resources) for
 - Entities (`cds://entities`)
 - Services (`cds://services`)
 - Types (`cds://types`)
