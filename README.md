@@ -2,7 +2,7 @@
 
 A Model Context Protocol server that exposes CAP's CDS model as resources.
 
-It's in an **alpha state** and uses a builtin CDS model ([CAP's bookshop sample](https://github.com/SAP-samples/cloud-cap-samples/tree/main/bookshop)).
+It's in an **alpha state**.
 
 ## Motivation
 
@@ -32,17 +32,23 @@ npm install
 > At SAP, MCP in VS Code seems to be centrally **disabled** at the moment.
 > Error is: _Unable to write chat.mcp.enabled because it is configured in system policy._
 
-Use command `MCP: Add Server...` to register the server once.
+**Register the server** once: run command `MCP: Add Server...`. In there:
 - Select `command`.
 - Set `node <your-repo>/index.js` as command.
 
-In the _Chat_ panel, it should be available through the _Select tools_ button.
+**In an application project**, open the _Chat_ panel.
+Select the server through the _Select tools_ button.
 
 See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more.
 
 ## Usage in MCP Inspector
 
-You can test the server with the _MCP Inspector tool_.
+You can test the server with the _MCP Inspector tool_:
+```sh
+cd cds-mcp
+npx @modelcontextprotocol/inspector node index.js <projectRoot>
+```
+
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
 ![MCP Inspector](assets/MCP-Inspector.png)

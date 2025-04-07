@@ -5,10 +5,6 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 
 import cds from '@sap/cds'
 
-const model = cds.linked(await cds.load(import.meta.dirname+'/samples/bookstore.csn.json'))
-// console.error('Model:', model)
-const defs = model.definitions ?? {}
-
 // Create server instance
 const server = new McpServer({
   name: 'cds-mdc',
@@ -19,6 +15,8 @@ const server = new McpServer({
   },
 })
 
+const model = await loadModel()
+
 const resourceInfo = [
   { name: 'Entities',    uri: 'cds://entities/', kind: 'entity' },
   { name: 'Services',    uri: 'cds://services/', kind: 'service' },
@@ -28,23 +26,32 @@ const resourceInfo = [
 ]
 resourceInfo.forEach(({ name, uri, kind }) => {
   server.resource(name, uri, () => {
-    const contents = Object.values(defs)
+    const contents = Object.values(model?.definitions ?? {})
       .filter(d => !kind || d.kind === kind)
       .map(d => toResource(d, uri))
     return { contents }
   })
 })
 
+async function loadModel() {
+  if (process.argv.length > 2) cds.root = process.argv[2]
+  try {
+    const model = cds.linked(await cds.load('*', {docs: true}))
+    console.error(`Found ${Object.keys(model.definitions).length} definitions in ${cds.root}`)
+    return model
+  } catch (err) {
+    console.error(err)
+  }
+}
 
 /**
- *
  * @param {cds.csn.Definition} def
- * @param {string} uriScheme
+ * @param {string} uriBase
  * @returns {import('@modelcontextprotocol/sdk/types.js').TextResourceContents}
  */
-function toResource(def, uriScheme) {
+function toResource(def, uriBase) {
   return {
-    uri: uriScheme + def.name,
+    uri: uriBase + def.name,
     name: def.name,
     description: def.doc ?? '',
     text: JSON.stringify(def),
