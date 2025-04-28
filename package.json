@@ -4,7 +4,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "A simple MDC server for CAP",
+  "description": "A simple MCP server for CAP",
   "type": "module",
   "files": [
     "index.js",

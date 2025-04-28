@@ -1,4 +1,4 @@
-# MDC Server for CAP
+# MCP Server for CAP
 
 A Model Context Protocol server that exposes CAP's CDS model as resources.
 
