@@ -1,5 +1,5 @@
 {
-  "name": "@cap-js/cds-mdc",
+  "name": "@cap-js/cds-mcp",
   "version": "0.1.0",
   "keywords": [],
   "author": "",
@@ -11,7 +11,7 @@
     "samples/"
   ],
   "bin": {
-    "cds-mdc": "./index.js"
+    "cds-mcp": "./index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",

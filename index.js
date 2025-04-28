@@ -7,7 +7,7 @@ import cds from '@sap/cds'
 
 // Create server instance
 const server = new McpServer({
-  name: 'cds-mdc',
+  name: 'cds-mcp',
   version: '0.1.0',
   capabilities: {
     resources: {},
