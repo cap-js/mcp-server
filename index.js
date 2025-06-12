@@ -75,8 +75,7 @@ server.tool("search_definitions",
 
 server.tool("list_definitions",
   {},
-  async ({}) => {
-    const names = Object.keys(model.definitions)
+  async () => {
     return {
       content: [{ type: "text", text: JSON.stringify(Object.keys(model.definitions)) }]
     }
