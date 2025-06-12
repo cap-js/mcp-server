@@ -73,7 +73,7 @@ server.tool("search_definitions",
   }
 );
 
-server.tool("list_definitions",
+server.tool("list_definition_names",
   {},
   async () => {
     return {
