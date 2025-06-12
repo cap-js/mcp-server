@@ -63,7 +63,7 @@ function toResource(def, uriBase) {
 }
 
 server.tool("search_definitions",
-  { name: z.string(), n: z.number().optional().default(1) },
+  { name: z.string(), n: z.number().default(1) },
   async ({ name, n }) => {
     const names = Object.keys(model.definitions)
     const scores = fuzzyTopN(name, names, n)
