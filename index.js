@@ -2,6 +2,9 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
+import { z } from "zod";
+import { fuzzyTopN } from './utils.js';
+
 
 import cds from '@sap/cds'
 
@@ -58,6 +61,27 @@ function toResource(def, uriBase) {
     mimeType: 'application/json',
   }
 }
+
+server.tool("search_definitions",
+  { name: z.string(), n: z.number().optional().default(1) },
+  async ({ name, n }) => {
+    const names = Object.keys(model.definitions)
+    const scores = fuzzyTopN(name, names, n)
+    return {
+      content: [{ type: "text", text: JSON.stringify(scores.map(s => Object.assign({ name: s.item }, model.definitions[s.item]))) }]
+    }
+  }
+);
+
+server.tool("list_definitions",
+  {},
+  async ({}) => {
+    const names = Object.keys(model.definitions)
+    return {
+      content: [{ type: "text", text: JSON.stringify(Object.keys(model.definitions)) }]
+    }
+  }
+);
 
 async function main() {
   const transport = new StdioServerTransport()
