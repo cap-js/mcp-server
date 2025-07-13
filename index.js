@@ -23,8 +23,7 @@ async function getModel(path) {
   if (models.has(path)) return models.get(path)
   cds.root = path
   try {
-    const model = cds.linked(await cds.load('*', { docs: true }))
-    console.error(`Found ${Object.keys(model.definitions).length} definitions in ${cds.root}`)
+    const model = cds.linked(await cds.load('*', { docs: true, locations: true }))
     models.set(path, model)
     return model
   } catch (err) {
@@ -73,7 +72,6 @@ server.tool(
 async function main() {
   const transport = new StdioServerTransport()
   await server.connect(transport)
-  console.error('CDS MCP Server running on stdio')
 }
 
 main().catch(error => {
