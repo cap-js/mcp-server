@@ -9,7 +9,7 @@
   "files": [
     "index.js",
     "samples/",
-    "utils.js"
+    "lib/"
   ],
   "bin": {
     "cds-mcp": "./index.js"
