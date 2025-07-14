@@ -52,14 +52,3 @@ npx @modelcontextprotocol/inspector node index.js <projectRoot>
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
 ![MCP Inspector](assets/MCP-Inspector.png)
-
-## Components
-
-### Resources
-
-The server provides [resources](https://modelcontextprotocol.io/docs/concepts/resources) for
-- Entities (`cds://entities`)
-- Services (`cds://services`)
-- Types (`cds://types`)
-- Aspects (`cds://aspects`)
-- All definitions (`cds://definitions`)
