@@ -50,5 +50,3 @@ npx @modelcontextprotocol/inspector node index.js <projectRoot>
 ```
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
-
-![MCP Inspector](assets/MCP-Inspector.png)
