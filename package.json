@@ -15,7 +15,7 @@
     "cds-mcp": "./index.js"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@modelcontextprotocol/sdk": "^1.15.1",
     "@sap/cds": "^8.9.1"
   },
   "devDependencies": {
