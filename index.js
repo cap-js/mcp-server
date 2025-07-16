@@ -25,12 +25,39 @@ async function setModel(path) {
     cds.model = await cds.load('*', { docs: true, locations: true })
     cds.model = cds.compile.for.nodejs(cds.model)
     const serviceInfo = cds.compile.to.serviceinfo(cds.model)
+
     // merge with definitions
     for (const info of serviceInfo) {
       const def = cds.model.definitions[info.name]
       Object.assign(def, info)
     }
-    // TODO: Add endpoint to each entity (similar to app/index.js)
+
+    const _entities_in = service => {
+      const exposed = [],
+        { entities } = service
+      for (let each in entities) {
+        const e = entities[each]
+        if (e['@cds.autoexposed'] && !e['@cds.autoexpose']) continue
+        if (/DraftAdministrativeData$/.test(e.name)) continue
+        if (/[._]texts$/.test(e.name)) continue
+        if (cds.env.effective.odata.containment && service.definition._containedEntities.has(e.name)) continue
+        exposed.push(each.replace(/\./g, '_'))
+      }
+      return exposed
+    }
+
+    // construct endpoint for each entity and add it to its definition
+    cds.model.services
+      .flatMap(srv => srv.endpoints.map(endpoint => ({ srv, endpoint })))
+      .map(({ srv, endpoint }) => {
+        const entities = _entities_in(srv)
+        for (const e of entities) {
+          const path = endpoint.path + e.replace(/\./g, '_')
+          const def = cds.model.definitions[srv.name + '.' + e]
+          def.endpoints ??= []
+          def.endpoints.push(path)
+        }
+      })
   } catch (err) {
     console.error(err)
   }
