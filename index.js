@@ -21,7 +21,7 @@ for (const t in tools) {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(await fn(...args))
+          text: JSON.stringify(await fn(...args).catch(error => error.message))
         }
       ]
     })
