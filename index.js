@@ -25,7 +25,7 @@ for (const t in tools) {
         }
       ]
     })
-  server.tool(t, tool.schema, _text(tool.handler))
+  server.registerTool(t, tool, _text(tool.handler))
 }
 
 async function main() {
