@@ -18,16 +18,18 @@ const server = new McpServer({
   }
 })
 
-const models = new Map()
-async function getModel(path) {
-  if (models.has(path)) return models.get(path)
+async function setModel(path) {
+  if (cds.model) return
   cds.root = path
   try {
-    let model = cds.linked(await cds.load('*', { docs: true, locations: true }))
-    model = cds.compile.for.nodejs(model)
-    model = cds.compile.to.serviceinfo(model)
-    models.set(path, model)
-    return model
+    cds.model = await cds.load('*', { docs: true, locations: true })
+    cds.model = cds.compile.for.nodejs(cds.model)
+    const serviceInfo = cds.compile.to.serviceinfo(cds.model)
+    // merge with definitions
+    for (const info of serviceInfo) {
+      const def = cds.model.definitions[info.name]
+      Object.assign(def, info)
+    }
   } catch (err) {
     console.error(err)
   }
@@ -41,14 +43,14 @@ server.tool(
     n: z.number().default(1).describe('Number of results')
   },
   async ({ projectPath, name, n }) => {
-    const model = await getModel(projectPath)
-    const names = Object.keys(model.definitions)
+    await setModel(projectPath)
+    const names = Object.keys(cds.model.definitions)
     const scores = fuzzyTopN(name, names, n)
     return {
       content: [
         {
           type: 'text',
-          text: JSON.stringify(scores.map(s => Object.assign({ name: s.item }, model.definitions[s.item])))
+          text: JSON.stringify(scores.map(s => Object.assign({ name: s.item }, cds.model.definitions[s.item])))
         }
       ]
     }
@@ -59,12 +61,12 @@ server.tool(
   'list_cds_definition_names',
   { ...PROJECT_PATH, kind: z.string().optional().describe('Kind of the definition (service, entity, action, ...)') },
   async ({ projectPath, kind }) => {
-    const model = await getModel(projectPath)
+    await setModel(projectPath)
     const definitions = kind
-      ? Object.entries(model.definitions)
+      ? Object.entries(cds.model.definitions)
           .filter(([_k, v]) => v.kind === kind)
           .map(([k]) => k)
-      : Object.keys(model.definitions)
+      : Object.keys(cds.model.definitions)
     return {
       content: [{ type: 'text', text: JSON.stringify(definitions) }]
     }
