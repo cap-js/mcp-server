@@ -30,7 +30,7 @@ async function setModel(path) {
       const def = cds.model.definitions[info.name]
       Object.assign(def, info)
     }
-    // TODO: Add endpoint for each entity
+    // TODO: Add endpoint for each entity (similar to app/index.js)
   } catch (err) {
     console.error(err)
   }
