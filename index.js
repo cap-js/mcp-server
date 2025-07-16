@@ -23,7 +23,9 @@ async function getModel(path) {
   if (models.has(path)) return models.get(path)
   cds.root = path
   try {
-    const model = cds.linked(await cds.load('*', { docs: true, locations: true }))
+    let model = cds.linked(await cds.load('*', { docs: true, locations: true }))
+    model = cds.compile.for.nodejs(model)
+    model = cds.compile.for.serviceinfo(model)
     models.set(path, model)
     return model
   } catch (err) {
