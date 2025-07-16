@@ -15,7 +15,17 @@ const server = new McpServer({
 
 for (const t in tools) {
   const tool = tools[t]
-  server.tool(t, tool.schema, tool.handler)
+  const _text =
+    fn =>
+    async (...args) => ({
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify(await fn(...args))
+        }
+      ]
+    })
+  server.tool(t, tool.schema, _text(tool.handler))
 }
 
 async function main() {
