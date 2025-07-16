@@ -25,7 +25,7 @@ async function getModel(path) {
   try {
     let model = cds.linked(await cds.load('*', { docs: true, locations: true }))
     model = cds.compile.for.nodejs(model)
-    model = cds.compile.for.serviceinfo(model)
+    model = cds.compile.to.serviceinfo(model)
     models.set(path, model)
     return model
   } catch (err) {
