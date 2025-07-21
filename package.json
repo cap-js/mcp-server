@@ -24,6 +24,6 @@
   },
   "scripts": {
     "test": "node --test",
-    "lint": "prettier --check ."
+    "lint": "npx eslint ."
   }
 }
