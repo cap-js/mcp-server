@@ -19,6 +19,11 @@
     "@sap/cds": "^8.9.1"
   },
   "devDependencies": {
-    "@cap-js/cds-types": "^0.10.0"
+    "@cap-js/cds-types": "^0.10.0",
+    "prettier": "*"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "npx eslint ."
   }
 }
