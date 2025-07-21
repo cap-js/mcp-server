@@ -23,15 +23,12 @@ jobs:
       fail-fast: false
       matrix:
         node-version: [22.x, 20.x]
-        cds-version: [9, 8]
     steps:
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
-      - run: if [ ${{ matrix.cds-version }} -eq 8 ]; fi
       - run: cds v
       - run: npm run test
