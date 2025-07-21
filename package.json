@@ -20,5 +20,8 @@
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0"
+  },
+  "scripts": {
+    "test": "node --test"
   }
 }
