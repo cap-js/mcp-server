@@ -7,11 +7,13 @@ It's in an **alpha state**.
 ## Motivation
 
 The server is supposed to help AI models answer questions like
+
 - _Which CDS services are there in this project?_
 - _What are the entities about?_
 - _How do they relate?_
 
 On top, [MCP tools](https://modelcontextprotocol.io/docs/concepts/tools) could be provided that can
+
 - Create projects.
 - Fill it will content, like adding test data, handler stubs.
 - Read the application configuration.
@@ -33,6 +35,7 @@ npm install
 > Error is: _Unable to write chat.mcp.enabled because it is configured in system policy._
 
 **Register the server** once: run command `MCP: Add Server...`. In there:
+
 - Select `command`.
 - Set `node <your-repo>/index.js` as command.
 
@@ -44,6 +47,7 @@ See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-serve
 ## Usage in MCP Inspector
 
 You can test the server with the _MCP Inspector tool_:
+
 ```sh
 cd cds-mcp
 npx @modelcontextprotocol/inspector node index.js <projectRoot>
