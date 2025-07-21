@@ -1,6 +1,6 @@
 // Node.js test runner (test) for lib/tools.js
 import tools from '../lib/tools.js';
-import assert from 'assert';
+import assert from 'node:assert';
 import { test } from 'node:test';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
