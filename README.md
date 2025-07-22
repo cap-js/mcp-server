@@ -26,6 +26,7 @@ and more.
 git clone https://github.com/cap-js/cds-mcp
 cd cds-mcp
 npm install
+npm i -g @cap-js/cds-mcp@.
 ```
 
 ## Usage in VS Code
@@ -43,6 +44,40 @@ npm install
 Select the server through the _Select tools_ button.
 
 See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more.
+
+## Usage in [opencode](https://github.com/sst/opencode)
+
+Use the following configuration in ~/.config/opencode/opencode.json, it's recommended to use an API docs provider, like `context7`:
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "cds": {
+      "type": "local",
+      "command": ["cds-mcp"],
+      "enabled": true,
+      "environment": {}
+    },
+    "context7": {
+      "type": "local",
+      "command": ["context7-mcp"],
+      "enabled": true,
+      "environment": {}
+    }
+  }
+}
+```
+
+It's useful to add the following rules to your ~/.config/opencode/AGENTS.md:
+
+```markdown
+- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read *.cds files in the project.
+- Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
+- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking context7.
+- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
+- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs, always check if the server is already running, kill processes if necessary.
+```
 
 ## Usage in MCP Inspector
 
