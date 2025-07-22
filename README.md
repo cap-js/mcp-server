@@ -76,7 +76,7 @@ It's useful to add the following rules to your ~/.config/opencode/AGENTS.md:
 - Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
 - You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking context7.
 - You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
-- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs, always check if the server is already running, kill processes if necessary.
+- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
 ```
 
 ## Usage in MCP Inspector
