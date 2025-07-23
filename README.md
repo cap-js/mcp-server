@@ -34,7 +34,7 @@ npm i -g @cap-js/cds-mcp@.
 Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
 It is strongly recommended to use an API docs provider, like `context7`, to get the best results.
 The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
-The following rules help to guide the LLM to use the server correctly:
+The following rules help to guide the LLM to use the servers correctly:
 
 ```markdown
 - You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read *.cds files in the project.
@@ -54,7 +54,7 @@ The following rules help to guide the LLM to use the server correctly:
 **Register the server** once: run command `MCP: Add Server...`. In there:
 
 - Select `command`.
-- Set `node <your-repo>/index.js` as command.
+- Set `cds-mcp` as command.
 
 **In an application project**, open the _Chat_ panel.
 Select the server through the _Select tools_ button.
