@@ -37,7 +37,7 @@ The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
 The following rules help to guide the LLM to use the servers correctly:
 
 ```markdown
-- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read *.cds files in the project.
+- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read \*.cds files in the project.
 - Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
 - Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
 
