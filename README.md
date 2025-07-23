@@ -29,6 +29,22 @@ npm install
 npm i -g @cap-js/cds-mcp@.
 ```
 
+## Usage
+
+Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
+It is strongly recommended to use an API docs provider, like `context7`, to get the best results.
+The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
+The following rules help to guide the LLM to use the server correctly:
+
+```markdown
+- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read *.cds files in the project.
+- Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
+- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
+
+- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking context7.
+- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
+```
+
 ## Usage in VS Code
 
 > [!CAUTION]
@@ -69,15 +85,7 @@ Use the following configuration in ~/.config/opencode/opencode.json, it's recomm
 }
 ```
 
-It's useful to add the following rules to your ~/.config/opencode/AGENTS.md:
-
-```markdown
-- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read *.cds files in the project.
-- Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
-- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking context7.
-- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
-- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
-```
+Don't forget to add the rules to ~/.config/opencode/AGENTS.md, or in your project-specific AGENTS.md file.
 
 ## Usage in MCP Inspector
 
