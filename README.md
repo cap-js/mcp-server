@@ -1,6 +1,6 @@
 # MCP Server for CAP
 
-A Model Context Protocol server that exposes CAP's CDS model as resources.
+A Model Context Protocol server for CAP development.
 
 It's in an **alpha state**.
 
@@ -8,17 +8,9 @@ It's in an **alpha state**.
 
 The server is supposed to help AI models answer questions like
 
-- _Which CDS services are there in this project?_
+- _Which CDS services are there in this project and where are they served?_
 - _What are the entities about?_
 - _How do they relate?_
-
-On top, [MCP tools](https://modelcontextprotocol.io/docs/concepts/tools) could be provided that can
-
-- Create projects.
-- Fill it will content, like adding test data, handler stubs.
-- Read the application configuration.
-
-and more.
 
 ## Setup
 
