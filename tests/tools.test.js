@@ -21,6 +21,8 @@ test.describe('tools', () => {
     assert.equal(result[0].name, 'AdminService', 'Should find Adminservice.Books service')
     assert.equal(result[0].endpoints[0].kind, 'odata', 'Should contain odata endpoint kind')
     assert.equal(result[0].endpoints[0].path, 'odata/v4/admin/', 'Should contain endpoint path')
+    assert(Array.isArray(result[0].exposedEntities), 'Should contain exposed entities')
+    assert.equal(result[0].exposedEntities[0], 'AdminService.Books', 'Should contain exposed entities')
   })
 
   test('search_cds_definitions: fuzzy search for Books entity', async () => {
