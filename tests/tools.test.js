@@ -20,7 +20,7 @@ test.describe('tools', () => {
     assert(Array.isArray(result[0].endpoints), 'Should contain endpoints')
     assert.equal(result[0].name, 'AdminService', 'Should find Adminservice.Books service')
     assert.equal(result[0].endpoints[0].kind, 'odata', 'Should contain odata endpoint kind')
-    assert.equal(result[0].endpoints[0].path, '/odata/v4/admin/', 'Should contain endpoint path')
+    assert.equal(result[0].endpoints[0].path, 'odata/v4/admin/', 'Should contain endpoint path')
   })
 
   test('search_cds_definitions: fuzzy search for Books entity', async () => {
@@ -35,7 +35,7 @@ test.describe('tools', () => {
     assert(books[0].name, 'AdminService.Books', 'Should find AdminService.Books entity')
     assert(Array.isArray(books[0].endpoints), 'Should contain endpoints')
     assert.equal(books[0].endpoints[0].kind, 'odata', 'Should contain odata endpoint kind')
-    assert.equal(books[0].endpoints[0].path, '/odata/v4/admin/Books', 'Should contain endpoint path')
+    assert.equal(books[0].endpoints[0].path, 'odata/v4/admin/Books', 'Should contain endpoint path')
   })
 
   test('list_all_cds_definition_names: should list all entities', async () => {
