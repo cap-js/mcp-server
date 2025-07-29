@@ -40,21 +40,27 @@ test.describe('tools', () => {
     assert.equal(books[0].endpoints[0].path, 'odata/v4/admin/Books', 'Should contain endpoint path')
   })
 
-  test('list_all_cds_definition_names: should list all entities', async () => {
-    const entities = await tools.list_all_cds_definition_names.handler({
+  test('search_cds_definitions: should list all entities (namesOnly)', async () => {
+    const entities = await tools.search_cds_definitions.handler({
       projectPath: sampleProjectPath,
-      kind: 'entity'
+      kind: 'entity',
+      topN: 100,
+      namesOnly: true
     })
     assert(Array.isArray(entities), 'Entities should be an array')
     assert(entities.length > 0, 'Should find at least one entity')
+    assert(typeof entities[0] === 'string', 'Should return only names')
   })
 
-  test('list_all_cds_definition_names: should list all services', async () => {
-    const services = await tools.list_all_cds_definition_names.handler({
+  test('search_cds_definitions: should list all services (namesOnly)', async () => {
+    const services = await tools.search_cds_definitions.handler({
       projectPath: sampleProjectPath,
-      kind: 'service'
+      kind: 'service',
+      topN: 100,
+      namesOnly: true
     })
     assert(Array.isArray(services), 'Services should be an array')
     assert(services.length > 0, 'Should find at least one service')
+    assert(typeof services[0] === 'string', 'Should return only names')
   })
 })
