@@ -1,6 +1,7 @@
 using { Currency, managed, sap } from '@sap/cds/common';
 namespace sap.capire.bookshop;
 
+@odata.draft.enabled
 entity Books : managed {
   key ID : Integer;
   @mandatory title  : localized String(111);

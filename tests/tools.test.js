@@ -38,6 +38,15 @@ test.describe('tools', () => {
     assert(Array.isArray(books[0].endpoints), 'Should contain endpoints')
     assert.equal(books[0].endpoints[0].kind, 'odata', 'Should contain odata endpoint kind')
     assert.equal(books[0].endpoints[0].path, 'odata/v4/admin/Books', 'Should contain endpoint path')
+
+    // Check that keys are present and correct
+    assert(books[0].elements.ID, 'Books entity should have key ID')
+    assert(books[0].elements.ID.key === true, 'ID should be marked as key')
+    // Check draft fields
+    assert(books[0].elements.IsActiveEntity, 'Draft-enabled entity should have IsActiveEntity')
+    assert(books[0].elements.IsActiveEntity.key === true, 'IsActiveEntity should be marked as key')
+    assert(books[0].elements.HasActiveEntity, 'Draft-enabled entity should have HasActiveEntity')
+    assert(books[0].elements.HasDraftEntity, 'Draft-enabled entity should have HasDraftEntity')
   })
 
   test('search_cds_definitions: should list all entities (namesOnly)', async () => {
