@@ -42,6 +42,17 @@ test.describe('tools', () => {
     // Check that keys are present and correct
     assert(books[0].elements.ID, 'Books entity should have key ID')
     assert(books[0].elements.ID.key === true, 'ID should be marked as key')
+  })
+
+  test('search_cds_definitions: draft fields for Books entity', async () => {
+    const books = await tools.search_cds_definitions.handler({
+      projectPath: sampleProjectPath,
+      name: 'Books',
+      kind: 'entity',
+      topN: 2
+    })
+    assert(Array.isArray(books), 'Result should be an array')
+    assert(books.length > 0, 'Should find at least one entity')
     // Check draft fields
     assert(books[0].elements.IsActiveEntity, 'Draft-enabled entity should have IsActiveEntity')
     assert(books[0].elements.IsActiveEntity.key === true, 'IsActiveEntity should be marked as key')
