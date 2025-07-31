@@ -6,11 +6,7 @@ import tools from './lib/tools.js'
 
 const server = new McpServer({
   name: 'cds-mcp',
-  version: '0.1.0',
-  capabilities: {
-    resources: {},
-    roots: {}
-  }
+  version: '0.1.0'
 })
 
 for (const t in tools) {
