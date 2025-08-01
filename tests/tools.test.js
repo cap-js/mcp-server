@@ -101,9 +101,9 @@ test.describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test('search_llms_docs: should find docs and code blocks', async () => {
+  test('search_cap_docs: should find docs and code blocks', async () => {
     // Normal search
-    const results = await tools.search_llms_docs.handler({
+    const results = await tools.search_cap_docs.handler({
       query: 'init',
       maxResults: 3,
       codeOnly: false
@@ -116,7 +116,7 @@ test.describe('tools', () => {
     )
 
     // Code block search
-    const codeResults = await tools.search_llms_docs.handler({
+    const codeResults = await tools.search_cap_docs.handler({
       query: 'init',
       maxResults: 5,
       codeOnly: true
@@ -130,8 +130,8 @@ test.describe('tools', () => {
   })
 })
 
-test('search_llms_docs: event mesh should mention enterprise-messaging', async () => {
-  const meshResults = await tools.search_llms_docs.handler({
+test('search_cap_docs: event mesh should mention enterprise-messaging', async () => {
+  const meshResults = await tools.search_cap_docs.handler({
     query: 'event mesh',
     maxResults: 10,
     codeOnly: false
