@@ -108,12 +108,7 @@ test.describe('tools', () => {
       maxResults: 3,
       codeOnly: false
     })
-    assert(Array.isArray(results), 'Results should be an array')
-    assert(results.length > 0, 'Should return at least one result')
-    assert(
-      results.some(r => r.toLowerCase().includes('cds init')),
-      'Should contain the words cds init'
-    )
+    assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
 
     // Code block search
     const codeResults = await tools.search_cap_docs.handler({
@@ -121,10 +116,8 @@ test.describe('tools', () => {
       maxResults: 5,
       codeOnly: true
     })
-    assert(Array.isArray(codeResults), 'Code results should be an array')
-    assert(codeResults.length > 0, 'Should return at least one code block result')
     assert(
-      codeResults.every(r => r.includes('```')),
+      codeResults.split('---').every(r => r.includes('```')),
       'All results should be code blocks'
     )
   })
@@ -136,10 +129,8 @@ test('search_cap_docs: event mesh should mention enterprise-messaging', async ()
     maxResults: 10,
     codeOnly: false
   })
-  assert(Array.isArray(meshResults), 'Results should be an array')
-  assert(meshResults.length > 0, 'Should return at least one result')
   assert(
-    meshResults.some(r => r.toLowerCase().includes('enterprise-messaging')),
+    meshResults.toLowerCase().includes('enterprise-messaging'),
     'Should mention enterprise-messaging in the results'
   )
 })
