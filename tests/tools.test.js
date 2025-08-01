@@ -36,7 +36,7 @@ test.describe('tools', () => {
     // Entity endpoints
     const books = await tools.search_cds_definitions.handler({
       projectPath: sampleProjectPath,
-      name: 'Books',
+      query: 'Books',
       kind: 'entity',
       topN: 2
     })
@@ -48,7 +48,7 @@ test.describe('tools', () => {
   test('search_cds_definitions: fuzzy search for Books entity', async () => {
     const books = await tools.search_cds_definitions.handler({
       projectPath: sampleProjectPath,
-      name: 'Books',
+      query: 'Books',
       kind: 'entity',
       topN: 2
     })
@@ -64,7 +64,7 @@ test.describe('tools', () => {
   test('search_cds_definitions: draft fields for Books entity', async () => {
     const books = await tools.search_cds_definitions.handler({
       projectPath: sampleProjectPath,
-      name: 'Books',
+      query: 'Books',
       kind: 'entity',
       topN: 2
     })
@@ -100,4 +100,46 @@ test.describe('tools', () => {
     assert(services.length > 0, 'Should find at least one service')
     assert(typeof services[0] === 'string', 'Should return only names')
   })
+
+  test('search_llms_docs: should find docs and code blocks', async () => {
+    // Normal search
+    const results = await tools.search_llms_docs.handler({
+      query: 'init',
+      maxResults: 3,
+      codeOnly: false
+    })
+    assert(Array.isArray(results), 'Results should be an array')
+    assert(results.length > 0, 'Should return at least one result')
+    assert(
+      results.some(r => r.toLowerCase().includes('cds init')),
+      'Should contain the words cds init'
+    )
+
+    // Code block search
+    const codeResults = await tools.search_llms_docs.handler({
+      query: 'init',
+      maxResults: 5,
+      codeOnly: true
+    })
+    assert(Array.isArray(codeResults), 'Code results should be an array')
+    assert(codeResults.length > 0, 'Should return at least one code block result')
+    assert(
+      codeResults.every(r => r.includes('```')),
+      'All results should be code blocks'
+    )
+  })
+})
+
+test('search_llms_docs: event mesh should mention enterprise-messaging', async () => {
+  const meshResults = await tools.search_llms_docs.handler({
+    query: 'event mesh',
+    maxResults: 10,
+    codeOnly: false
+  })
+  assert(Array.isArray(meshResults), 'Results should be an array')
+  assert(meshResults.length > 0, 'Should return at least one result')
+  assert(
+    meshResults.some(r => r.toLowerCase().includes('enterprise-messaging')),
+    'Should mention enterprise-messaging in the results'
+  )
 })

@@ -17,7 +17,8 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
     "@sap/cds": "^8.9.1",
-    "fuse.js": "^7.1.0"
+    "fuse.js": "^7.1.0",
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
