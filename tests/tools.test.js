@@ -108,7 +108,6 @@ test.describe('tools', () => {
       maxResults: 3,
       codeOnly: false
     })
-    console.log(results)
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
 
     // Code block search
@@ -118,7 +117,7 @@ test.describe('tools', () => {
       codeOnly: true
     })
     assert(
-      codeResults.split('---').every(r => r.includes('```')),
+      codeResults.split('---\n').every(r => r.includes('```')),
       'All results should be code blocks'
     )
   })
