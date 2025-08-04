@@ -100,4 +100,37 @@ test.describe('tools', () => {
     assert(services.length > 0, 'Should find at least one service')
     assert(typeof services[0] === 'string', 'Should return only names')
   })
+
+  test('search_cap_docs: should find docs and code blocks', async () => {
+    // Normal search
+    const results = await tools.search_cap_docs.handler({
+      query: 'init',
+      maxResults: 3,
+      codeOnly: false
+    })
+    assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
+
+    // Code block search
+    const codeResults = await tools.search_cap_docs.handler({
+      query: 'init',
+      maxResults: 5,
+      codeOnly: true
+    })
+    assert(
+      codeResults.split('---\n').every(r => r.includes('```')),
+      'All results should be code blocks'
+    )
+  })
+
+  test('search_cap_docs: event mesh should mention enterprise-messaging', async () => {
+    const meshResults = await tools.search_cap_docs.handler({
+      query: 'event mesh',
+      maxResults: 10,
+      codeOnly: false
+    })
+    assert(
+      meshResults.toLowerCase().includes('enterprise-messaging'),
+      'Should mention enterprise-messaging in the results'
+    )
+  })
 })

@@ -16,7 +16,8 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.8.0",
-    "@sap/cds": "^8.9.1"
+    "@sap/cds": "^8.9.1",
+    "minisearch": "^7.1.2"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.10.0",
