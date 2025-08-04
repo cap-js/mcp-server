@@ -101,7 +101,7 @@ test.describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test.only('search_cap_docs: should find docs and code blocks', async () => {
+  test('search_cap_docs: should find docs and code blocks', async () => {
     // Normal search
     const results = await tools.search_cap_docs.handler({
       query: 'init',
