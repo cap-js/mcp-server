@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import { test } from 'node:test'
-import { searchMarkdownDocs } from '../lib/searchMarkdownDocs.js'
+import searchMarkdownDocs from '../lib/searchMarkdownDocs.js'
 
 const markdown = [
   '# Section One',
