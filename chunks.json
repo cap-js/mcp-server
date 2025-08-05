@@ -1,0 +1,97 @@
+{
+  "dim": 384,
+  "count": 10,
+  "chunks": [
+    {
+      "id": 0,
+      "heading": "Getting Started",
+      "codeBlocks": [],
+      "content": "# Getting Started\nYour First Steps {.subtitle}\n\nWelcome to CAP, and to *capire*, its one-stop documentation.\n\n[**CAP** [ˈkap(m)] — (unofficial) abbreviation for the *\"SAP Cloud Application Programming Model\"*](https://translate.google.com/details?sl=en&text=cap){.learn-more .dict}\n\n[**capire** [ca·pì·re] — Italian for _\"understand\"_](https://translate.google.com/details?sl=it&tl=en&text=capire){.learn-more .dict}",
+      "level": 1,
+      "parentIndex": null
+    },
+    {
+      "id": 1,
+      "heading": "Initial Setup {#setup}",
+      "codeBlocks": [],
+      "content": "## Initial Setup {#setup}\n\nFollow the steps after this for a minimalistic local setup. Alternatively, you can use CAP in [SAP Build Code](https://pages.community.sap.com/topics/build-code), or other cloud-based setups, such as GitHub codespaces.",
+      "level": 2,
+      "parentIndex": 0
+    },
+    {
+      "id": 2,
+      "heading": "Prerequisites",
+      "codeBlocks": [],
+      "content": "### Prerequisites\n\n- [Node.js](https://nodejs.org) — required for installing the `cds` command line interface\n- [SQLite](https://sqlite.org) — included in macOS and Linux → [install it](https://sqlite.org/download.html) on Windows\n- **A Terminal**{} — for using the `cds` command line interface (CLI)\n- **A Text Editor**{} → we recommend [VS Code](https://code.visualstudio.com) with [CDS plugin](../tools/cds-editors#vscode)",
+      "level": 3,
+      "parentIndex": 1
+    },
+    {
+      "id": 3,
+      "heading": "Installation",
+      "codeBlocks": [
+        "```sh\n    npm add -g @sap/cds-dk\n    ```",
+        "```sh\n  cds\n  ```",
+        "```sh\n  USAGE\n\n      cds <command> [<args>]\n      cds <src>  =  cds compile <src>\n      cds        =  cds help\n\n  COMMANDS\n\n      i | init        jump-start cds-based projects\n      a | add         add a feature to an existing project\n      c | compile     compile cds models to different outputs\n      s | serve       run your services in local server\n      w | watch       run and restart on file changes\n      r | repl        read-eval-event loop\n      e | env         inspect effective configuration\n      b | build       prepare for deployment\n      d | deploy      deploy to databases or cloud\n      v | version     get detailed version information\n      ? | help        get detailed usage information\n\n    Learn more about each command using:\n    cds help <command> or\n    cds <command> --help\n\n  ```"
+      ],
+      "content": "### Installation\n\n- With the prerequisites met, install the [`cds` toolkit](../tools/cds-cli) *globally*:\n\n    ```sh\n    npm add -g @sap/cds-dk\n    ```\n\n    [Visit the _Troubleshooting_ guide](troubleshooting.md) if you encounter any errors. {.learn-more}\n\n- Run `cds` to check whether installation was successful:\n\n  ```sh\n  cds\n  ```\n\n  You see some output like that:\n\n  ```sh\n  USAGE\n\n      cds <command> [<args>]\n      cds <src>  =  cds compile <src>\n      cds        =  cds help\n\n  COMMANDS\n\n      i | init        jump-start cds-based projects\n      a | add         add a feature to an existing project\n      c | compile     compile cds models to different outputs\n      s | serve       run your services in local server\n      w | watch       run and restart on file changes\n      r | repl        read-eval-event loop\n      e | env         inspect effective configuration\n      b | build       prepare for deployment\n      d | deploy      deploy to databases or cloud\n      v | version     get detailed version information\n      ? | help        get detailed usage information\n\n    Learn more about each command using:\n    cds help <command> or\n    cds <command> --help\n\n  ```",
+      "level": 3,
+      "parentIndex": 1
+    },
+    {
+      "id": 4,
+      "heading": "Optional",
+      "codeBlocks": [],
+      "content": "### Optional\n\n- [Java](https://sapmachine.io) & [Maven](https://maven.apache.org/download.cgi) — if you're going for Java development → [see instructions](../java/getting-started#local).\n- [git](https://git-scm.com) — if you go for more than just some quick trials.",
+      "level": 3,
+      "parentIndex": 1
+    },
+    {
+      "id": 5,
+      "heading": "Starting Projects",
+      "codeBlocks": [
+        "```sh\n   cds init bookshop\n   ```",
+        "```sh\n   code bookshop\n   ```"
+      ],
+      "content": "## Starting Projects\n\n- Use `cds init` to start a CAP project, and then open it in VS Code:\n\n   ```sh\n   cds init bookshop\n   ```\n\n   ```sh\n   code bookshop\n   ```\n   [Assumes you activated the `code` command on macOS as documented](../tools/cds-editors#vscode) {.learn-more}",
+      "level": 2,
+      "parentIndex": 0
+    },
+    {
+      "id": 6,
+      "heading": "Project Structure",
+      "codeBlocks": [
+        "```zsh\nbookshop/        # Your project's root folder\n├─ app/          # UI-related content\n├─ srv/          # Service-related content\n├─ db/           # Domain models and database-related content\n├─ package.json  # Configuration for cds + cds-dk\n└─ readme.md     # A readme placeholder\n```",
+        "```json [package.json]\n{ ...\n  \"cds\": {\n    \"folders\": {\n       \"db\": \"database/\",\n       \"srv\": \"services/\",\n       \"app\": \"uis/\"\n    }\n  }\n}\n```",
+        "```sh [Explore the defaults in your project]\ncds env ls defaults\n```"
+      ],
+      "content": "## Project Structure\n\nThe default file structure of CAP projects is as follows:\n\n```zsh\nbookshop/        # Your project's root folder\n├─ app/          # UI-related content\n├─ srv/          # Service-related content\n├─ db/           # Domain models and database-related content\n├─ package.json  # Configuration for cds + cds-dk\n└─ readme.md     # A readme placeholder\n```\n\nCAP has defaults for many things that you'd have to configure in other frameworks. The goal is that things should just work out of the box, with zero configuration, whenever possible. You can override these defaults by a specific configuration if you need to do so.\n\n::: details See an example for configuring custom project layouts...\n\n::: code-group\n\n```json [package.json]\n{ ...\n  \"cds\": {\n    \"folders\": {\n       \"db\": \"database/\",\n       \"srv\": \"services/\",\n       \"app\": \"uis/\"\n    }\n  }\n}\n```\n\n```sh [Explore the defaults in your project]\ncds env ls defaults\n```\n\n[Learn more about project-specific configuration.](../node.js/cds-env){.learn-more}\n:::\n\n::: tip Convention over configuration\nWe recommend sticking to CAP's way of [Convention over Configuration](https://en.wikipedia.org/wiki/Convention_over_configuration) to benefit from things just working out of the  box. Only override the defaults if you really need to do so.\n:::",
+      "level": 2,
+      "parentIndex": 0
+    },
+    {
+      "id": 7,
+      "heading": "Learning More",
+      "codeBlocks": [],
+      "content": "## Learning More\n{#next-steps}\n\nAfter the [initial setup](#setup), we recommend continuing as follows while you grow as you go...:\n\n| # | Guide                                     | Description                                            |\n|---|-------------------------------------------|--------------------------------------------------------|\n| 1 | [Introduction – What is CAP?](../about/)  | Learn about key benefits and value propositions.       |\n| 2 | [Bookshop by capire](in-a-nutshell)       | Build your first CAP application within 4-44 minutes.  |\n| 3 | [Best Practices](../about/best-practices) | Key concepts & rationales to understand → *must read*. |\n| 4 | [Anti Patterns](../about/bad-practices)   | Misconceptions & bad practices to avoid → *must read*. |\n| 5 | [Learn More](learning-sources)            | Find samples, videos, blogs, tutorials, and so on.     |",
+      "level": 2,
+      "parentIndex": 0
+    },
+    {
+      "id": 8,
+      "heading": "Grow as you go...",
+      "codeBlocks": [],
+      "content": "## Grow as you go...\n\nAfter these getting started-level introductions, you would continuously revisit these guides to deepen your understanding and as reference docs:\n\n|  # | Guides & References                                                                   | Description                                    |\n|---:|---------------------------------------------------------------------------------------|------------------------------------------------|\n|  6 | [Cookbook](../guides/)                                                                | Walkthroughs for the most common tasks.        |\n|  7 | [CDS](../cds/)<br/>[Java](../java/)<br/>[Node.js](../node.js/)<br/>[Tools](../tools/) | The reference docs for these respective areas. |\n|  8 | [Plugins](../plugins/)                                                                | Curated list of recommended Calesi plugins.    |\n|  9 | [Releases](../releases/)                                                              | Your primary source to stay up to date.        |\n| 10 | [Resources](../resources/)                                                            | About support channels, community, ...         |\n\n\nThis also reflects the overall structure of [this documentation](./learning-sources.md#this-documentation).",
+      "level": 2,
+      "parentIndex": 0
+    },
+    {
+      "id": 9,
+      "heading": "Introduction to CAP",
+      "codeBlocks": [],
+      "content": "# Introduction to CAP\n\nValue Propositions {.subtitle}",
+      "level": 1,
+      "parentIndex": null
+    }
+  ]
+}
