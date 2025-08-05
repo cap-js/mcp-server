@@ -104,16 +104,16 @@ test.describe('tools', () => {
   test('search_cap_docs: should find docs and code blocks', async () => {
     // Normal search
     const results = await tools.search_cap_docs.handler({
-      query: 'init',
-      maxResults: 3,
+      query: 'how to create a new cap project',
+      maxResults: 2,
       codeOnly: false
     })
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
 
     // Code block search
     const codeResults = await tools.search_cap_docs.handler({
-      query: 'init',
-      maxResults: 5,
+      query: 'how to create a new cap project',
+      maxResults: 2,
       codeOnly: true
     })
     assert(
