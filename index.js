@@ -13,14 +13,17 @@ for (const t in tools) {
   const tool = tools[t]
   const _text =
     fn =>
-    async (...args) => ({
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(await fn(...args).catch(error => error.message))
-        }
-      ]
-    })
+    async (...args) => {
+      const result = await fn(...args).catch(error => error.message)
+      return {
+        content: [
+          {
+            type: 'text',
+            text: typeof result === 'object' ? JSON.stringify(result) : result
+          }
+        ]
+      }
+    }
   server.registerTool(t, tool, _text(tool.handler))
 }
 
