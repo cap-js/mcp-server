@@ -1,5 +1,5 @@
 {
-  "name": "@cap-js/cds-mcp",
+  "name": "@cap-js/mcp-server",
   "version": "0.1.0",
   "keywords": [],
   "author": "",
@@ -12,7 +12,7 @@
     "lib/"
   ],
   "bin": {
-    "cds-mcp": "./index.js"
+    "mcp-server": "./index.js"
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.1",

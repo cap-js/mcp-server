@@ -1,4 +1,4 @@
-// Integration test for cds-mcp server
+// Integration test for mcp-server server
 import assert from 'node:assert'
 import { test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
@@ -23,7 +23,7 @@ test.describe('integration', () => {
     }
   })
 
-  test('spawn cds-mcp and call search_cds_definitions tool', async () => {
+  test('spawn mcp-server and call search_cds_definitions tool', async () => {
     // Step 2: Spawn the MCP server in the sample project directory
     const transport = new StdioClientTransport({
       command: 'node',
