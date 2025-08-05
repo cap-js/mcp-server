@@ -8,8 +8,8 @@
   "type": "module",
   "files": [
     "index.js",
-    "samples/",
-    "lib/"
+    "lib/",
+    "docs/"
   ],
   "bin": {
     "cds-mcp": "./index.js"
