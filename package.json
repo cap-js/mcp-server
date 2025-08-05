@@ -17,6 +17,7 @@
   "dependencies": {
     "@huggingface/transformers": "^3.7.1",
     "@modelcontextprotocol/sdk": "^1.8.0",
+    "sharp": "0.32.6",
     "@sap/cds": "*"
   },
   "devDependencies": {
