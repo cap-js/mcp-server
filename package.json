@@ -20,7 +20,6 @@
     "@sap/cds": "*"
   },
   "devDependencies": {
-    "@cap-js/cds-types": "^0.10.0",
     "prettier": "*"
   },
   "scripts": {
