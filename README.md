@@ -40,7 +40,7 @@ npm i -g @cap-js/mcp-server@.
 
 ## Usage
 
-Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `mcp-server`.
+Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
 It is strongly recommended to use an API docs provider, like `context7`, to get the best results.
 The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
 The following rules help to guide the LLM to use the servers correctly:
@@ -63,7 +63,7 @@ The following rules help to guide the LLM to use the servers correctly:
 **Register the server** once: run command `MCP: Add Server...`.
 In there:
 - Select `command`.
-- Set `mcp-server` as command.
+- Set `cds-mcp` as command.
 
 **In an application project**, open the _Chat_ panel.
 Select the server through the _Select tools_ button.
@@ -81,7 +81,7 @@ Use the following configuration in `~/.config/opencode/opencode.json`, it's reco
   "mcp": {
     "cds": {
       "type": "local",
-      "command": ["mcp-server"],
+      "command": ["cds-mcp"],
       "enabled": true,
       "environment": {}
     },
