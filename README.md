@@ -69,10 +69,6 @@ For `context7`:
 
 ### Usage in VS Code
 
-> [!CAUTION]
-> At SAP, MCP in VS Code seems to be centrally **disabled** at the moment.
-> Error is: _Unable to write chat.mcp.enabled because it is configured in system policy._
-
 **Register the server** once: run command `MCP: Add Server...`.
 In there:
 - Select `command`.
