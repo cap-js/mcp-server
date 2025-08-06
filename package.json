@@ -8,7 +8,7 @@
   "type": "module",
   "files": [
     "index.js",
-    "samples/",
+    "docs/",
     "lib/"
   ],
   "bin": {
