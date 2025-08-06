@@ -11,7 +11,7 @@
 
 ## About this project
 
-`@cap-js/mcp-server` is a Model Context Protocol (MCP) server for AI-assisted development (_vibe coding_) of CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
 
 The server is supposed to help AI models answer questions like
 
