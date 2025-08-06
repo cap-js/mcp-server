@@ -41,7 +41,7 @@ npm i -g @cap-js/mcp-server@.
 ## Usage
 
 Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
-For up-to-date documentation, you can either use an API docs provider, like `context7`, or let the LLM use the tool `search_cap_docs`.
+For up-to-date documentation, you can either use an API docs provider, like `context7`, or let the LLM use the tool `search_cap_docs`, as provided by this mcp server.
 
 The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
 
