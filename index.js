@@ -5,7 +5,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import tools from './lib/tools.js'
 
 const server = new McpServer({
-  name: 'cds-mcp',
+  name: 'mcp-server',
   version: '0.1.0'
 })
 
