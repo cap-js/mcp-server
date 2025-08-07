@@ -110,7 +110,7 @@ test.describe('tools', () => {
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
   })
 
-  test.only('search_cap_docs: event mesh should mention enterprise-messaging', async () => {
+  test('search_cap_docs: event mesh should mention enterprise-messaging', async () => {
     const meshResults = await tools.search_cap_docs.handler({
       query: 'event mesh config',
       maxResults: 10
