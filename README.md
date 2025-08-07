@@ -2,12 +2,8 @@
 
 [![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
 
-
-
 > [!WARNING]
 > Alpha!
-
-
 
 ## About this project
 
@@ -19,13 +15,9 @@ The server is supposed to help AI models answer questions like
 - _What are the entities about?_
 - _How do they relate?_
 
-
-
 ## Requirements
 
 See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstart your development and grow as you go with SAP Cloud Application Programming Model.
-
-
 
 ## Setup
 
@@ -35,8 +27,6 @@ cd mcp-server
 npm install
 npm i -g @cap-js/mcp-server@.
 ```
-
-
 
 ## Usage
 
@@ -52,6 +42,7 @@ The following rules help to guide the LLM to use the servers correctly:
 - Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
 - Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
 ```
+
 For `search_cap_docs` tool:
 
 ```markdown
@@ -66,11 +57,11 @@ For `context7`:
 - You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
 ```
 
-
 ### Usage in VS Code
 
 **Register the server** once: run command `MCP: Add Server...`.
 In there:
+
 - Select `command`.
 - Set `cds-mcp` as command.
 
@@ -78,7 +69,6 @@ In there:
 Select the server through the _Select tools_ button.
 
 See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more.
-
 
 ### Usage in [opencode](https://github.com/sst/opencode)
 
@@ -106,7 +96,6 @@ Use the following configuration in `~/.config/opencode/opencode.json`, it's reco
 
 Don't forget to add the rules to `~/.config/opencode/AGENTS.md`, or in your project-specific `AGENTS.md` file.
 
-
 ### Usage in MCP Inspector
 
 You can test the server with the _MCP Inspector tool_:
@@ -118,25 +107,17 @@ npx @modelcontextprotocol/inspector node index.js <projectRoot>
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
-
-
 ## Support, Feedback, Contributing
 
 This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
-
-
 
 ## Security / Disclosure
 
 If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
 
-
-
 ## Code of Conduct
 
 We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
-
-
 
 ## Licensing
 
