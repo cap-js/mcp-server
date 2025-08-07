@@ -24,7 +24,7 @@ See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstar
 ```sh
 git clone https://github.com/cap-js/mcp-server
 cd mcp-server
-npm install
+npm i
 npm i -g @cap-js/mcp-server@.
 ```
 
