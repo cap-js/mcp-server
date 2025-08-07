@@ -1,19 +1,28 @@
 {
   "name": "@cap-js/mcp-server",
   "version": "0.0.1",
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "A simple MCP server for CAP",
+  "description": "Model Context Protocol (MCP) server for AI-assisted development (vibe coding) of CAP applications.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cap-js/mcp-server.git"
+  },
+  "author": "SAP SE (https://www.sap.com)",
+  "homepage": "https://cap.cloud.sap/",
+  "license": "Apache-2.0",
   "type": "module",
   "files": [
-    "index.js",
-    "docs/",
-    "models/",
-    "lib/"
+    "docs",
+    "lib",
+    "models",
+    "CHANGELOG.md",
+    "index.js"
   ],
   "bin": {
     "cds-mcp": "./index.js"
+  },
+  "scripts": {
+    "test": "node --test",
+    "lint": "npx eslint ."
   },
   "dependencies": {
     "@huggingface/transformers": "^3.7.1",
@@ -22,9 +31,5 @@
   },
   "devDependencies": {
     "prettier": "*"
-  },
-  "scripts": {
-    "test": "node --test",
-    "lint": "npx eslint ."
   }
 }
