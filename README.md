@@ -31,30 +31,11 @@ npm i -g @cap-js/mcp-server@.
 ## Usage
 
 Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
-For up-to-date documentation, you can either use an API docs provider, like `context7`, or let the LLM use the tool `search_cap_docs`, as provided by this mcp server.
-
-The library ID for CAP in `context7` is `/context7/cap_cloud_sap`.
-
 The following rules help to guide the LLM to use the servers correctly:
 
 ```markdown
-- You MUST search for CDS definitions, like entities, fields and services with the MCP server `cds`, only if it fails you MAY read \*.cds files in the project.
-- Whenever you want to execute OData requests to the running CAP app, you must first search the cds definition `search_cds_definition` to retrieve the service entity (not the db entity), which contains info about the endpoint
-- Whenever you start the cds app, e.g. using `cds serve`, it must be done in the background and afterwards you must check that it runs.
-```
-
-For `search_cap_docs` tool:
-
-```markdown
-- You MUST consult `search_cap_docs` for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking `search_cap_docs`.
-- You MUST consult `search_cap_docs` for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking `search_cap_docs`.
-```
-
-For `context7`:
-
-```markdown
-- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you modify CDS models. Do NOT propose, suggest or make any CDS changes without first checking context7.
-- You MUST consult context7 (library id: `/context7/cap_cloud_sap`) for documentation and guidance EVERY TIME you use APIs from SAP Cloud Application Programming Model (CAP). Do NOT propose, suggest or make any CDS changes without first checking context7.
+- You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
+- You MUST search for CAP docs with cds-mcp EVERY TIME you modify CDS models or when using APIs from CAP. Do NOT propose, suggest or make any changes without first checking it.
 ```
 
 ### Usage in VS Code
@@ -72,21 +53,15 @@ See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-serve
 
 ### Usage in [opencode](https://github.com/sst/opencode)
 
-Use the following configuration in `~/.config/opencode/opencode.json`, it's recommended to use an API docs provider, like `context7`:
+Use the following configuration in `~/.config/opencode/opencode.json`:
 
 ```json
 {
   "$schema": "https://opencode.ai/config.json",
   "mcp": {
-    "cds": {
+    "cds-mcp": {
       "type": "local",
       "command": ["cds-mcp"],
-      "enabled": true,
-      "environment": {}
-    },
-    "context7": {
-      "type": "local",
-      "command": ["context7-mcp"],
       "enabled": true,
       "environment": {}
     }
