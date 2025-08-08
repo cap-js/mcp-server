@@ -14,15 +14,6 @@ The server helps AI models answer questions like:
 - _How do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
 
-## Setup
-
-```sh
-git clone https://github.tools.sap/cap/cds-mcp
-cd cds-mcp
-npm i
-npm i -g @sap/cds-mcp@.
-```
-
 ## Available Tools
 
 The server provides two main tools for CAP development:
@@ -40,6 +31,15 @@ Search CAP documentation for:
 - API usage patterns
 - Best practices
 - Implementation guides
+
+## Setup
+
+```sh
+git clone https://github.tools.sap/cap/cds-mcp
+cd cds-mcp
+npm i
+npm i -g @sap/cds-mcp@.
+```
 
 ## Usage
 Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
