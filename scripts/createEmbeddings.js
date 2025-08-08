@@ -25,12 +25,9 @@ const getSystemMessage = () => ({
 async function main() {
   // can also run independently, stored/read on file system
   // await createSnippets();
-  await createSnippetsEmbeddings();
-  // await publishToGit()
+  // await createSnippetsEmbeddings();
+  // afterwards, copy ./docs/* to https://github.tools.sap/cap/docs-resources -> public/embeddings/
 
-}
-
-async function publishToGit() {
 }
 
 async function createSnippetsEmbeddings() {
