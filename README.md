@@ -7,11 +7,6 @@
 
 MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
 
-The server provides two main tools:
-
-- **`search_model`** - Search for CDS definitions (entities, services, actions) with metadata, annotations, and HTTP endpoints
-- **`search_docs`** - Search CAP documentation for code snippets and API examples
-
 The server is supposed to help AI models answer questions like
 
 - _Which CDS services are there in this project and where are they served?_
@@ -69,10 +64,6 @@ cds-mcp search_model "/path/to/project" "Books" "entity"
 # Search CAP documentation  
 cds-mcp search_docs "how to add columns to a select statement in node.js"
 ```
-
-Available tools:
-- `search_model <projectPath> [name] [kind] [topN] [namesOnly]` - Search for CDS definitions (entities, services, etc.)
-- `search_docs <query> [maxResults]` - Search CAP documentation for code snippets and examples
 
 ### Usage in VS Code
 
