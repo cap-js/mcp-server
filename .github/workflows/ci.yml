@@ -15,6 +15,8 @@ jobs:
     runs-on: solinas
     steps:
       - uses: actions/checkout@v2
+      - name: Use Node.js
+        uses: actions/setup-node@v2
       - run: npm i
       - run: npm run lint
   test:
