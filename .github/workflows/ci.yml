@@ -15,9 +15,11 @@ jobs:
     runs-on: solinas
     steps:
       - uses: actions/checkout@v2
-      - name: Use Node.js
+      - name: Use Node.js 22.x
         uses: actions/setup-node@v2
-      - run: npm i
+        with:
+          node-version: 22.x
+      - run: npm ci
       - run: npm run lint
   test:
     runs-on: solinas
