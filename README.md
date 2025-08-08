@@ -1,7 +1,5 @@
 # Welcome to @sap/cds-mcp
 
-[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
-
 > [!WARNING]
 > Alpha!
 
