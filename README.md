@@ -5,17 +5,14 @@
 
 ## About this project
 
-MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) with CAP applications.
 
-The server is supposed to help AI models answer questions like
+The server helps AI models answer questions like:
 
 - _Which CDS services are there in this project and where are they served?_
 - _What are the entities about?_
 - _How do they relate?_
-
-## Requirements
-
-See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstart your development and grow as you go with SAP Cloud Application Programming Model.
+- _How do I add columns to a select statement in CAP Node.js?_
 
 ## Setup
 
@@ -45,8 +42,8 @@ Search CAP documentation for:
 - Implementation guides
 
 ## Usage
-Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
-The following rules help to guide the LLM to use the servers correctly:
+Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
+The following rules help guide the LLM to use the server correctly:
 
 ```markdown
 - You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
@@ -62,7 +59,7 @@ You can also use the tools directly from the command line:
 cds-mcp search_model "/path/to/project" "Books" "entity"
 
 # Search CAP documentation  
-cds-mcp search_docs "how to add columns to a select statement in node.js"
+cds-mcp search_docs "how to add columns to a select statement in CAP Node.js"
 ```
 
 ### Usage in VS Code
@@ -103,8 +100,7 @@ Don't forget to add the rules to `~/.config/opencode/AGENTS.md`, or in your proj
 You can test the server with the _MCP Inspector tool_:
 
 ```sh
-cd mcp-server
-npx @modelcontextprotocol/inspector node index.js <projectRoot>
+npx @modelcontextprotocol/inspector cds-mcp <projectRoot>
 ```
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
