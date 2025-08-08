@@ -110,6 +110,31 @@ npx @modelcontextprotocol/inspector cds-mcp <projectRoot>
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
+## How It Works
+
+The server provides two complementary search mechanisms optimized for different use cases:
+
+### `search_model` - Compiled Model Search
+
+This tool performs fuzzy search against the compiled CDS model (CSN - Core Schema Notation). When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
+
+- All entities, services, actions, and their relationships
+- Resolved annotations and metadata
+- Generated HTTP endpoints and OData URLs
+- Cross-references between definitions
+
+The fuzzy search algorithm matches definition names and allows for typos or partial matches, making it easy to find entities like "Books" even when searching for "book" or "boks".
+
+### `search_docs` - Embedding-Based Documentation Search
+
+This tool uses vector embeddings to search through CAP documentation content stored locally. The process works as follows:
+
+1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model
+2. **Query processing**: Your search query is also converted to an embedding vector
+3. **Similarity search**: The system finds documentation chunks with the highest semantic similarity to your query
+
+This approach enables semantic search - you can find relevant documentation even when your query doesn't contain exact keywords from the docs.
+
 ## How to Obtain Support
 
 In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/resources/#support-channels) on SAP Support Portal.
