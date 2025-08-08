@@ -1,4 +1,4 @@
-# Welcome to @cap-js/mcp-server
+# Welcome to @sap/cds-mcp
 
 [![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
 
@@ -7,7 +7,7 @@
 
 ## About this project
 
-MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
 
 The server is supposed to help AI models answer questions like
 
@@ -25,7 +25,7 @@ See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstar
 git clone https://github.com/cap-js/mcp-server
 cd mcp-server
 npm i
-npm i -g @cap-js/mcp-server@.
+npm i -g @sap/cds-mcp@.
 ```
 
 ## Usage
