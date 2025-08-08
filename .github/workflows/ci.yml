@@ -30,4 +30,5 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm i
+      - run: node --test tests/tools.test.js
       - run: npm run test
