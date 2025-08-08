@@ -9,7 +9,6 @@
   "files": [
     "index.js",
     "docs/",
-    "models/",
     "lib/"
   ],
   "bin": {

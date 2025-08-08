@@ -30,4 +30,5 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm i
+      - run: node --test tests/embeddings.test.js # needed to load the model before running multiple tests
       - run: npm run test
