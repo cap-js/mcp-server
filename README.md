@@ -5,7 +5,7 @@
 
 ## About this project
 
-MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) with CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_agentic coding_) with CAP applications.
 
 The server helps AI models answer questions like:
 
