@@ -23,7 +23,7 @@ test.describe('integration', () => {
     }
   })
 
-  test('spawn mcp-server and call search_cds_definitions tool', async () => {
+  test('spawn mcp-server and call search_model tool', async () => {
     // Step 2: Spawn the MCP server in the sample project directory
     const transport = new StdioClientTransport({
       command: 'node',
@@ -37,7 +37,7 @@ test.describe('integration', () => {
 
     // Step 4: Programmatically call a tool and verify output
     const result = await client.callTool({
-      name: 'search_cds_definitions',
+      name: 'search_model',
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'service',
@@ -71,7 +71,7 @@ test.describe('integration', () => {
 
     // Step 2: Ensure TestService/TestEntity are NOT found
     const serviceResultBefore = await client.callTool({
-      name: 'search_cds_definitions',
+      name: 'search_model',
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'service',
@@ -82,7 +82,7 @@ test.describe('integration', () => {
     assert(!servicesBefore.some(s => s.name === 'TestService'), 'TestService should NOT be found before creation')
 
     const entityResultBefore = await client.callTool({
-      name: 'search_cds_definitions',
+      name: 'search_model',
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'entity',
@@ -101,7 +101,7 @@ test.describe('integration', () => {
     await wait(300)
     // Check for TestService
     const serviceResult = await client.callTool({
-      name: 'search_cds_definitions',
+      name: 'search_model',
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'service',
@@ -114,7 +114,7 @@ test.describe('integration', () => {
     }
     // Check for TestEntity
     const entityResult = await client.callTool({
-      name: 'search_cds_definitions',
+      name: 'search_model',
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'entity',

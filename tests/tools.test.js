@@ -9,8 +9,8 @@ import { dirname, join } from 'path'
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
 test.describe('tools', () => {
-  test('search_cds_definitions: should find services', async () => {
-    const result = await tools.search_cds_definitions.handler({
+  test('search_model: should find services', async () => {
+    const result = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'service',
       topN: 3
@@ -22,9 +22,9 @@ test.describe('tools', () => {
     assert.equal(result[0].exposedEntities[0], 'AdminService.Books', 'Should contain exposed entities')
   })
 
-  test('search_cds_definitions: endpoints', async () => {
+  test('search_model: endpoints', async () => {
     // Service endpoints
-    const result = await tools.search_cds_definitions.handler({
+    const result = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'service',
       topN: 3
@@ -34,7 +34,7 @@ test.describe('tools', () => {
     assert.equal(result[0].endpoints[0].path, 'odata/v4/admin/', 'Should contain endpoint path')
 
     // Entity endpoints
-    const books = await tools.search_cds_definitions.handler({
+    const books = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       name: 'Books',
       kind: 'entity',
@@ -45,8 +45,8 @@ test.describe('tools', () => {
     assert.equal(books[0].endpoints[0].path, 'odata/v4/admin/Books', 'Should contain endpoint path')
   })
 
-  test('search_cds_definitions: fuzzy search for Books entity', async () => {
-    const books = await tools.search_cds_definitions.handler({
+  test('search_model: fuzzy search for Books entity', async () => {
+    const books = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       name: 'Books',
       kind: 'entity',
@@ -61,8 +61,8 @@ test.describe('tools', () => {
     assert(books[0].elements.ID.key === true, 'ID should be marked as key')
   })
 
-  test('search_cds_definitions: draft fields for Books entity', async () => {
-    const books = await tools.search_cds_definitions.handler({
+  test('search_model: draft fields for Books entity', async () => {
+    const books = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       name: 'Books',
       kind: 'entity',
@@ -77,8 +77,8 @@ test.describe('tools', () => {
     assert(books[0].elements.HasDraftEntity, 'Draft-enabled entity should have HasDraftEntity')
   })
 
-  test('search_cds_definitions: should list all entities (namesOnly)', async () => {
-    const entities = await tools.search_cds_definitions.handler({
+  test('search_model: should list all entities (namesOnly)', async () => {
+    const entities = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'entity',
       topN: 100,
@@ -89,8 +89,8 @@ test.describe('tools', () => {
     assert(typeof entities[0] === 'string', 'Should return only names')
   })
 
-  test('search_cds_definitions: should list all services (namesOnly)', async () => {
-    const services = await tools.search_cds_definitions.handler({
+  test('search_model: should list all services (namesOnly)', async () => {
+    const services = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'service',
       topN: 100,
@@ -101,17 +101,17 @@ test.describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test('search_cap_docs: should find docs', async () => {
+  test('search_docs: should find docs', async () => {
     // Normal search
-    const results = await tools.search_cap_docs.handler({
+    const results = await tools.search_docs.handler({
       query: 'how to create a new cap project',
       maxResults: 2
     })
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
   })
 
-  test('search_cap_docs: event mesh should mention enterprise-messaging', async () => {
-    const meshResults = await tools.search_cap_docs.handler({
+  test('search_docs: event mesh should mention enterprise-messaging', async () => {
+    const meshResults = await tools.search_docs.handler({
       query: 'event mesh config',
       maxResults: 10
     })
