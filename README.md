@@ -19,14 +19,18 @@ The server helps AI models answer questions like:
 The server provides two main tools for CAP development:
 
 ### `search_model`
+
 Search for CDS definitions (entities, services, actions) including:
+
 - Model structure and relationships
 - Annotations and metadata
 - HTTP endpoints and OData URLs
 - File locations
 
 ### `search_docs`
+
 Search CAP documentation for:
+
 - Code snippets and examples
 - API usage patterns
 - Best practices
@@ -42,6 +46,7 @@ npm i -g @sap/cds-mcp@.
 ```
 
 ## Usage
+
 Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
 The following rules help guide the LLM to use the server correctly:
 
@@ -56,10 +61,10 @@ You can also use the tools directly from the command line:
 
 ```sh
 # Search for CDS model definitions
-cds-mcp search_model "/path/to/project" "Books" "entity"
+cds-mcp --search_model "/path/to/project" "Books" "entity"
 
-# Search CAP documentation  
-cds-mcp search_docs "how to add columns to a select statement in CAP Node.js"
+# Search CAP documentation
+cds-mcp --search_docs "how to add columns to a select statement in CAP Node.js"
 ```
 
 ### Usage in VS Code
@@ -105,7 +110,6 @@ npx @modelcontextprotocol/inspector cds-mcp <projectRoot>
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
-
 ## How to Obtain Support
 
 In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/resources/#support-channels) on SAP Support Portal.
@@ -113,4 +117,3 @@ In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/r
 ## License
 
 This package is provided under the terms of the [SAP Developer License Agreement](https://cap.cloud.sap/resources/license/developer-license-3_2_CAP.txt).
-
