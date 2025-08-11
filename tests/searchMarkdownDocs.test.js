@@ -1,13 +1,12 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-process.env.CDS_MCP_EMBEDDINGSDIR = path.join(__dirname, '..', 'embeddings', 'for_testing')
 
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs/promises'
 
-const EMBEDDINGSDIR = process.env.CDS_MCP_EMBEDDINGSDIR
+const embeddingsDir = path.join(__dirname, '..', 'embeddings')
 
 // Use dynamic import to ensure environment variable is set before module evaluation
 const searchMarkdownDocs = (await import('../lib/searchMarkdownDocs.js')).default
@@ -23,11 +22,11 @@ describe('searchMarkdownDocs integration tests', () => {
 
     // Verify files were created
     const jsonExists = await fs
-      .access(path.join(EMBEDDINGSDIR, 'code-chunks.json'))
+      .access(path.join(embeddingsDir, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(EMBEDDINGSDIR, 'code-chunks.bin'))
+      .access(path.join(embeddingsDir, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 
@@ -50,8 +49,8 @@ describe('searchMarkdownDocs integration tests', () => {
 
   test('should use embeddings files consistently', async () => {
     // Get file stats before making calls
-    const jsonPath = path.join(EMBEDDINGSDIR, 'code-chunks.json')
-    const binPath = path.join(EMBEDDINGSDIR, 'code-chunks.bin')
+    const jsonPath = path.join(embeddingsDir, 'code-chunks.json')
+    const binPath = path.join(embeddingsDir, 'code-chunks.bin')
 
     // Ensure files exist first
     await searchMarkdownDocs('test', 1)
@@ -90,11 +89,11 @@ describe('searchMarkdownDocs integration tests', () => {
 
     // Verify files exist
     const jsonExists = await fs
-      .access(path.join(EMBEDDINGSDIR, 'code-chunks.json'))
+      .access(path.join(embeddingsDir, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(EMBEDDINGSDIR, 'code-chunks.bin'))
+      .access(path.join(embeddingsDir, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 
