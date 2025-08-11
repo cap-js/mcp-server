@@ -14,7 +14,9 @@ const getSystemMessage = () => ({
   content: `You are a chunks creator.
   You are given a documenation snippet and you need to create a list of chunks, specialized to show code samples.
   The result must be a JSON array of objects [{ labels: [<string>], code: <string>, type: "JavaScript/Java/cds/shell/json/...", summary: <string>, source: <string> }], empty array if you cannot provide any.
-  For labels: Do not invent too many, only the most important ones, reuse existing ones from ${JSON.stringify(Array.from(labels))} if possible.
+  For labels: Do not invent too many, only the most important ones, reuse existing ones from ${JSON.stringify(
+    Array.from(labels)
+  )} if possible.
   For code: Show the important code snippet.
   For type: Use existing type from ${JSON.stringify(Array.from(types))}, or invent a new one if appropriate.
   For summary: Write a short summary of what that code snippet does and in what context it is used. You can write multiple sentences, keep it technical. Include all important details to make sense of the snippet or to be able to search for it later.
@@ -32,7 +34,7 @@ async function main() {
 async function createSnippetsEmbeddings() {
   const chunks = JSON.parse(await fs.readFile(path.join(os.tmpdir(), 'code-snippets.json')))
   await createEmbeddings(
-    'code',
+    'code-chunks',
     chunks.map(c => chunkToText(c))
   )
 }

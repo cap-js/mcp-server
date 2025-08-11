@@ -8,7 +8,6 @@
   "type": "module",
   "files": [
     "index.js",
-    "embeddings/",
     "lib/"
   ],
   "bin": {
