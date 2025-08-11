@@ -22,7 +22,7 @@
     "prettier": "*"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "lint": "npx eslint ."
   }
 }

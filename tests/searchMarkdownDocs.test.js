@@ -1,12 +1,16 @@
+import { fileURLToPath } from 'url'
+import path from 'path'
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+process.env.CDS_MCP_EMBEDDINGSDIR = path.join(__dirname, '..', 'embeddings', 'for_testing')
+
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs/promises'
-import path from 'path'
-import { fileURLToPath } from 'url'
-import searchMarkdownDocs from '../lib/searchMarkdownDocs.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const EMBEDDINGS_DIR = path.join(__dirname, '..', 'embeddings')
+const EMBEDDINGSDIR = process.env.CDS_MCP_EMBEDDINGSDIR
+
+// Use dynamic import to ensure environment variable is set before module evaluation
+const searchMarkdownDocs = (await import('../lib/searchMarkdownDocs.js')).default
 
 describe('searchMarkdownDocs integration tests', () => {
   test('should download and load embeddings from server', async () => {
@@ -19,11 +23,11 @@ describe('searchMarkdownDocs integration tests', () => {
 
     // Verify files were created
     const jsonExists = await fs
-      .access(path.join(EMBEDDINGS_DIR, 'code-chunks.json'))
+      .access(path.join(EMBEDDINGSDIR, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(EMBEDDINGS_DIR, 'code-chunks.bin'))
+      .access(path.join(EMBEDDINGSDIR, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 
@@ -39,7 +43,6 @@ describe('searchMarkdownDocs integration tests', () => {
       assert(typeof result === 'string', `Result for "${query}" should be a string`)
       assert(result.length > 0, `Result for "${query}" should not be empty`)
 
-      // Should contain at most 2 chunks (plus separators)
       const chunks = result.split('\n---\n')
       assert(chunks.length <= 2, `Should return at most 2 chunks for "${query}"`)
     }
@@ -47,8 +50,8 @@ describe('searchMarkdownDocs integration tests', () => {
 
   test('should use embeddings files consistently', async () => {
     // Get file stats before making calls
-    const jsonPath = path.join(EMBEDDINGS_DIR, 'code-chunks.json')
-    const binPath = path.join(EMBEDDINGS_DIR, 'code-chunks.bin')
+    const jsonPath = path.join(EMBEDDINGSDIR, 'code-chunks.json')
+    const binPath = path.join(EMBEDDINGSDIR, 'code-chunks.bin')
 
     // Ensure files exist first
     await searchMarkdownDocs('test', 1)
@@ -87,11 +90,11 @@ describe('searchMarkdownDocs integration tests', () => {
 
     // Verify files exist
     const jsonExists = await fs
-      .access(path.join(EMBEDDINGS_DIR, 'code-chunks.json'))
+      .access(path.join(EMBEDDINGSDIR, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(EMBEDDINGS_DIR, 'code-chunks.bin'))
+      .access(path.join(EMBEDDINGSDIR, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 

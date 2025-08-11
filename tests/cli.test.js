@@ -37,8 +37,8 @@ function runCliCommand(args, options = {}) {
 }
 
 test.describe('CLI usage', () => {
-  test('search_model with --prefix works', async () => {
-    const result = await runCliCommand(['--search_model', sampleProjectPath, 'Books', 'entity'])
+  test('search_model subcommand works', async () => {
+    const result = await runCliCommand(['search_model', sampleProjectPath, 'Books', 'entity'])
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert(result.stdout.length > 0, 'Should produce output')
@@ -49,8 +49,8 @@ test.describe('CLI usage', () => {
     assert(output[0].name, 'Result should have a name property')
   })
 
-  test('search_docs with --prefix works', async () => {
-    const result = await runCliCommand(['--search_docs', 'select statement'])
+  test('search_docs subcommand works', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'])
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert(result.stdout.length > 0, 'Should produce output')
@@ -61,15 +61,15 @@ test.describe('CLI usage', () => {
   })
 
   test('invalid tool name shows error', async () => {
-    const result = await runCliCommand(['--invalid_tool', 'arg1'])
+    const result = await runCliCommand(['invalid_tool', 'arg1'])
 
     assert.equal(result.code, 1, 'Command should exit with code 1')
     assert(result.stderr.includes("Tool 'invalid_tool' not found"), 'Should show tool not found error')
     assert(result.stderr.includes('Available tools:'), 'Should list available tools')
   })
 
-  test('missing --prefix starts MCP server mode', async () => {
-    const child = spawn('node', [cdsMcpPath, 'search_model', sampleProjectPath], {
+  test('no arguments starts MCP server mode', async () => {
+    const child = spawn('node', [cdsMcpPath], {
       stdio: 'pipe'
     })
 

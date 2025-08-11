@@ -61,10 +61,10 @@ You can also use the tools directly from the command line:
 
 ```sh
 # Search for CDS model definitions
-cds-mcp --search_model . Books entity
+cds-mcp search_model . Books entity
 
 # Search CAP documentation
-cds-mcp --search_docs "how to add columns to a select statement in CAP Node.js"
+cds-mcp search_docs "how to add columns to a select statement in CAP Node.js"
 ```
 
 ### Usage in VS Code
