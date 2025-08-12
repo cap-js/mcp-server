@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import run, { runTool } from './lib/index.js'
+import run, { runTool } from './lib/run.js'
 
 const args = process.argv.slice(2)
 
