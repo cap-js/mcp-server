@@ -4,7 +4,7 @@
   "keywords": [],
   "author": "SAP SE (https://www.sap.com)",
   "license": "SEE LICENSE IN LICENSE",
-  "description": "A simple MCP server for CAP",
+  "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "type": "module",
   "files": [
     "index.js",
