@@ -1,0 +1,16 @@
+name: BlackDuck Scans
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Only run twice a week on default branch (main).
+    # BlackDuck has a min-scan-interval of 24h:
+    # Tuesday&Thursday at 01:58.
+    - cron: '58 1 * * 2,4'
+
+jobs:
+  scans:
+    uses: cap/.github/.github/workflows/scans.yml@main
+    secrets: inherit
+    with:
+      project: CDSTOOLS
