@@ -2,7 +2,7 @@
   "name": "@sap/cds-mcp",
   "version": "0.1.0",
   "keywords": [],
-  "author": "",
+  "author": "SAP SE (https://www.sap.com)",
   "license": "SEE LICENSE IN LICENSE",
   "description": "A simple MCP server for CAP",
   "type": "module",
