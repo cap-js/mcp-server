@@ -1,11 +1,11 @@
-# Welcome to @sap/cds-mcp
+# Welcome to @cap-js/mcp-server
 
 > [!WARNING]
 > Alpha!
 
 ## About this project
 
-MCP server for SAP Cloud Application Programming Model (`@sap/cds-mcp`) is a Model Context Protocol server for AI-assisted development (_agentic coding_) with CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_agentic coding_) with CAP applications.
 
 The server helps AI models answer questions like:
 
@@ -39,10 +39,10 @@ Search CAP documentation for:
 ## Setup
 
 ```sh
-git clone https://github.tools.sap/cap/cds-mcp
-cd cds-mcp
+git clone https://github.com/cap-js/mcp-server
+cd mcp-server
 npm i
-npm i -g @sap/cds-mcp@.
+npm i -g @cap-js/mcp-server@.
 ```
 
 ## Usage
