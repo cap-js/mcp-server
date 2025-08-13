@@ -39,8 +39,8 @@ Search CAP documentation for:
 ## Setup
 
 ```sh
-git clone https://github.tools.sap/cap/cds-mcp
-cd cds-mcp
+git clone https://github.com/cap-js/mcp-server
+cd mcp-server
 npm i
 npm i -g @cap-js/mcp-server@.
 ```
