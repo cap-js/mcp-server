@@ -1,23 +1,40 @@
 # Welcome to @cap-js/mcp-server
 
-[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
-
 > [!WARNING]
 > Alpha!
 
 ## About this project
 
-MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_vibe coding_) of CAP applications.
+MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_agentic coding_) with CAP applications.
 
-The server is supposed to help AI models answer questions like
+The server helps AI models answer questions like:
 
 - _Which CDS services are there in this project and where are they served?_
 - _What are the entities about?_
 - _How do they relate?_
+- _How do I add columns to a select statement in CAP Node.js?_
 
-## Requirements
+## Available Tools
 
-See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstart your development and grow as you go with SAP Cloud Application Programming Model.
+The server provides two main tools for CAP development:
+
+### `search_model`
+
+Search for CDS definitions (entities, services, actions) including:
+
+- Model structure and relationships
+- Annotations and metadata
+- HTTP endpoints and OData URLs
+- File locations
+
+### `search_docs`
+
+Search CAP documentation for:
+
+- Code snippets and examples
+- API usage patterns
+- Best practices
+- Implementation guides
 
 ## Setup
 
@@ -30,12 +47,24 @@ npm i -g @cap-js/mcp-server@.
 
 ## Usage
 
-Configure your MCP Client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
-The following rules help to guide the LLM to use the servers correctly:
+Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
+The following rules help guide the LLM to use the server correctly:
 
 ```markdown
 - You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
 - You MUST search for CAP docs with cds-mcp EVERY TIME you modify CDS models or when using APIs from CAP. Do NOT propose, suggest or make any changes without first checking it.
+```
+
+### CLI Usage
+
+You can also use the tools directly from the command line:
+
+```sh
+# Search for CDS model definitions
+cds-mcp search_model . Books entity
+
+# Search CAP documentation
+cds-mcp search_docs "how to add columns to a select statement in CAP Node.js"
 ```
 
 ### Usage in VS Code
@@ -76,24 +105,40 @@ Don't forget to add the rules to `~/.config/opencode/AGENTS.md`, or in your proj
 You can test the server with the _MCP Inspector tool_:
 
 ```sh
-cd mcp-server
-npx @modelcontextprotocol/inspector node index.js <projectRoot>
+npx @modelcontextprotocol/inspector cds-mcp <projectRoot>
 ```
 
 See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
 
-## Support, Feedback, Contributing
+## How It Works
 
-This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+The server provides two complementary search mechanisms optimized for different use cases:
 
-## Security / Disclosure
+### `search_model` - Compiled Model Search
 
-If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+This tool performs fuzzy search against the compiled CDS model (CSN - Core Schema Notation). When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
 
-## Code of Conduct
+- All entities, services, actions, and their relationships
+- Resolved annotations and metadata
+- Generated HTTP endpoints and OData URLs
+- Cross-references between definitions
 
-We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
+The fuzzy search algorithm matches definition names and allows for typos or partial matches, making it easy to find entities like "Books" even when searching for "book" or "boks".
 
-## Licensing
+### `search_docs` - Embedding-Based Documentation Search
 
-Copyright 2025 SAP SE or an SAP affiliate company and mcp-server contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
+This tool uses vector embeddings to search through CAP documentation content stored locally. The process works as follows:
+
+1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model
+2. **Query processing**: Your search query is also converted to an embedding vector
+3. **Similarity search**: The system finds documentation chunks with the highest semantic similarity to your query
+
+This approach enables semantic search - you can find relevant documentation even when your query doesn't contain exact keywords from the docs.
+
+## How to Obtain Support
+
+In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/resources/#support-channels) on SAP Support Portal.
+
+## License
+
+This package is provided under the terms of the [SAP Developer License Agreement](https://cap.cloud.sap/resources/license/developer-license-3_2_CAP.txt).
