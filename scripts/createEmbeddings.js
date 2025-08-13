@@ -32,7 +32,7 @@ async function main() {
 }
 
 async function createSnippetsEmbeddings() {
-  const chunks = JSON.parse(await fs.readFile('/Users/d065023/SAPDevelop/chunking/code-snippets.json'))
+  const chunks = JSON.parse(await fs.readFile('<ADAPT!>/code-snippets.json'))
   await createEmbeddings(
     'code-chunks',
     chunks.map(c => chunkToText(c))
