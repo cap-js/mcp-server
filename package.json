@@ -14,11 +14,12 @@
     "cds-mcp": "./index.js"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.7.1",
     "@modelcontextprotocol/sdk": "^1.8.0",
-    "@sap/cds": "*"
+    "@sap/cds": "*",
+    "onnxruntime-web": "^1.22.0"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^3.7.1",
     "prettier": "*"
   },
   "scripts": {
