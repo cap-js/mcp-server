@@ -199,7 +199,7 @@ const CLIENTS = {
           }
         }).then(x => x.json())
 
-        const configName = 'capGPT-' + payload.deployment_id
+        const configName = 'embeddingsscript-' + payload.deployment_id
         const config = configurations.resources.find(r => r.name === configName)
         let configurationId
         if (!config) {
