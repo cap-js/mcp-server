@@ -28,11 +28,11 @@ async function main() {
   // can also run independently, stored/read on file system
   // await createSnippets();
   await createSnippetsEmbeddings()
-  // afterwards, copy ./docs/* to https://github.tools.sap/cap/docs-resources -> public/embeddings/
+  // afterwards, copy to capire @ public/embeddings/
 }
 
 async function createSnippetsEmbeddings() {
-  const chunks = JSON.parse(await fs.readFile('/Users/d065023/SAPDevelop/chunking/code-snippets.json'))
+  const chunks = JSON.parse(await fs.readFile('<ADAPT!>/code-snippets.json'))
   await createEmbeddings(
     'code-chunks',
     chunks.map(c => chunkToText(c))
