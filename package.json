@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "keywords": [],
   "author": "SAP SE (https://www.sap.com)",
-  "license": "SEE LICENSE IN LICENSE",
+  "license": "Apache-2.0",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "type": "module",
   "files": [
