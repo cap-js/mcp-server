@@ -1,29 +1,29 @@
 {
-  "name": "@cap-js/mcp-server",
+  "name": "@sap/cds-mcp",
   "version": "0.1.0",
   "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": "A simple MCP server for CAP",
+  "author": "SAP SE (https://www.sap.com)",
+  "license": "SEE LICENSE IN LICENSE",
+  "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "type": "module",
   "files": [
     "index.js",
-    "docs/",
     "lib/"
   ],
   "bin": {
     "cds-mcp": "./index.js"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.7.1",
     "@modelcontextprotocol/sdk": "^1.8.0",
-    "@sap/cds": "*"
+    "@sap/cds": "*",
+    "onnxruntime-web": "^1.22.0"
   },
   "devDependencies": {
+    "@huggingface/transformers": "^3.7.1",
     "prettier": "*"
   },
   "scripts": {
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "lint": "npx eslint ."
   }
 }
