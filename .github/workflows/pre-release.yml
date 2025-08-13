@@ -3,7 +3,7 @@ name: Pre-release BlackDuck Scans
 on:
   workflow_dispatch:
   push:
-    branches: [ release ]
+    branches: [release]
 
 jobs:
   blackduck-scans:
