@@ -28,7 +28,7 @@ async function main() {
   // can also run independently, stored/read on file system
   // await createSnippets();
   await createSnippetsEmbeddings()
-  // afterwards, copy ./docs/* to https://github.tools.sap/cap/docs-resources -> public/embeddings/
+  // afterwards, copy to capire @ public/embeddings/
 }
 
 async function createSnippetsEmbeddings() {
