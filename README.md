@@ -42,7 +42,7 @@ Search CAP documentation for:
 git clone https://github.com/cap-js/mcp-server
 cd mcp-server
 npm i
-npm i -g @cap-js/mcp-server@.
+npm i -g @cap-js/mcp-server@
 ```
 
 ## Usage
