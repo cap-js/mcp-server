@@ -7,7 +7,8 @@ test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async
   const { pipeline } = await import('@huggingface/transformers')
   const hfPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
     pooling: 'mean',
-    normalize: true
+    normalize: true,
+    dtype: 'fp32'
   })
 
   // Code snippets embedded directly

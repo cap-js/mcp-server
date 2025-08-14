@@ -13,11 +13,7 @@ const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 test.describe('embeddings', () => {
   // Pre-download models once at the start to speed up all tests
   before(async () => {
-    // eslint-disable-next-line no-console
-    console.log('Pre-downloading models for faster tests...')
     await calculateEmbeddings('initialization test')
-    // eslint-disable-next-line no-console
-    console.log('Models ready!')
   })
   test('should create embeddings for a test string', async () => {
     const results = await getEmbeddings('Node.js testing')
@@ -98,8 +94,6 @@ test.describe('embeddings', () => {
     }
     norm = Math.sqrt(norm)
 
-    // eslint-disable-next-line no-console
-    console.log(`calculateEmbeddings norm: ${norm}`)
     assert(Math.abs(norm - 1.0) < 0.001, `calculateEmbeddings should be normalized (norm ≈ 1.0), got ${norm}`)
   })
 
