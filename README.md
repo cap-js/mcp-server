@@ -143,3 +143,4 @@ In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/r
 
 - **onnxruntime-web** is used for creating embeddings in Node.js
 - **@huggingface/transformers.js** provided the reference implementation for the WordPiece tokenizer
+- **@modelcontextprotocol/sdk** provides the SDK for MCP
