@@ -139,6 +139,7 @@ This approach enables semantic search - you can find relevant documentation even
 
 In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/resources/#support-channels) on SAP Support Portal.
 
-## License
+## Acknowledgments
 
-This package is provided under the terms of the [SAP Developer License Agreement](https://cap.cloud.sap/resources/license/developer-license-3_2_CAP.txt).
+- **onnxruntime-web** is used for creating embeddings in Node.js
+- **@huggingface/transformers.js** provided the reference implementation for the WordPiece tokenizer
