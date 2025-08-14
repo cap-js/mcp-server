@@ -41,7 +41,7 @@ Search CAP documentation for:
 ```sh
 git clone https://github.com/cap-js/mcp-server
 cd mcp-server
-npm i
+npm ci
 npm i -g .
 ```
 
