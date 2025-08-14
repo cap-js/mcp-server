@@ -1,11 +1,7 @@
-# Welcome to @cap-js/mcp-server
+# @cap-js/mcp-server
 
-> [!WARNING]
-> Alpha!
-
-## About this project
-
-MCP server for SAP Cloud Application Programming Model (`@cap-js/mcp-server`) is a Model Context Protocol server for AI-assisted development (_agentic coding_) with CAP applications.
+A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming Model (CAP)](https://cap.cloud.sap).
+Use it for AI-assisted development of CAP applications (_agentic coding_).
 
 The server helps AI models answer questions like:
 
@@ -14,9 +10,12 @@ The server helps AI models answer questions like:
 - _How do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
 
+> [!WARNING]
+> This project is alpha state. Do not use for production code.
+
 ## Available Tools
 
-The server provides two main tools for CAP development:
+The server provides these tools for CAP development:
 
 ### `search_model`
 
@@ -29,7 +28,7 @@ Search for CDS definitions (entities, services, actions) including:
 
 ### `search_docs`
 
-Search CAP documentation for:
+Search [CAP documentation](https://cap.cloud.sap) for:
 
 - Code snippets and examples
 - API usage patterns
@@ -149,7 +148,7 @@ We as members, contributors, and leaders pledge to make participation in our com
 
 ## Licensing
 
-Copyright 2024 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
+Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
 
 ## Acknowledgments
 
