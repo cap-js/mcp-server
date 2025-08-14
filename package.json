@@ -11,8 +11,8 @@
   "license": "Apache-2.0",
   "type": "module",
   "files": [
-    "lib",
-    "CHANGELOG.md"
+    "lib/",
+    "index.js"
   ],
   "bin": {
     "cds-mcp": "./index.js"
