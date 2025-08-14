@@ -135,12 +135,33 @@ This tool uses vector embeddings to search through CAP documentation content sto
 
 This approach enables semantic search - you can find relevant documentation even when your query doesn't contain exact keywords from the docs.
 
-## How to Obtain Support
+## Support, Feedback, Contributing
 
-In case you find a bug, please report an [incident](https://cap.cloud.sap/docs/resources/#support-channels) on SAP Support Portal.
+This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+
+
+
+## Security / Disclosure
+
+If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+
+
+
+## Code of Conduct
+
+We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
+
+
+
+## Licensing
+
+Copyright 2024 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
+
 
 ## Acknowledgments
 
 - **onnxruntime-web** is used for creating embeddings in Node.js
 - **@huggingface/transformers.js** provided the reference implementation for the WordPiece tokenizer
 - **@modelcontextprotocol/sdk** provides the SDK for MCP
+
+
