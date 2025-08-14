@@ -1,0 +1,32 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Release
+
+on:
+  # push:
+  #   branches: main
+
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Dry run
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+
+jobs:
+  release:
+    uses: cap-js/.github/.github/workflows/release.yml@main
+    secrets: inherit
+    with:
+      dry-run: ${{ fromJSON(github.event.inputs.dry-run || 'false') }}
