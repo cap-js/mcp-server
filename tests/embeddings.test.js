@@ -4,7 +4,7 @@ import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings from '../lib/embedding-lib.js'
+import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', 'models')

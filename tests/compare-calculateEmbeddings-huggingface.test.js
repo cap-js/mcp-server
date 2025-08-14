@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import calculateEmbeddings from '../lib/embedding-lib.js'
+import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
 test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async () => {
   // Load HuggingFace pipeline
