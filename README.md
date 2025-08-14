@@ -10,8 +10,8 @@ The server helps AI models answer questions like:
 - _How do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
 
-> [!WARNING]
-> This project is alpha state. Do not use for production code.
+> [!NOTE]
+> This project is in alpha state. Do not use for production code.
 
 ## Available Tools
 
