@@ -5,13 +5,13 @@
 
 version: 2
 updates:
-- package-ecosystem: npm
-  directory: /
-  versioning-strategy: increase-if-necessary
-  schedule:
-    interval: "weekly"
-  groups:
-    production-dependencies:
-      dependency-type: "production"
-    development-dependencies:
-      dependency-type: "development"
+  - package-ecosystem: npm
+    directory: /
+    versioning-strategy: increase-if-necessary
+    schedule:
+      interval: 'weekly'
+    groups:
+      production-dependencies:
+        dependency-type: 'production'
+      development-dependencies:
+        dependency-type: 'development'
