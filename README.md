@@ -153,5 +153,5 @@ Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributo
 ## Acknowledgments
 
 - **onnxruntime-web** is used for creating embeddings in Node.js
-- **@huggingface/transformers.js** provided the reference implementation for the WordPiece tokenizer
+- **@huggingface/transformers.js** for the reference implementation for the WordPiece tokenizer
 - **@modelcontextprotocol/sdk** provides the SDK for MCP
