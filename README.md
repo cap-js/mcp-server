@@ -1,5 +1,7 @@
 # @cap-js/mcp-server
 
+[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
+
 A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming Model (CAP)](https://cap.cloud.sap).
 Use it for AI-assisted development of CAP applications (_agentic coding_).
 
