@@ -38,10 +38,7 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 ## Setup
 
 ```sh
-git clone https://github.com/cap-js/mcp-server
-cd mcp-server
-npm ci
-npm i -g .
+npm i -g @cap-js/mcp-server
 ```
 
 ## Usage
