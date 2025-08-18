@@ -40,7 +40,7 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 ## Setup
 
 ```sh
-npm i -g @cap-js/mcp-server
+npm i -g cap-js/mcp-server
 ```
 
 ## Usage
