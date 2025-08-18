@@ -43,6 +43,8 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 npm i -g cap-js/mcp-server
 ```
 
+This will provide the command `cds-mcp` to start the CAP MCP server.
+
 ## Usage
 
 Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
