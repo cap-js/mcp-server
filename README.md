@@ -13,7 +13,7 @@ The server helps AI models answer questions like:
 - _How do I add columns to a select statement in CAP Node.js?_
 
 > [!NOTE]
-> This project is in alpha state. Do not use for production code.
+> This project is in alpha state. Don't use it for production code.
 
 ## Available Tools
 
@@ -37,15 +37,17 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 
 ## Setup
 
-```sh
-npm i -g @cap-js/mcp-server
-```
+To use the CAP MCP server, install the npm package `@cap-js/mcp-server` globally:
 
-This will provide the command `cds-mcp` to start the CAP MCP server.
+```sh
+npm i -g @cap-js/mcp-server # provides the cds-mcp command
+
+cds-mcp # starts the CAP MCP Server
+```
 
 ## Usage
 
-Configure your MCP client (Claude Code, opencode, etc.) to start the server with command `cds-mcp`.
+Configure your MCP client (Claude Code, opencode, and so on) to start the server with command `cds-mcp`.
 
 Example for opencode:
 
@@ -99,19 +101,19 @@ The fuzzy search algorithm matches definition names and allows for partial match
 
 This tool uses vector embeddings to search through preprocessed CAP documentation content stored locally. The process works as follows:
 
-1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model
-2. **Query processing**: Your search query is also converted to an embedding vector
-3. **Similarity search**: The system finds documentation chunks with the highest semantic similarity to your query
+1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model.
+2. **Query processing**: Your search query is also converted to an embedding vector.
+3. **Similarity search**: The system finds documentation chunks with the highest semantic similarity to your query.
 
 This approach enables semantic search - you can find relevant documentation even when your query doesn't contain exact keywords from the docs.
 
 ## Support, Feedback, Contributing
 
-This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+This project is open to feature requests/suggestions, bug reports, and so on, via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
 
 ## Security / Disclosure
 
-If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please don't create GitHub issues for security-related doubts or problems.
 
 ## Code of Conduct
 
@@ -123,6 +125,6 @@ Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributo
 
 ## Acknowledgments
 
-- **onnxruntime-web** is used for creating embeddings in Node.js
-- **@huggingface/transformers.js** for the reference implementation for the WordPiece tokenizer
-- **@modelcontextprotocol/sdk** provides the SDK for MCP
+- **onnxruntime-web** is used for creating embeddings in Node.js.
+- **@huggingface/transformers.js** for the reference implementation for the WordPiece tokenizer.
+- **@modelcontextprotocol/sdk** provides the SDK for MCP.
