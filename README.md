@@ -34,8 +34,6 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 
 - Code snippets and examples
 - API usage patterns
-- Best practices
-- Implementation guides
 
 ## Setup
 
