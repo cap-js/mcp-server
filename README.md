@@ -38,14 +38,29 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 ## Setup
 
 ```sh
-npm i -g cap-js/mcp-server
+npm i -g @cap-js/mcp-server
 ```
 
 This will provide the command `cds-mcp` to start the CAP MCP server.
 
 ## Usage
 
-Configure your MCP client (Cline, Codex, opencode, etc.) to use the server with command `cds-mcp`.
+Configure your MCP client (Claude Code, opencode, etc.) to start the server with command `cds-mcp`.
+
+Example for opencode:
+
+```json
+{
+  "mcp": {
+    "cds-mcp": {
+      "type": "local",
+      "command": ["cds-mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
 The following rules help guide the LLM to use the server correctly:
 
 ```markdown
@@ -65,49 +80,6 @@ cds-mcp search_model . Books entity
 cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 ```
 
-### Usage in VS Code
-
-**Register the server** once: run command `MCP: Add Server...`.
-In there:
-
-- Select `command`.
-- Set `cds-mcp` as command.
-
-**In an application project**, open the _Chat_ panel.
-Select the server through the _Select tools_ button.
-
-See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more.
-
-### Usage in [opencode](https://github.com/sst/opencode)
-
-Use the following configuration in `~/.config/opencode/opencode.json`:
-
-```json
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "cds-mcp": {
-      "type": "local",
-      "command": ["cds-mcp"],
-      "enabled": true,
-      "environment": {}
-    }
-  }
-}
-```
-
-Don't forget to add the rules to `~/.config/opencode/AGENTS.md`, or in your project-specific `AGENTS.md` file.
-
-### Usage in MCP Inspector
-
-You can test the server with the _MCP Inspector tool_:
-
-```sh
-npx @modelcontextprotocol/inspector cds-mcp <projectRoot>
-```
-
-See the [MCP Inspector docs](https://modelcontextprotocol.io/docs/tools/inspector) for more.
-
 ## How It Works
 
 The server provides two complementary search mechanisms optimized for different use cases:
@@ -121,11 +93,11 @@ This tool performs fuzzy search against the compiled CDS model (CSN - Core Schem
 - Generated HTTP endpoints and OData URLs
 - Cross-references between definitions
 
-The fuzzy search algorithm matches definition names and allows for typos or partial matches, making it easy to find entities like "Books" even when searching for "book" or "boks".
+The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ### `search_docs` - Embedding-Based Documentation Search
 
-This tool uses vector embeddings to search through CAP documentation content stored locally. The process works as follows:
+This tool uses vector embeddings to search through preprocessed CAP documentation content stored locally. The process works as follows:
 
 1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model
 2. **Query processing**: Your search query is also converted to an embedding vector
