@@ -37,13 +37,11 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 
 ## Setup
 
-To use the CAP MCP server, install the npm package `@cap-js/mcp-server` globally:
-
 ```sh
-npm i -g @cap-js/mcp-server # provides the cds-mcp command
-
-cds-mcp # starts the CAP MCP Server
+npm i -g @cap-js/mcp-server
 ```
+
+This will provide the command `cds-mcp` to start the CAP MCP server.
 
 ## Usage
 
