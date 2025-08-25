@@ -14,9 +14,8 @@
 A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming Model (CAP)](https://cap.cloud.sap).
 Use it for AI-assisted development of CAP applications (_agentic coding_).
 
-The server helps AI models answer questions like:
-
-- _Which CDS services are there in this project and where are they served?_
+The server helps AI models answer questions such as:
+- _Which CDS services are in this project, and where are they served?_
 - _What are the entities about?_
 - _How do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
@@ -34,7 +33,7 @@ The server helps AI models answer questions like:
 - [Usage](#usage)
   - [Usage in VS Code](#usage-in-vs-code)
   - [Usage in opencode](#usage-in-opencode)
-  - [Usage in CLI](#usage-in-cli)
+  - [CLI UsageI](#cli-usage)
 - [How It Works](#how-it-works)
 - [Support, Feedback, Contributing](#support-feedback-contributing)
 - [Security / Disclosure](#security--disclosure)
@@ -69,8 +68,7 @@ The server provides these tools for CAP development:
 
 ### `search_model`
 
-Search for CDS definitions (entities, services, actions) including:
-
+Search for CDS definitions (entities, services, actions), including:
 - Model structure and relationships
 - Annotations and metadata
 - HTTP endpoints and OData URLs
@@ -79,7 +77,6 @@ Search for CDS definitions (entities, services, actions) including:
 ### `search_docs`
 
 Search [CAP documentation](https://cap.cloud.sap) for:
-
 - Code snippets and examples
 - API usage patterns
 
@@ -87,9 +84,9 @@ Search [CAP documentation](https://cap.cloud.sap) for:
 
 ## Usage
 
-Configure your MCP client (Cline, opencode, Claude Code, etc.) to start the server with command `cds-mcp`.
+Configure your MCP client (Cline, opencode, Claude Code, etc.) to start the server using the `cds-mcp` command.
 
-The following rules help guide the LLM to use the server correctly:
+The following rules help the LLM use the server correctly:
 
 ```markdown
 - You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
@@ -101,7 +98,6 @@ Add these rules to your existing global or project-specific [`AGENTS.md`](https:
 ### Usage in VS Code
 
 Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
-
 ```json
 {
   "mcpServers": {
@@ -119,7 +115,6 @@ See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3
 ### Usage in opencode
 
 Example for [opencode](https://github.com/sst/opencode):
-
 ```json
 {
   "mcp": {
@@ -132,7 +127,7 @@ Example for [opencode](https://github.com/sst/opencode):
 }
 ```
 
-### Usage in CLI
+### CLI Usage
 
 For experimental purposes, you can also use the tools directly from the command line:
 
@@ -148,12 +143,12 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 
 ## How It Works
 
-The server provides two complementary search mechanisms optimized for different use cases:
+The server provides two complementary search mechanisms, optimized for different use cases:
 
 ### `search_model` - Compiled Model Search
 
-This tool performs fuzzy search against the compiled CDS model (CSN - Core Schema Notation). When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
-
+This tool performs fuzzy searches against the compiled CDS model (CSN - Core Schema Notation).
+When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
 - All entities, services, actions, and their relationships
 - Resolved annotations and metadata
 - Generated HTTP endpoints and OData URLs
@@ -163,13 +158,13 @@ The fuzzy search algorithm matches definition names and allows for partial match
 
 ### `search_docs` - Embedding-Based Documentation Search
 
-This tool uses vector embeddings to search through preprocessed CAP documentation content stored locally. The process works as follows:
+This tool uses vector embeddings to search through preprocessed CAP documentation stored locally. The process works as follows:
 
-1. **Pre-processing**: CAP documentation is chunked into semantic sections and converted to vector embeddings using a local embedding model.
-2. **Query processing**: Your search query is also converted to an embedding vector.
-3. **Similarity search**: The system finds documentation chunks with the highest semantic similarity to your query.
+1. **Pre-processing:** CAP documentation is split into semantic sections and converted to vector embeddings using a local embedding model.
+2. **Query processing:** Your search query is also converted to an embedding vector.
+3. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
 
-This approach enables semantic search - you can find relevant documentation even when your query doesn't contain exact keywords from the docs.
+This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs.
 
 
 
