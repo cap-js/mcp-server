@@ -116,7 +116,7 @@ Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items
 
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
 
-### Usage in [opencode](https://github.com/sst/opencode)
+### Usage in opencode
 
 Example for [opencode](https://github.com/sst/opencode):
 
