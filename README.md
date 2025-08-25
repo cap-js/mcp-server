@@ -96,21 +96,11 @@ The following rules help guide the LLM to use the server correctly:
 - You MUST search for CAP docs with cds-mcp EVERY TIME you modify CDS models or when using APIs from CAP. Do NOT propose, suggest or make any changes without first checking it.
 ```
 
+Add these rules to your existing global or project-specific [`AGENTS.md`](https://agents.md/) (specifics may vary based on respective MCP client).
+
 ### Usage in VS Code
 
-<!--
-To **register the server** (once), follow these steps:
-1. Run command `MCP: Add Server...`
-1. Select `Command`
-1. Set `cds-mcp` as the command
-1. Provide `@cap-js/mcp-server` as the Server ID
-1. Choose to install globally
-
-**In an application project**, open the _Chat_ panel.
-Select the server through the _Select tools_ button.
--->
-
-TODO:
+Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
 
 ```json
 {
@@ -122,9 +112,9 @@ TODO:
     }
   }
 }
-```json
+```
 
-See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more details.
+See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
 
 ### Usage in [opencode](https://github.com/sst/opencode)
 
@@ -141,8 +131,6 @@ Example for [opencode](https://github.com/sst/opencode):
   }
 }
 ```
-
-Don't forget to add the rules to `~/.config/opencode/AGENTS.md`, or in your project-specific `AGENTS.md` file.
 
 ### Usage in CLI
 
