@@ -126,7 +126,7 @@ TODO:
 
 See the [VS Code docs](https://code.visualstudio.com/docs/copilot/chat/mcp-servers) for more details.
 
-### Usage in opencode
+### Usage in [opencode](https://github.com/sst/opencode)
 
 Example for [opencode](https://github.com/sst/opencode):
 
