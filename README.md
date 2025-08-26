@@ -147,12 +147,11 @@ The server provides two complementary search mechanisms, optimized for different
 
 ### `search_model` - Compiled Model Search
 
-This tool performs fuzzy searches against the compiled CDS model (CSN - Core Schema Notation).
+This tool performs fuzzy searches against the compiled CDS model (Core Schema Notation).
 When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
 - All entities, services, actions, and their relationships
-- Resolved annotations and metadata
-- Generated HTTP endpoints and OData URLs
-- Cross-references between definitions
+- Annotations and metadata
+- Generated HTTP endpoints
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
@@ -160,12 +159,11 @@ The fuzzy search algorithm matches definition names and allows for partial match
 
 This tool uses vector embeddings to search through preprocessed CAP documentation stored locally. The process works as follows:
 
-1. **Pre-processing:** CAP documentation is split into semantic sections and converted to vector embeddings using a local embedding model.
+1. **Pre-processing:** CAP documentation is split into semantic sections and converted to vector embeddings.
 2. **Query processing:** Your search query is also converted to an embedding vector.
 3. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
 
-This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs.
-
+This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs, all locally on your machine.
 
 
 ## Support, Feedback, Contributing
