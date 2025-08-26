@@ -16,8 +16,7 @@ Use it for AI-assisted development of CAP applications (_agentic coding_).
 
 The server helps AI models answer questions such as:
 - _Which CDS services are in this project, and where are they served?_
-- _What are the entities about?_
-- _How do they relate?_
+- _What are the entities about and how do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
 
 
