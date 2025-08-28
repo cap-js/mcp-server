@@ -56,43 +56,7 @@ npm i -g @cap-js/mcp-server
 
 This will provide the command `cds-mcp` to start the CAP MCP server.
 
-
-
-## Available Tools
-
-> [!NOTE]
-> Tools are meant to be used by AI models and do not constitute a stable API.
-
-The server provides these tools for CAP development:
-
-### `search_model`
-
-Search for CDS definitions (entities, services, actions), including:
-- Model structure and relationships
-- Annotations and metadata
-- HTTP endpoints and OData URLs
-- File locations
-
-### `search_docs`
-
-Search [CAP documentation](https://cap.cloud.sap) for:
-- Code snippets and examples
-- API usage patterns
-
-
-
-## Usage
-
 Configure your MCP client (Cline, opencode, Claude Code, etc.) to start the server using the `cds-mcp` command.
-
-The following rules help the LLM use the server correctly:
-
-```markdown
-- You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
-- You MUST search for CAP docs with cds-mcp EVERY TIME you modify CDS models or when using APIs from CAP. Do NOT propose, suggest or make any changes without first checking it.
-```
-
-Add these rules to your existing global or project-specific [`AGENTS.md`](https://agents.md/) (specifics may vary based on respective MCP client).
 
 ### Usage in VS Code
 
@@ -126,6 +90,17 @@ Example for [opencode](https://github.com/sst/opencode):
 }
 ```
 
+### Rules
+
+The following rules help the LLM use the server correctly:
+
+```markdown
+- You MUST search for CDS definitions, like entities, fields and services (which include HTTP endpoints) with cds-mcp, only if it fails you MAY read \*.cds files in the project.
+- You MUST search for CAP docs with cds-mcp EVERY TIME you modify CDS models or when using APIs from CAP. Do NOT propose, suggest or make any changes without first checking it.
+```
+
+Add these rules to your existing global or project-specific [`AGENTS.md`](https://agents.md/) (specifics may vary based on respective MCP client).
+
 ### CLI Usage
 
 For experimental purposes, you can also use the tools directly from the command line:
@@ -137,6 +112,29 @@ cds-mcp search_model . Books entity
 # Search CAP documentation
 cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 ```
+
+## Available Tools
+
+> [!NOTE]
+> Tools are meant to be used by AI models and do not constitute a stable API.
+
+The server provides these tools for CAP development:
+
+### `search_model`
+
+Search for CDS definitions (entities, services, actions), including:
+- Model structure and relationships
+- Annotations and metadata
+- HTTP endpoints and OData URLs
+- File locations
+
+### `search_docs`
+
+Search [CAP documentation](https://cap.cloud.sap) for:
+- Code snippets and examples
+- API usage patterns
+
+
 
 
 
