@@ -55,7 +55,7 @@ npm i -g @cap-js/mcp-server
 
 This will provide the command `cds-mcp` to start the CAP MCP server.
 
-Configure your MCP client (Cline, opencode, Claude Code, etc.) to start the server using the `cds-mcp` command.
+Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the `cds-mcp` command.
 
 ### Usage in VS Code
 
@@ -124,7 +124,7 @@ The server provides these tools for CAP development:
 Search for CDS definitions (entities, services, actions), including:
 - Model structure and relationships
 - Annotations and metadata
-- HTTP endpoints and OData URLs
+- HTTP endpoints
 - File locations
 
 ### `search_docs`
@@ -143,7 +143,7 @@ The server provides two complementary search mechanisms, optimized for different
 
 ### `search_model` - Compiled Model Search
 
-This tool performs fuzzy searches against the compiled CDS model (Core Schema Notation).
+This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
 When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
 - All entities, services, actions, and their relationships
 - Annotations and metadata
@@ -153,11 +153,10 @@ The fuzzy search algorithm matches definition names and allows for partial match
 
 ### `search_docs` - Embedding-Based Documentation Search
 
-This tool uses vector embeddings to search through preprocessed CAP documentation stored locally. The process works as follows:
+This tool uses vector embeddings to search through preprocessed CAP documentation stored as embeddings locally. The process works as follows:
 
-1. **Pre-processing:** CAP documentation is split into semantic sections and converted to vector embeddings.
-2. **Query processing:** Your search query is also converted to an embedding vector.
-3. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
+1. **Query processing:** Your search query is converted to an embedding vector.
+2. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
 
 This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs, all locally on your machine.
 
