@@ -28,7 +28,7 @@ The server helps AI models answer questions such as:
 - [Setup](#setup)
   - [Usage in VS Code](#usage-in-vs-code)
   - [Usage in opencode](#usage-in-opencode)
-  - [CLI UsageI](#cli-usage)
+  - [CLI Usage](#cli-usage)
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
