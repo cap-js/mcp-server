@@ -32,7 +32,6 @@ The server helps AI models answer questions such as:
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
-- [How It Works](#how-it-works)
 - [Support, Feedback, Contributing](#support-feedback-contributing)
 - [Security / Disclosure](#security--disclosure)
 - [Code of Conduct](#code-of-conduct)
@@ -119,41 +118,19 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 
 The server provides these tools for CAP development:
 
-### `search_model`
-
-Search for CDS definitions (entities, services, actions), including:
-- Model structure and relationships
-- Annotations and metadata
-- HTTP endpoints
-- File locations
-
-### `search_docs`
-
-Search [CAP documentation](https://cap.cloud.sap) for:
-- Code snippets and examples
-- API usage patterns
-
-
-
-
-
-## How It Works
-
-The server provides two complementary search mechanisms, optimized for different use cases:
-
 ### `search_model` - Compiled Model Search
 
 This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
-When you run a CAP project, CDS compiles all your `.cds` files into a unified model representation that includes:
-- All entities, services, actions, and their relationships
-- Annotations and metadata
-- Generated HTTP endpoints
+CDS compiles all your `.cds` files into a unified model representation that includes:
+- All definitions and their relationships
+- Annotations
+- HTTP endpoints
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ### `search_docs` - Embedding-Based Documentation Search
 
-This tool uses vector embeddings to search through preprocessed CAP documentation stored as embeddings locally. The process works as follows:
+This tool uses vector embeddings to locally search through preprocessed CAP documentation, stored as embeddings. The process works as follows:
 
 1. **Query processing:** Your search query is converted to an embedding vector.
 2. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
