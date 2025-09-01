@@ -5,7 +5,7 @@
 
 
 > [!NOTE]
-> This project is in alpha state. Don't use it for production code.
+> This project is in alpha state.
 
 
 
