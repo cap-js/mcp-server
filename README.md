@@ -118,7 +118,7 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 
 The server provides these tools for CAP development:
 
-### `search_model` - Compiled Model Search
+### `search_model`
 
 This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
 CDS compiles all your `.cds` files into a unified model representation that includes:
@@ -128,7 +128,7 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
-### `search_docs` - Embedding-Based Documentation Search
+### `search_docs`
 
 This tool uses vector embeddings to locally search through preprocessed CAP documentation, stored as embeddings. The process works as follows:
 
