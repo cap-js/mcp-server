@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/mcp-server",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "repository": {
     "type": "git",
