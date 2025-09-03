@@ -1,31 +1,40 @@
-# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
-
 name: Release
-
-on:
-  # push:
-  #   branches: main
-
-  workflow_dispatch:
-    inputs:
-      dry-run:
-        description: Dry run
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: write
-  id-token: write
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+on:
+  workflow_dispatch:
 
 jobs:
-  release:
-    uses: cap-js/.github/.github/workflows/release.yml@main
-    secrets: inherit
-    with:
-      dry-run: ${{ fromJSON(github.event.inputs.dry-run || 'false') }}
+  publish-npm:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/
+      - name: run tests
+        run: |
+          npm i -g @sap/cds-dk
+          npm i
+          npm run lint
+          npm run test
+      - name: get version
+        id: package-version
+        uses: martinbeentjes/npm-get-version-action@v1.2.3
+      - name: parse changelog
+        id: parse-changelog
+        uses: schwma/parse-changelog-action@v1.0.0
+        with:
+          version: '${{ steps.package-version.outputs.current-version }}'
+      - name: create a GitHub release
+        uses: ncipollo/release-action@v1
+        with:
+          tag: 'v${{ steps.package-version.outputs.current-version }}'
+          body: '${{ steps.parse-changelog.outputs.body }}'
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
