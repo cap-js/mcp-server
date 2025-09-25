@@ -12,6 +12,8 @@
   "type": "module",
   "files": [
     "lib/",
+    "embeddings/",
+    "models/",
     "index.js"
   ],
   "bin": {

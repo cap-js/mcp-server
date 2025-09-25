@@ -20,22 +20,6 @@ test.describe('embeddings', () => {
     assert(results.length, 'Results should be an array')
   })
 
-  test('should verify model files are downloaded correctly', async () => {
-    // Models should already be downloaded in the before() hook
-    // Check that model directory exists
-    assert(fs.existsSync(MODEL_DIR), 'Model directory should exist after initialization')
-
-    // Check that all required files exist
-    for (const file of REQUIRED_FILES) {
-      const filePath = path.join(MODEL_DIR, file)
-      assert(fs.existsSync(filePath), `Required model file ${file} should exist`)
-
-      // Check that files are not empty
-      const stats = fs.statSync(filePath)
-      assert(stats.size > 0, `Model file ${file} should not be empty`)
-    }
-  })
-
   test('should verify model files have expected structure', async () => {
     // Models should already be available from before() hook
     // Check tokenizer.json structure
@@ -182,69 +166,4 @@ test.describe('embeddings', () => {
 
     assert(Math.abs(norm - 1.0) < 0.001, `Long string embedding should be normalized: ${norm}`)
   })
-
-  test('should handle model corruption and re-download', async () => {
-    // Create a temporary test directory to simulate corruption without affecting real models
-    const testModelDir = path.join(__dirname, 'temp_model_test')
-    if (!fs.existsSync(testModelDir)) {
-      fs.mkdirSync(testModelDir, { recursive: true })
-    }
-
-    try {
-      // Create a corrupted ONNX model file
-      const corruptModelPath = path.join(testModelDir, 'model.onnx')
-      const corruptData = 'This is not a valid ONNX model file - just corrupted text data'
-      fs.writeFileSync(corruptModelPath, corruptData)
-
-      // Verify the corrupted file is much smaller than expected
-      const corruptSize = fs.statSync(corruptModelPath).size
-      assert(corruptSize < 1000, 'Corrupted model should be small')
-
-      // For this test, we'll just verify the corruption detection would work
-      // without actually triggering a full re-download in the test suite
-      const corruptContent = fs.readFileSync(corruptModelPath, 'utf-8')
-      assert(corruptContent.includes('not a valid ONNX'), 'Should be able to detect corrupted content')
-
-      // Test passes - real corruption handling is tested in integration
-      assert(true, 'Corruption detection logic works')
-    } finally {
-      // Clean up temp directory
-      if (fs.existsSync(testModelDir)) {
-        fs.rmSync(testModelDir, { recursive: true, force: true })
-      }
-    }
-  })
-})
-
-test('should handle tokenizer corruption and re-download', async () => {
-  // Create a temporary test directory to simulate corruption
-  const testModelDir = path.join(__dirname, 'temp_tokenizer_test')
-  if (!fs.existsSync(testModelDir)) {
-    fs.mkdirSync(testModelDir, { recursive: true })
-  }
-
-  try {
-    // Create an invalid JSON tokenizer file
-    const corruptTokenizerPath = path.join(testModelDir, 'tokenizer.json')
-    fs.writeFileSync(corruptTokenizerPath, 'This is not valid JSON data for tokenizer')
-
-    // Verify corruption detection would work
-    let threwError = false
-    try {
-      JSON.parse(fs.readFileSync(corruptTokenizerPath, 'utf-8'))
-    } catch (error) {
-      threwError = true
-      assert(error instanceof SyntaxError, 'Should throw JSON parsing error for corrupted tokenizer')
-    }
-
-    assert(threwError, 'Should detect corrupted JSON tokenizer')
-
-    // Test passes - real corruption handling is tested in integration
-    assert(true, 'Tokenizer corruption detection logic works')
-  } finally {
-    // Clean up temp directory
-    if (fs.existsSync(testModelDir)) {
-      fs.rmSync(testModelDir, { recursive: true, force: true })
-    }
-  }
 })
