@@ -8,7 +8,6 @@ import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', 'models')
-const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 test.describe('embeddings', () => {
   // Pre-download models once at the start to speed up all tests
