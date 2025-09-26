@@ -48,7 +48,7 @@ test.describe('tools', () => {
   test('search_model: fuzzy search for Books entity', async () => {
     const books = await tools.search_model.handler({
       projectPath: sampleProjectPath,
-      name: 'Books',
+      name: 'AmiSrvice.Books', // intentional typo
       kind: 'entity',
       topN: 2
     })
