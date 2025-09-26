@@ -36,7 +36,7 @@ test.describe('tools', () => {
     // Entity endpoints
     const books = await tools.search_model.handler({
       projectPath: sampleProjectPath,
-      name: 'Books',
+      name: 'AdminService.Books',
       kind: 'entity',
       topN: 2
     })
