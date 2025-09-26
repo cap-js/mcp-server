@@ -118,24 +118,26 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 
 The server provides these tools for CAP development:
 
+### Embeddings Search Technology
+
+Both tools leverage vector embeddings for intelligent search capabilities. This process works as follows:
+
+1. **Query processing:** Your search query is converted to an embedding vector.
+2. **Similarity search:** The system finds content with the highest semantic similarity to your query.
+
+This semantic search approach enables you to find relevant content even when your query does not use the exact keywords, all locally on your machine.
+
 ### `search_model`
 
-This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
+This tool searches against definition names from the compiled CDS model (Core Schema Notation).
 CDS compiles all your `.cds` files into a unified model representation that includes:
 - All definitions and their relationships
 - Annotations
 - HTTP endpoints
 
-The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
-
 ### `search_docs`
 
-This tool uses vector embeddings to locally search through preprocessed CAP documentation, stored as embeddings. The process works as follows:
-
-1. **Query processing:** Your search query is converted to an embedding vector.
-2. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
-
-This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs, all locally on your machine.
+This tool searches through preprocessed CAP documentation from capire (static), stored as embeddings. The embeddings are created from documentation chunks with a focus on code snippets.
 
 
 ## Support, Feedback, Contributing
