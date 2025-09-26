@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.4 - 2025-09-26
+
+### Changed
+
+- Embeddings-based model search
+
 ## Version 0.0.3 - 2025-09-22
 
 ### Changed
