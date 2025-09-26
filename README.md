@@ -131,7 +131,7 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 
 ### `search_docs`
 
-This tool searches through preprocessed CAP documentation from capire (static), stored as embeddings. The embeddings are created from documentation chunks with a focus on code snippets.
+This tool searches through preprocessed CAP documentation from capire with a focus on code snippets, stored as embeddings.
 
 ## Support, Feedback, Contributing
 
