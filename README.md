@@ -63,6 +63,21 @@ Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items
 }
 ```
 
+Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot/customization/mcp-servers):
+> Note: GitHub Copilot uses the `mcp.json` file as source for it's Agent mode.
+```json
+{
+	"servers": {
+		"cds-mcp": {
+			"command": "cds-mcp",
+			"args": [],
+			"env": {},
+			"type": "stdio"
+		},
+	"inputs": []
+}
+```
+
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
 
 ### Usage in opencode
