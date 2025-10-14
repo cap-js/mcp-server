@@ -118,7 +118,7 @@ test.describe('integration', () => {
       arguments: {
         projectPath: sampleProjectPath,
         kind: 'entity',
-        topN: 20
+        topN: 30
       }
     })
     const entities = JSON.parse(entityResult.content[0].text)
