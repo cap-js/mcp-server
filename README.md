@@ -75,14 +75,15 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 > Note: GitHub Copilot uses the `mcp.json` file as source for it's Agent mode.
 ```json
 {
-	"servers": {
-		"cds-mcp": {
-			"command": "cds-mcp",
-			"args": [],
-			"env": {},
-			"type": "stdio"
-		},
-	"inputs": []
+  "servers": {
+    "cds-mcp": {
+      "command": "cds-mcp",
+      "args": [],
+      "env": {},
+      "type": "stdio"
+    },
+    "inputs": []
+  }
 }
 ```
 
