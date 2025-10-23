@@ -2,12 +2,8 @@
 
 [![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
 
-
-
 > [!NOTE]
 > This project is in alpha state.
-
-
 
 ## About This Project
 
@@ -15,11 +11,10 @@ A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming
 Use it for AI-assisted development of CAP applications (_agentic coding_).
 
 The server helps AI models answer questions such as:
+
 - _Which CDS services are in this project, and where are they served?_
 - _What are the entities about and how do they relate?_
 - _How do I add columns to a select statement in CAP Node.js?_
-
-
 
 ## Table of Contents
 
@@ -38,13 +33,9 @@ The server helps AI models answer questions such as:
 - [Licensing](#licensing)
 - [Acknowledgments](#acknowledgments)
 
-
-
 ## Requirements
 
 See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstart your development and grow as you go with SAP Cloud Application Programming Model.
-
-
 
 ## Setup
 
@@ -59,6 +50,7 @@ Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) t
 ### Usage in VS Code
 
 Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
+
 ```json
 {
   "mcpServers": {
@@ -92,6 +84,7 @@ See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3
 ### Usage in opencode
 
 Example for [opencode](https://github.com/sst/opencode):
+
 ```json
 {
   "mcp": {
@@ -134,49 +127,43 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 
 The server provides these tools for CAP development:
 
+### Embeddings Search Technology
+
+Both tools leverage vector embeddings for intelligent search capabilities. This process works as follows:
+
+1. **Query processing:** Your search query is converted to an embedding vector.
+2. **Similarity search:** The system finds content with the highest semantic similarity to your query.
+
+This semantic search approach enables you to find relevant content even when your query does not use the exact keywords, all locally on your machine.
+
 ### `search_model`
 
-This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
+This tool searches against definition names from the compiled CDS model (Core Schema Notation).
 CDS compiles all your `.cds` files into a unified model representation that includes:
+
 - All definitions and their relationships
 - Annotations
 - HTTP endpoints
 
-The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
-
 ### `search_docs`
 
-This tool uses vector embeddings to locally search through preprocessed CAP documentation, stored as embeddings. The process works as follows:
-
-1. **Query processing:** Your search query is converted to an embedding vector.
-2. **Similarity search:** The system finds documentation chunks with the highest semantic similarity to your query.
-
-This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs, all locally on your machine.
-
+This tool searches through preprocessed CAP documentation from capire with a focus on code snippets, stored as embeddings.
 
 ## Support, Feedback, Contributing
 
 This project is open to feature requests/suggestions, bug reports, and so on, via [GitHub issues](https://github.com/cap-js/mcp-server/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
 
-
-
 ## Security / Disclosure
 
 If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/mcp-server/security/policy) on how to report it. Please don't create GitHub issues for security-related doubts or problems.
-
-
 
 ## Code of Conduct
 
 We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
 
-
-
 ## Licensing
 
 Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
-
-
 
 ## Acknowledgments
 
