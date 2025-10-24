@@ -4,11 +4,6 @@
 
 
 
-> [!NOTE]
-> This project is in alpha state.
-
-
-
 ## About This Project
 
 A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming Model (CAP)](https://cap.cloud.sap).
@@ -48,13 +43,7 @@ See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstar
 
 ## Setup
 
-```sh
-npm i -g @cap-js/mcp-server
-```
-
-This will provide the command `cds-mcp` to start the CAP MCP server.
-
-Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the `cds-mcp` command.
+Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the command `npx -y @cap-js/mcp-server` as in the following examples.
 
 ### Usage in VS Code
 
@@ -63,8 +52,8 @@ Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items
 {
   "mcpServers": {
     "cds-mcp": {
-      "command": "cds-mcp",
-      "args": [],
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"],
       "env": {}
     }
   }
@@ -77,8 +66,8 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 {
   "servers": {
     "cds-mcp": {
-      "command": "cds-mcp",
-      "args": [],
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"],
       "env": {},
       "type": "stdio"
     },
@@ -97,7 +86,7 @@ Example for [opencode](https://github.com/sst/opencode):
   "mcp": {
     "cds-mcp": {
       "type": "local",
-      "command": ["cds-mcp"],
+      "command": ["npx", "-y", "@cap-js/mcp-server"],
       "enabled": true
     }
   }
@@ -117,7 +106,13 @@ Add these rules to your existing global or project-specific [`AGENTS.md`](https:
 
 ### CLI Usage
 
-For experimental purposes, you can also use the tools directly from the command line:
+You can also use the tools directly from the command line.
+
+```sh
+npm i -g @cap-js/mcp-server
+```
+
+This will provide the command `cds-mcp`, with which you can invoke the tools directly as follows.
 
 ```sh
 # Search for CDS model definitions
