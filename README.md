@@ -43,13 +43,7 @@ See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstar
 
 ## Setup
 
-```sh
-npm i -g @cap-js/mcp-server
-```
-
-This will provide the command `cds-mcp` to start the CAP MCP server.
-
-Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the `cds-mcp` command.
+Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the command `npx -y @cap-js/mcp-server` as in the following examples.
 
 ### Usage in VS Code
 
@@ -112,6 +106,12 @@ The following rules help the LLM use the server correctly:
 Add these rules to your existing global or project-specific [`AGENTS.md`](https://agents.md/) (specifics may vary based on respective MCP client).
 
 ### CLI Usage
+
+```sh
+npm i -g @cap-js/mcp-server
+```
+
+This will provide the command `cds-mcp` to start the CAP MCP server.
 
 For experimental purposes, you can also use the tools directly from the command line:
 
