@@ -86,8 +86,7 @@ Example for [opencode](https://github.com/sst/opencode):
   "mcp": {
     "cds-mcp": {
       "type": "local",
-      "command": "npx",
-      "args": ["-y", "@cap-js/mcp-server"],
+      "command": ["npx", "-y", "@cap-js/mcp-server"],
       "enabled": true
     }
   }
