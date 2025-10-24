@@ -59,7 +59,8 @@ Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items
   "mcpServers": {
     "cds-mcp": {
       "command": "npx",
-      "args": ["-y", "@cap-js/mcp-server"]
+      "args": ["-y", "@cap-js/mcp-server"],
+      "env": {}
     }
   }
 }
@@ -72,7 +73,7 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
   "servers": {
     "cds-mcp": {
       "command": "npx",
-      "args": ["-y", "@cap-js/mcp-server"]
+      "args": ["-y", "@cap-js/mcp-server"],
       "env": {},
       "type": "stdio"
     },
@@ -92,7 +93,7 @@ Example for [opencode](https://github.com/sst/opencode):
     "cds-mcp": {
       "type": "local",
       "command": "npx",
-      "args": ["-y", "@cap-js/mcp-server"]
+      "args": ["-y", "@cap-js/mcp-server"],
       "enabled": true
     }
   }
