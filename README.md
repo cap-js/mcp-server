@@ -4,11 +4,6 @@
 
 
 
-> [!NOTE]
-> This project is in alpha state.
-
-
-
 ## About This Project
 
 A Model Context Protocol (MCP) server for the [SAP Cloud Application Programming Model (CAP)](https://cap.cloud.sap).
@@ -63,9 +58,8 @@ Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items
 {
   "mcpServers": {
     "cds-mcp": {
-      "command": "cds-mcp",
-      "args": [],
-      "env": {}
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"]
     }
   }
 }
@@ -77,8 +71,8 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 {
   "servers": {
     "cds-mcp": {
-      "command": "cds-mcp",
-      "args": [],
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"]
       "env": {},
       "type": "stdio"
     },
@@ -97,7 +91,8 @@ Example for [opencode](https://github.com/sst/opencode):
   "mcp": {
     "cds-mcp": {
       "type": "local",
-      "command": ["cds-mcp"],
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"]
       "enabled": true
     }
   }
