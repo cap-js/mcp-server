@@ -107,13 +107,13 @@ Add these rules to your existing global or project-specific [`AGENTS.md`](https:
 
 ### CLI Usage
 
+You can also use the tools directly from the command line.
+
 ```sh
 npm i -g @cap-js/mcp-server
 ```
 
-This will provide the command `cds-mcp` to start the CAP MCP server.
-
-For experimental purposes, you can also use the tools directly from the command line:
+This will provide the command `cds-mcp`, with which you can invoke the tools directly as follows.
 
 ```sh
 # Search for CDS model definitions
