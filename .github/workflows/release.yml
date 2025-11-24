@@ -2,6 +2,7 @@ name: Release
 
 permissions:
   contents: write
+  id-token: write
 
 on:
   workflow_dispatch:
@@ -14,7 +15,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org/
       - name: run tests
         run: |
@@ -35,6 +36,4 @@ jobs:
         with:
           tag: 'v${{ steps.package-version.outputs.current-version }}'
           body: '${{ steps.parse-changelog.outputs.body }}'
-      - run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+      - run: npm publish --access public --provenance
