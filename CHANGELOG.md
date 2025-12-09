@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.4 - 2025-09-25
+
+### Changed
+
+- Vendor embeddings and model to not require internet access
+
 ## Version 0.0.3 - 2025-09-22
 
 ### Changed

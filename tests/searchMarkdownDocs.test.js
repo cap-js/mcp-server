@@ -12,26 +12,13 @@ const embeddingsDir = path.join(__dirname, '..', 'embeddings')
 const searchMarkdownDocs = (await import('../lib/searchMarkdownDocs.js')).default
 
 describe('searchMarkdownDocs integration tests', () => {
-  test('should download and load embeddings from server', async () => {
-    // This test verifies the full download and search functionality
+  test('should load and search existing embeddings', async () => {
+    // This test verifies the search functionality with existing embeddings
     const result = await searchMarkdownDocs('entity definition', 3)
 
     assert(typeof result === 'string', 'Result should be a string')
     assert(result.length > 0, 'Result should not be empty')
     assert(result.includes('---'), 'Result should contain separators between chunks')
-
-    // Verify files were created
-    const jsonExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.json'))
-      .then(() => true)
-      .catch(() => false)
-    const binExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.bin'))
-      .then(() => true)
-      .catch(() => false)
-
-    assert(jsonExists, 'JSON metadata file should exist after download')
-    assert(binExists, 'Binary embeddings file should exist after download')
   })
 
   test('should handle search queries and return relevant results', async () => {
@@ -52,9 +39,6 @@ describe('searchMarkdownDocs integration tests', () => {
     const jsonPath = path.join(embeddingsDir, 'code-chunks.json')
     const binPath = path.join(embeddingsDir, 'code-chunks.bin')
 
-    // Ensure files exist first
-    await searchMarkdownDocs('test', 1)
-
     const jsonStatBefore = await fs.stat(jsonPath)
     const binStatBefore = await fs.stat(binPath)
 
@@ -62,7 +46,7 @@ describe('searchMarkdownDocs integration tests', () => {
     const result1 = await searchMarkdownDocs('entity', 1)
     const result2 = await searchMarkdownDocs('service', 1)
 
-    // Check that files weren't modified (using cached files)
+    // Check that files weren't modified (using existing files)
     const jsonStatAfter = await fs.stat(jsonPath)
     const binStatAfter = await fs.stat(binPath)
 
@@ -71,37 +55,25 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result1.length > 0, 'First result should not be empty')
     assert(result2.length > 0, 'Second result should not be empty')
 
-    // Files should have same modification time (not re-downloaded)
+    // Files should have same modification time (not modified)
     assert.strictEqual(
       jsonStatBefore.mtime.getTime(),
       jsonStatAfter.mtime.getTime(),
-      'JSON file should not be re-downloaded'
+      'JSON file should not be modified'
     )
     assert.strictEqual(
       binStatBefore.mtime.getTime(),
       binStatAfter.mtime.getTime(),
-      'Binary file should not be re-downloaded'
+      'Binary file should not be modified'
     )
   })
-  test('should reuse downloaded files on subsequent calls', async () => {
-    // First call - downloads embeddings
+  test('should work with multiple search calls', async () => {
+    // First call - uses existing embeddings
     const result1 = await searchMarkdownDocs('entity', 1)
 
-    // Verify files exist
-    const jsonExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.json'))
-      .then(() => true)
-      .catch(() => false)
-    const binExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.bin'))
-      .then(() => true)
-      .catch(() => false)
-
-    assert(jsonExists, 'JSON file should exist')
-    assert(binExists, 'Binary file should exist')
-
-    // Second call - should use existing files
+    // Second call - should use same existing files
     const result2 = await searchMarkdownDocs('service', 1)
+
     assert(typeof result1 === 'string', 'First result should be a string')
     assert(typeof result2 === 'string', 'Second result should be a string')
     assert(result1.length > 0, 'First result should not be empty')
