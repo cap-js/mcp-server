@@ -29,3 +29,39 @@ jobs:
     secrets: inherit
     with:
       dry-run: ${{ fromJSON(github.event.inputs.dry-run || 'false') }}
+  publish-registry:
+    runs-on: ubuntu-latest
+    needs: release
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      # MCP publishing (works for all package types)
+      - name: Download MCP Publisher
+        run: >-
+          curl -L 
+            "https://github.com/modelcontextprotocol/registry/releases/download/latest/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | 
+            tar xz mcp-publisher
+      
+      - name: Publish to MCP Registry
+        run: |-
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+      - run: |-
+          VERSION=${GITHUB_REF#refs/tags/v}
+          jq --arg v "$VERSION" '.version = $v' server.json > tmp && mv tmp server.json
+
+      - run: |-
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -am "chore: update version in server.json [skip ci]"
+          git push origin HEAD:main
