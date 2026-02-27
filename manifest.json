@@ -1,0 +1,32 @@
+{
+  "manifest_version": "0.3",
+  "name": "@cap-js/mcp-server",
+  "version": "0.0.4",
+  "display_name": "CAP MCP Server",
+  "description": "AI-assisted development of SAP Cloud Application Programming Model (CAP) applications.",
+  "author": {
+    "name": "SAP SE",
+    "url": "https://cap.cloud.sap/"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cap-js/mcp-server"
+  },
+  "license": "Apache-2.0",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/index.js"]
+    }
+  },
+  "tools": [
+    { "name": "search_model", "description": "Search CDS model definitions" },
+    { "name": "search_docs", "description": "Search CAP documentation" }
+  ],
+  "compatibility": {
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}
