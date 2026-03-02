@@ -1,7 +1,7 @@
 {
   "name": "cds-mcp",
   "version": "0.0.4",
-  "description": "AI-assisted development of SAP Cloud Application Programming Model (CAP) applications.",
+  "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "author": {
     "name": "SAP SE"
   },
