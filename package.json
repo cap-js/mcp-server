@@ -14,7 +14,9 @@
     "lib/",
     "index.js",
     "manifest.json",
-    "icon.png"
+    "icon.png",
+    ".claude-plugin/plugin.json",
+    ".mcp.json"
   ],
   "bin": {
     "cds-mcp": "./index.js"
