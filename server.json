@@ -8,10 +8,7 @@
   },
   "version": "1.0.0",
   "Icon": {
-    "src": "https://cap.cloud.sap/docs/logos/cap.svg",
-    "sizes": [
-      "any"
-    ]
+    "src": "https://github.com/cap-js/mcp-server/blob/main/icon.png"
   },
   "packages": [
     {
