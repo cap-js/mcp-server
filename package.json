@@ -11,12 +11,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "files": [
+    ".claude-plugin/",
     "lib/",
-    "index.js",
-    "manifest.json",
+    ".mcp.json",
     "icon.png",
-    ".claude-plugin/plugin.json",
-    ".mcp.json"
+    "index.js",
+    "manifest.json"
   ],
   "bin": {
     "cds-mcp": "./index.js"
