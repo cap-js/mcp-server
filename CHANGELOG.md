@@ -4,11 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## Version 0.0.4 - tbd
+## Version 0.0.4 - 2026-03-06
 
 ### Added
 
-- Files for MCPB bundle (Claude Desktop), Claude Code CLI plugin, and Claude Code MCP config
+- Support for MCP Bundles (Claude Desktop), Claude Code CLI plugin, and Claude Code MCP config
 
 ## Version 0.0.3 - 2025-09-22
 
