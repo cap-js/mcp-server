@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/mcp-server",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "repository": {
     "type": "git",
@@ -11,8 +11,12 @@
   "license": "Apache-2.0",
   "type": "module",
   "files": [
+    ".claude-plugin/",
     "lib/",
-    "index.js"
+    ".mcp.json",
+    "icon.png",
+    "index.js",
+    "manifest.json"
   ],
   "bin": {
     "cds-mcp": "./index.js"
