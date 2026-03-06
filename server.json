@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@cap-js/mcp-server",
-      "version": "0.0.3",
+      "version": "0.0.4",
       "transport": {
         "type": "stdio"
       }
