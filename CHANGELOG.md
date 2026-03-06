@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 ### Added
 
 - Support for MCP Bundles (Claude Desktop), Claude Code CLI plugin, and Claude Code MCP config
+- Support for [MCP Registry](https://github.blog/ai-and-ml/generative-ai/how-to-find-install-and-manage-mcp-servers-with-the-github-mcp-registry/)
 
 ## Version 0.0.3 - 2025-09-22
 
