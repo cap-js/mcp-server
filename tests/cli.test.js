@@ -36,6 +36,11 @@ function runCliCommand(args, options = {}) {
   })
 }
 
+const noFetchEnv = {
+  ...process.env,
+  NODE_OPTIONS: '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
+}
+
 test.describe('CLI usage', () => {
   test('search_model subcommand works', async () => {
     const result = await runCliCommand(['search_model', sampleProjectPath, 'Books', 'entity'])
@@ -108,7 +113,9 @@ test.describe('CLI usage', () => {
   })
 
   test('--offline search_docs works without downloading', async () => {
-    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'])
+    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
+      env: noFetchEnv
+    })
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert(result.stdout.length > 0, 'Should produce output')
@@ -124,7 +131,7 @@ test.describe('CLI usage', () => {
 
   test('CDS_MCP_OFFLINE=true search_docs works without downloading', async () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
-      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+      env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true' }
     })
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
