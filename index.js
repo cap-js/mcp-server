@@ -16,7 +16,7 @@ const helpText = `Usage: cds-mcp [options] [tool] [args...]
 Options:
   -h, --help                 Show this help message
   -v, --version              Show version number
-      --download-embeddings  Download latest documentation embeddings
+      --download             Download latest embeddings and model files
       --offline              Skip downloading of embeddings updates
 
 Environment variables:
@@ -33,6 +33,7 @@ try {
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
       'download-embeddings': { type: 'boolean' },
+      download: { type: 'boolean' },
       offline: { type: 'boolean' }
     },
     allowPositionals: true,
@@ -43,9 +44,9 @@ try {
   process.exit(1)
 }
 
-if (values['download-embeddings']) {
+if (values.download || values['download-embeddings']) {
   if (Object.values(values).filter(Boolean).length > 1 || positionals.length > 0) {
-    console.error('--download-embeddings must be the only argument')
+    console.error('--download must be the only argument')
     process.exit(1)
   }
   const result = await downloadEmbeddings()

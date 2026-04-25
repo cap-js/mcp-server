@@ -91,15 +91,15 @@ test.describe('CLI usage', () => {
     assert(result.stderr.includes('Usage: cds-mcp'), 'Should show usage in stderr')
   })
 
-  test('--download-embeddings rejects extra arguments', async () => {
-    const result = await runCliCommand(['--download-embeddings', '--help'])
+  test('--download rejects extra arguments', async () => {
+    const result = await runCliCommand(['--download', '--help'])
 
     assert.equal(result.code, 1, 'Command should exit with code 1')
     assert(result.stderr.includes('must be the only argument'), 'Should show error message')
   })
 
-  test('--download-embeddings returns etag info', async () => {
-    const result = await runCliCommand(['--download-embeddings'])
+  test('--download returns etag info', async () => {
+    const result = await runCliCommand(['--download'])
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     const output = JSON.parse(result.stdout)
@@ -115,8 +115,8 @@ test.describe('CLI usage', () => {
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
 
-  test('--offline is incompatible with --download-embeddings', async () => {
-    const result = await runCliCommand(['--offline', '--download-embeddings'])
+  test('--offline is incompatible with --download', async () => {
+    const result = await runCliCommand(['--offline', '--download'])
 
     assert.equal(result.code, 1, 'Command should exit with code 1')
     assert(result.stderr.includes('must be the only argument'), 'Should show error message')
