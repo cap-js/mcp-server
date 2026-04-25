@@ -122,6 +122,16 @@ test.describe('CLI usage', () => {
     assert(result.stderr.includes('must be the only argument'), 'Should show error message')
   })
 
+  test('CDS_MCP_OFFLINE=true search_docs works without downloading', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'], {
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert(result.stdout.length > 0, 'Should produce output')
+    assert(result.stdout.includes('---'), 'Output should contain document separators')
+  })
+
   test('no arguments starts MCP server mode', async () => {
     const child = spawn('node', [cdsMcpPath], {
       stdio: 'pipe'

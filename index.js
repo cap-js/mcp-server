@@ -19,6 +19,9 @@ Options:
       --download-embeddings  Download latest documentation embeddings
       --offline              Skip downloading of embeddings updates
 
+Environment variables:
+  CDS_MCP_OFFLINE=true       Same as --offline
+
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
   search_docs <query> [maxResults]`
