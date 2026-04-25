@@ -68,6 +68,45 @@ test.describe('CLI usage', () => {
     assert(result.stderr.includes('Available tools:'), 'Should list available tools')
   })
 
+  test('--help shows usage information', async () => {
+    const result = await runCliCommand(['--help'])
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert(result.stdout.includes('Usage: cds-mcp'), 'Should show usage line')
+    assert(result.stdout.includes('--help'), 'Should list --help option')
+    assert(result.stdout.includes('search_model'), 'Should list search_model tool')
+  })
+
+  test('--version shows version number', async () => {
+    const result = await runCliCommand(['--version'])
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert(/^\d+\.\d+\.\d+/.test(result.stdout.trim()), 'Should print a semver version')
+  })
+
+  test('unknown flag shows help and exits with error', async () => {
+    const result = await runCliCommand(['--foo'])
+
+    assert.equal(result.code, 1, 'Command should exit with code 1')
+    assert(result.stderr.includes('Usage: cds-mcp'), 'Should show usage in stderr')
+  })
+
+  test('--download-embeddings rejects extra arguments', async () => {
+    const result = await runCliCommand(['--download-embeddings', '--help'])
+
+    assert.equal(result.code, 1, 'Command should exit with code 1')
+    assert(result.stderr.includes('must be the only argument'), 'Should show error message')
+  })
+
+  test('--download-embeddings returns etag info', async () => {
+    const result = await runCliCommand(['--download-embeddings'])
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    const output = JSON.parse(result.stdout)
+    assert(typeof output.etag === 'string', 'Should return an etag string')
+    assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
+  })
+
   test('no arguments starts MCP server mode', async () => {
     const child = spawn('node', [cdsMcpPath], {
       stdio: 'pipe'
