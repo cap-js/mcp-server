@@ -16,6 +16,7 @@ Options:
   -h, --help                 Show this help message
   -v, --version              Show version number
       --download-embeddings  Download latest documentation embeddings
+      --offline              Skip downloading of embeddings updates
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
@@ -27,7 +28,8 @@ try {
     options: {
       help: { type: 'boolean', short: 'h' },
       version: { type: 'boolean', short: 'v' },
-      'download-embeddings': { type: 'boolean' }
+      'download-embeddings': { type: 'boolean' },
+      offline: { type: 'boolean' }
     },
     allowPositionals: true,
     strict: true

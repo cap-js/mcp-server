@@ -107,6 +107,21 @@ test.describe('CLI usage', () => {
     assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
   })
 
+  test('--offline search_docs works without downloading', async () => {
+    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'])
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert(result.stdout.length > 0, 'Should produce output')
+    assert(result.stdout.includes('---'), 'Output should contain document separators')
+  })
+
+  test('--offline is incompatible with --download-embeddings', async () => {
+    const result = await runCliCommand(['--offline', '--download-embeddings'])
+
+    assert.equal(result.code, 1, 'Command should exit with code 1')
+    assert(result.stderr.includes('must be the only argument'), 'Should show error message')
+  })
+
   test('no arguments starts MCP server mode', async () => {
     const child = spawn('node', [cdsMcpPath], {
       stdio: 'pipe'
