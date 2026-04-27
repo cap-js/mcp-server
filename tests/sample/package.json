@@ -6,11 +6,7 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@sap/cds": "^9",
-    "express": "^4"
-  },
-  "engines": {
-    "node": ">=20"
+    "@sap/cds": "^9"
   },
   "devDependencies": {
     "@cap-js/sqlite": "^2",
