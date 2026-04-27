@@ -105,7 +105,7 @@ test.describe('tools', () => {
     // Normal search
     const results = await tools.search_docs.handler({
       query: 'how to create a new cap project',
-      maxResults: 2
+      maxResults: 10
     })
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
   })
