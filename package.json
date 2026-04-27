@@ -33,6 +33,6 @@
   },
   "devDependencies": {
     "@huggingface/transformers": "^3.7.1",
-    "prettier": "*"
+    "prettier": "^3.8.3"
   }
 }
