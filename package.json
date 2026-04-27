@@ -27,7 +27,7 @@
     "lint": "npx eslint ."
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.8.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@sap/cds": ">=9",
     "onnxruntime-web": "^1.22.0"
   },
