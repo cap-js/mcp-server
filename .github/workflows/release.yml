@@ -27,7 +27,7 @@ jobs:
 
       - name: get version
         id: package-version
-        uses: martinbeentjes/npm-get-version-action@v1.2.3
+        uses: martinbeentjes/npm-get-version-action@v1.3.1
       - name: check versions
         run: |
           version_in_server_json=$(jq -r '.packages[0].version' server.json)
