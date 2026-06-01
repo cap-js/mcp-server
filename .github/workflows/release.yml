@@ -24,7 +24,7 @@ jobs:
       - name: run tests
         run: |
           npm i -g @sap/cds-dk
-          npm i
+          npm ci
           npm run lint
           npm run test
 
