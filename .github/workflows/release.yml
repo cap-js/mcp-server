@@ -7,6 +7,9 @@ permissions:
 on:
   workflow_dispatch:
 
+env:
+  NPM_CONFIG_IGNORE_SCRIPTS: true
+
 jobs:
   publish-npm:
     runs-on: ubuntu-latest
@@ -21,7 +24,7 @@ jobs:
       - name: run tests
         run: |
           npm i -g @sap/cds-dk
-          npm i
+          npm ci
           npm run lint
           npm run test
 
