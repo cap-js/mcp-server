@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm
     steps:
-      - uses: actions/checkout@v6.0.2
-      - uses: actions/setup-node@v6.4.0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
@@ -30,7 +30,7 @@ jobs:
 
       - name: get version
         id: package-version
-        uses: martinbeentjes/npm-get-version-action@v1.3.1
+        uses: martinbeentjes/npm-get-version-action@3cf273023a0dda27efcd3164bdfb51908dd46a5b # v1.3.1
       - name: check versions
         run: |
           version_in_server_json=$(jq -r '.packages[0].version' server.json)
@@ -50,12 +50,12 @@ jobs:
 
       - name: parse changelog
         id: parse-changelog
-        uses: schwma/parse-changelog-action@v1.2.0
+        uses: schwma/parse-changelog-action@1c2b2005ccf594cc3a45d33c10af4ab924d3a1c5 # v1.2.0
         with:
           version: '${{ steps.package-version.outputs.current-version }}'
 
       - name: create a GitHub release
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@339a81892b84b4eeb0f6e744e4574d79d0d9b8dd # v1.21.0
         with:
           tag: 'v${{ steps.package-version.outputs.current-version }}'
           body: '${{ steps.parse-changelog.outputs.body }}'
