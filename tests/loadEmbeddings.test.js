@@ -148,4 +148,43 @@ describe('loadEmbeddings tests', () => {
 
     await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
+
+  test('should zip meta from the parallel metadata array', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const chunks = ['Hello world', 'Test content']
+    const metadata = [
+      { category: 'node.js', source: 'A > B', url: 'https://cap.cloud.sap/docs/node.js/a' },
+      { category: 'java', source: 'C > D', url: 'https://cap.cloud.sap/docs/java/c' }
+    ]
+    const meta = { dim: 3, count: 2, chunks, metadata }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+
+    // Create mock embeddings file to prevent loadChunks failure
+    const binary = new Float32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
+
+    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+
+    assert.strictEqual(result[0].content, 'Hello world')
+    assert.deepStrictEqual(result[0].meta, metadata[0])
+    assert.deepStrictEqual(result[1].meta, metadata[1])
+  })
+
+  test('should default meta to {} when metadata array is absent', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const chunks = ['Hello world']
+    const meta = { dim: 2, count: 1, chunks } // no metadata array
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+
+    // Create mock embeddings file to prevent loadChunks failure
+    const binary = new Float32Array([1.0, 2.0])
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
+
+    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+
+    assert.strictEqual(result[0].content, 'Hello world')
+    assert.deepStrictEqual(result[0].meta, {})
+  })
 })
