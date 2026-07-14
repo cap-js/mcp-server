@@ -108,8 +108,16 @@ test.describe('CLI usage', () => {
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     const output = JSON.parse(result.stdout)
-    assert(typeof output.etag === 'string', 'Should return an etag string')
-    assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
+    assert(output, 'Should return a result')
+    assert.equal(typeof output, 'object', 'Should return a per-id result map')
+    
+    const entries = Object.values(output)
+    assert(entries.length > 0, 'Should report at least one embeddings set')
+    
+    for (const entry of entries) {
+      if ('error' in entry) assert.equal(typeof entry.error, 'string', 'A failed set should report a string error')
+      else assert.equal(typeof entry.updated, 'boolean', 'A downloaded set should report {etag, updated}')
+    }
   })
 
   test('--offline search_docs works without downloading', async () => {
