@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import run, { runTool } from './lib/run.js'
-import { downloadEmbeddings } from './lib/searchMarkdownDocs.js'
+import { downloadEmbeddings } from './lib/downloadEmbeddings.js'
 import { forceDownloadModel } from './lib/calculateEmbeddings.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
