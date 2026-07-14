@@ -50,7 +50,10 @@ if (values.download || values['download-embeddings']) {
     process.exit(1)
   }
   const result = await downloadEmbeddings()
-  await forceDownloadModel()
+  result.model = await forceDownloadModel().then(
+    () => ({ updated: true }),
+    error => ({ error: error.message })
+  )
   console.log(JSON.stringify(result))
 } else if (values.help) {
   console.log(helpText)
