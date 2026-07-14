@@ -187,4 +187,33 @@ describe('loadEmbeddings tests', () => {
     assert.strictEqual(result[0].content, 'Hello world')
     assert.deepStrictEqual(result[0].meta, {})
   })
+
+  test('should reject metadata that is not an array', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const chunks = ['Hello world']
+    const meta = { dim: 2, count: 1, chunks, metadata: { category: 'node.js' } }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+
+    // Create mock embeddings file to prevent loadChunks failure
+    const binary = new Float32Array([1.0, 2.0])
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
+
+    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  })
+
+  test('should reject metadata whose length does not match chunks', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const chunks = ['Hello world', 'Test content']
+    const metadata = [{ category: 'node.js', source: 'A', url: 'u1' }]
+    const meta = { dim: 3, count: 2, chunks, metadata }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+
+    // Create mock embeddings file to prevent loadChunks failure
+    const binary = new Float32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
+
+    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  })
 })
