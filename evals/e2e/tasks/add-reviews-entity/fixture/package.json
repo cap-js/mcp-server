@@ -1,8 +1,0 @@
-{
-  "name": "add-reviews-eval-fixture",
-  "version": "1.0.0",
-  "private": true,
-  "dependencies": {
-    "@sap/cds": ">=9"
-  }
-}
