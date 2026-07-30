@@ -24,7 +24,10 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "evals": "node evals/run.js",
+    "evals:test": "node --test --test-concurrency=1 evals/tests/unit/*.test.js",
+    "evals:baseline": "cp evals/runs/latest.json evals/data/baseline.json && echo 'Promoted evals/runs/latest.json -> evals/data/baseline.json'"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

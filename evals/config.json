@@ -1,0 +1,35 @@
+{
+  "$comment": "Single source of configuration for the CAP MCP retrieval evals. Every value here is overridable via env vars (EVAL_*) — see lib/config.js. Paths are relative to the evals/ directory. NOTE: metrics are computed at 'k' and the baseline was captured at a specific 'k'; if you change 'k', re-capture the baseline (npm run evals:baseline) or deltas will be misleading.",
+
+  "k": 5,
+
+  "paths": {
+    "goldenSet": "data/golden-set.json",
+    "baseline": "data/baseline.json",
+    "runsDir": "runs"
+  },
+
+  "corpus": {
+    "corpus_version": "capire@unknown",
+    "index_rev": 0,
+    "embedding_model": "Xenova/all-MiniLM-L6-v2"
+  },
+
+  "offline": true,
+
+  "gates": {
+    "$comment": "Gated metrics fail the run (non-zero exit) when value < threshold. null = reported only, never fails. Thresholds are derived empirically from a baseline run — not hardcoded standards.",
+    "recall_at_k": 0.8,
+    "mrr": 0.5,
+    "hit_rate_at_k": 0.8,
+    "precision_at_k": null,
+    "ndcg_at_k": null
+  },
+
+  "output": {
+    "$comment": "Run-output hygiene. Each run writes runs/eval-run-<run_id>.json plus updates runs/latest.json. Old timestamped runs are pruned to keepRuns (0 = keep none, only latest.json; -1 = keep all). writeTimestamped=false writes only latest.json.",
+    "writeTimestamped": true,
+    "keepRuns": 20,
+    "latestName": "latest.json"
+  }
+}

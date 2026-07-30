@@ -1,0 +1,85 @@
+{
+  "golden_set": "cap-golden-v1",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human against the capire@2026-07 index and stored here; it is never recomputed at eval time. IDs are stable content-derived identifiers (see evals/ids.js and METRICS.md), not chunk array indices. If a corpus re-index changes a labelled chunk's text, its id changes and the runner's pre-flight check will flag the stale id — refresh per evals/README.md.",
+  "questions": [
+    {
+      "id": "cap-001",
+      "question": "How do I define a composition of one entity in CDS?",
+      "relevant_doc_ids": [
+        "cds-language-compiler-managed-compositions-for#45c7585d",
+        "march-2025-cds-language-compiler-actions#e9b209b0"
+      ]
+    },
+    {
+      "id": "cap-002",
+      "question": "How do I expose a service via OData v4?",
+      "relevant_doc_ids": [
+        "application-services-handling-crud-events-odata#be5c651d"
+      ]
+    },
+    {
+      "id": "cap-003",
+      "question": "What is the difference between managed and unmanaged compositions?",
+      "relevant_doc_ids": [
+        "cds-language-compiler-managed-compositions-for#45c7585d"
+      ]
+    },
+    {
+      "id": "cap-004",
+      "question": "How do I add custom error handling in a service handler?",
+      "relevant_doc_ids": [
+        "error-handler-the-following-example-of#c12c0e50",
+        "indicating-errors-exceptions#668e3c47",
+        "indicating-errors-messages#199f60ee"
+      ]
+    },
+    {
+      "id": "cap-005",
+      "question": "How do I define an association in CDL?",
+      "relevant_doc_ids": [
+        "conceptual-definition-language-cdl-language-preliminaries#f6b0b479",
+        "june-2022-cds-language-compiler-define#29dacdf9"
+      ]
+    },
+    {
+      "id": "cap-006",
+      "question": "How do I add authorization with @requires and @restrict?",
+      "relevant_doc_ids": [
+        "cap-level-authorization-role-based-access#8013298a",
+        "cap-level-authorization-instance-based-access#d17c0bb7",
+        "authentication-authorization-enforcement#dceddd27"
+      ]
+    },
+    {
+      "id": "cap-007",
+      "question": "How do I run a CAP project locally with cds watch?",
+      "relevant_doc_ids": [
+        "cds-command-line-interface-cli#ca38469f",
+        "cds-editors-and-ides-visual-studio#8e7f9c67"
+      ]
+    },
+    {
+      "id": "cap-008",
+      "question": "How do I connect to a SQLite database in CAP?",
+      "relevant_doc_ids": [
+        "june-2024-node-js-new-database#fece26f4",
+        "june-2023-node-js-new-database#28841c9b"
+      ]
+    },
+    {
+      "id": "cap-009",
+      "question": "How do I define a service with entities projected from the data model?",
+      "relevant_doc_ids": [
+        "core-concepts-of-cap-services-services#0c60ad11"
+      ]
+    },
+    {
+      "id": "cap-010",
+      "question": "How do I add localized texts to entities in CDS?",
+      "relevant_doc_ids": [
+        "localized-data-declaring-localized-data#e94844d3",
+        "cds-language-compiler-extending-the-generated#addfdfcb"
+      ]
+    }
+  ]
+}

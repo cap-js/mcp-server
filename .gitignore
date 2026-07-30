@@ -2,3 +2,7 @@ models/
 embeddings/
 node_modules/
 .claude
+
+# Transient eval run reports (data/baseline.json is committed; individual runs are not)
+evals/runs/*
+!evals/runs/.gitkeep
