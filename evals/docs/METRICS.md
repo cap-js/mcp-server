@@ -1,17 +1,14 @@
 # CAP MCP RAG — Eval Metrics
 
 Deterministic, code-only retrieval evaluation for the CAP MCP server's `search_docs`
-RAG pipeline. **No LLM is used anywhere** — in generation or in scoring. Every metric
-is pure arithmetic computed from a frozen golden set whose relevance labels are
+RAG pipeline. Every metric is pure arithmetic computed from a frozen golden set whose relevance labels are
 authored once by a human and stored in `relevant_doc_ids`.
 
 ## Why these metrics (issue TODO #1 — alternatives to pass@k)
 
 `pass@k` in the sense of "did an agent complete the task in k attempts" requires a
-correctness oracle. With **no LLM judge**, the only honest, deterministic collapse of
-that idea is **Hit-Rate@K** — "did at least one relevant doc appear in the top-K?".
-So there is deliberately **no separate `pass@k` concept and no LLM call**. Instead we
-compute the standard information-retrieval metrics, which also let us attribute a
+correctness oracle. **Hit-Rate@K** — "did at least one relevant doc appear in the top-K?".
+Instead we compute the standard information-retrieval metrics, which also let us attribute a
 regression to a specific stage of the pipeline:
 
 | Metric | Formula (binary relevance) | What a drop tells you |
@@ -46,7 +43,7 @@ From the aggregate deltas vs. the baseline:
 
 Thresholds live in `config.json` (`gates`) and are **derived empirically from the first baseline
 run** — they are not hardcoded "industry standard" numbers. Promote a known-good
-`eval-run-<id>.json` to `baseline.json`, then set each gate at/below the baseline value
+the newest run in `runs/result.jsonl` to `data/baseline.json` (via `npm run evals:baseline`), then set each gate at/below the baseline value
 with a small margin.
 
 ## Stable identifiers (why not chunk index)
@@ -82,6 +79,7 @@ fast instead of silently scoring against dead labels. Refresh procedure is in `R
   it is stamped after computation / passed in, so it never affects any metric.
 - Same golden set + same retriever output → **byte-identical** JSON (except `run_id`)
   and byte-identical console body. This is asserted by a test (`tests/unit/runner.test.js`).
-- The embedding model in `config.embedding_model` is a free-form label recording
-  whatever produced the index (here: `Xenova/all-MiniLM-L6-v2`). Evaluate that model on
+- The default retriever embeds with `Xenova/all-MiniLM-L6-v2` (the production model in
+  `lib/calculateEmbeddings.js`). It is fixed, not a config knob — scoring against the
+  pre-built `code-chunks.bin` only makes sense with the model that built it. Evaluate on
   **our** corpus — do not substitute MTEB leaderboard aggregates.

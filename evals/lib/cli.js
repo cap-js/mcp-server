@@ -2,7 +2,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS } from './config.js'
 import { loadIndex, makeDefaultRetriever } from './retriever.js'
-import { preflight, buildReport, makeRunId, runIdToFilename, renderConsoleWithBaseline } from './runner.js'
+import { preflight, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
+import { appendRun } from './store.js'
 
 async function readJsonOrNull(p) {
   try {
@@ -13,44 +14,13 @@ async function readJsonOrNull(p) {
   }
 }
 
-// Write the run report to runs/, update latest.json, and prune old timestamped
-// runs so repeated runs never pollute the tree. Returns paths written.
-async function persistRun(cfg, full) {
-  const runsDir = cfg.paths.runsDir
-  await fs.mkdir(runsDir, { recursive: true })
-  const body = JSON.stringify(full, null, 2) + '\n'
-  const written = []
+// `deps` is an injection seam for tests: pass { loadIndex, makeRetriever } to
+// score against a fixture index + retriever without loading the ONNX model.
+// Production callers omit it and get the real search_docs path.
+export async function run({ configPath, overrides, logger = console, deps = {} } = {}) {
+  const loadIndexFn = deps.loadIndex || loadIndex
+  const makeRetrieverFn = deps.makeRetriever || makeDefaultRetriever
 
-  // Always update the stable pointer.
-  const latestPath = path.join(runsDir, cfg.output.latestName)
-  await fs.writeFile(latestPath, body)
-  written.push(latestPath)
-
-  // Optionally keep a timestamped copy.
-  if (cfg.output.writeTimestamped) {
-    const runPath = path.join(runsDir, runIdToFilename(full.run_id))
-    await fs.writeFile(runPath, body)
-    written.push(runPath)
-    await pruneRuns(runsDir, cfg.output.latestName, cfg.output.keepRuns)
-  }
-  return { written, latestPath }
-}
-
-// Keep at most `keep` timestamped eval-run files (newest by filename, which
-// sorts chronologically thanks to the ISO timestamp). keep < 0 => keep all.
-async function pruneRuns(runsDir, latestName, keep) {
-  if (keep < 0) return
-  const entries = await fs.readdir(runsDir)
-  const runs = entries
-    .filter(f => f.startsWith('eval-run-') && f.endsWith('.json') && f !== latestName)
-    .sort() // ISO timestamp prefix → lexical sort == chronological
-  const excess = runs.length - keep
-  for (let i = 0; i < excess; i++) {
-    await fs.unlink(path.join(runsDir, runs[i])).catch(() => {})
-  }
-}
-
-export async function run({ configPath, overrides, logger = console } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   // Offline flag must reach the retrieval internals via env before they load.
@@ -63,7 +33,7 @@ export async function run({ configPath, overrides, logger = console } = {}) {
   }
   const baseline = await readJsonOrNull(cfg.paths.baseline)
 
-  const index = await loadIndex()
+  const index = await loadIndexFn()
 
   // Pre-flight: fail loudly on stale relevant_doc_ids.
   const stale = preflight(golden.questions, index.idSet)
@@ -74,7 +44,7 @@ export async function run({ configPath, overrides, logger = console } = {}) {
     return { code: 2, stale }
   }
 
-  const retrieve = await makeDefaultRetriever()
+  const retrieve = await makeRetrieverFn()
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const retrieved_ids = await retrieve(q.question)
@@ -87,9 +57,7 @@ export async function run({ configPath, overrides, logger = console } = {}) {
   }
 
   const config = {
-    corpus_version: cfg.corpus.corpus_version,
-    index_rev: cfg.corpus.index_rev,
-    embedding_model: cfg.corpus.embedding_model,
+    capire_version: cfg.capire_version,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k
@@ -99,10 +67,11 @@ export async function run({ configPath, overrides, logger = console } = {}) {
   const run_id = makeRunId()
   const full = { run_id, ...report }
 
-  const { written, latestPath } = await persistRun(cfg, full)
+  const indexInfo = { chunkCount: index.count }
+  const { path: resultsFile, total } = await appendRun(cfg, full)
 
-  logger.log(renderConsoleWithBaseline(full, run_id, { chunkCount: index.count }, baseline))
-  logger.error(`\n(report written to ${path.relative(process.cwd(), latestPath)}${written.length > 1 ? ' + timestamped copy' : ''})`)
+  logger.log(renderConsoleWithBaseline(full, run_id, indexInfo, baseline))
+  logger.error(`\n(appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file)`)
 
-  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, written }
+  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }

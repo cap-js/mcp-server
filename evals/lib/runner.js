@@ -67,7 +67,6 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   for (const q of per_question) delete q._full
 
   return {
-    deterministic: true,
     config,
     baseline_run_id: baseline ? baseline.run_id : null,
     aggregate,
@@ -128,45 +127,43 @@ function diagnosisProse(report) {
   return ['No regression against baseline across gated metrics.']
 }
 
-// Top 3 by MRR drop vs baseline; if no baseline, top 3 by lowest absolute MRR.
+// The 3 weakest questions by ABSOLUTE MRR right now (tie-break by id). When a
+// baseline is present, each item is annotated with its change vs baseline (so a
+// regression shows as "1.00 → 0.33"; an unchanged weak question shows "= 0.33").
 export function worstQuestions(report, baseline) {
   const hasBaseline = report.baseline_run_id !== null && baseline
-  if (!hasBaseline) {
-    const items = [...report.per_question]
-      .sort((a, b) => a.metrics.mrr - b.metrics.mrr || (a.id < b.id ? -1 : 1))
-      .slice(0, 3)
-      .map(q => ({
-        id: q.id,
-        question: q.question,
-        detail: `MRR ${q.metrics.mrr.toFixed(2)} (first relevant hit ${q.relevant_hits_at_rank[0] ? 'rank ' + q.relevant_hits_at_rank[0] : 'not in top-K'})`
-      }))
-    return { noBaseline: true, items }
-  }
-  const baseById = new Map(baseline.per_question.map(q => [q.id, q]))
-  const scored = report.per_question.map(q => {
-    const b = baseById.get(q.id)
-    const bmrr = b ? b.metrics.mrr : null
-    const drop = bmrr === null ? 0 : bmrr - q.metrics.mrr
-    return { q, bmrr, drop }
-  })
-  const items = scored
-    .sort((a, b) => b.drop - a.drop || (a.q.id < b.q.id ? -1 : 1))
+  const baseById = hasBaseline ? new Map(baseline.per_question.map(q => [q.id, q])) : null
+  const k = report.config.k
+
+  const rankStr = ranks => (ranks && ranks[0] ? `rank ${ranks[0]}` : `not in top-${k}`)
+
+  const items = [...report.per_question]
+    .sort((a, b) => a.metrics.mrr - b.metrics.mrr || (a.id < b.id ? -1 : 1))
     .slice(0, 3)
-    .map(({ q, bmrr }) => {
-      const nowRank = q.relevant_hits_at_rank[0] || null
-      const b = baseById.get(q.id)
-      const bRank = b && b.relevant_hits_at_rank[0] ? b.relevant_hits_at_rank[0] : null
+    .map(q => {
+      const nowMrr = q.metrics.mrr
+      const nowRank = q.relevant_hits_at_rank
       let detail
-      if (nowRank === null && bRank !== null) {
-        detail = `relevant doc fell out of top ${report.config.k}        (Hit-Rate 1 → 0)`
-      } else if (bRank !== null && nowRank !== null) {
-        detail = `first relevant hit: rank ${bRank} → rank ${nowRank}   (MRR ${bmrr.toFixed(2)} → ${q.metrics.mrr.toFixed(2)})`
+      let regressed = false
+      if (baseById) {
+        const b = baseById.get(q.id)
+        const bMrr = b ? b.metrics.mrr : null
+        if (bMrr === null) {
+          detail = `MRR ${nowMrr.toFixed(2)} (${rankStr(nowRank)}; not in baseline)`
+        } else if (bMrr === nowMrr) {
+          detail = `MRR ${nowMrr.toFixed(2)} (${rankStr(nowRank)}; = baseline)`
+        } else {
+          regressed = bMrr > nowMrr
+          const arrow = regressed ? '▼' : '▲'
+          detail = `first relevant hit: ${rankStr(b.relevant_hits_at_rank)} → ${rankStr(nowRank)}   (MRR ${bMrr.toFixed(2)} ${arrow} ${nowMrr.toFixed(2)})`
+        }
       } else {
-        detail = `MRR ${(bmrr ?? 0).toFixed(2)} → ${q.metrics.mrr.toFixed(2)}`
+        detail = `MRR ${nowMrr.toFixed(2)} (first relevant hit ${rankStr(nowRank)})`
       }
-      return { id: q.id, question: q.question, detail }
+      return { id: q.id, question: q.question, detail, regressed }
     })
-  return { noBaseline: false, items }
+
+  return { noBaseline: !hasBaseline, items }
 }
 
 // ----- run_id (the ONLY nondeterministic value) ------------------------------
@@ -175,11 +172,6 @@ export function makeRunId(now = new Date(), rand) {
   // short suffix; deterministic when `rand` is provided (tests pass a fixed one)
   const suffix = rand || Math.random().toString(16).slice(2, 8)
   return `${ts}_${suffix}`
-}
-
-// A filesystem-safe form of a run_id (drops ':').
-export function runIdToFilename(run_id) {
-  return `eval-run-${run_id.replace(/[:]/g, '')}.json`
 }
 
 // wrapper so worstQuestions gets the baseline object
@@ -195,12 +187,11 @@ function renderConsoleImpl(report, run_id, indexInfo, wq) {
   const n = report.per_question.length
   const L = []
   L.push(bar)
-  L.push('  CAP MCP RAG — Eval Run  (deterministic)')
-  L.push(`  run_id:     ${run_id}`)
-  L.push(`  corpus:     ${c.corpus_version} (index rev ${c.index_rev}, ${indexInfo.chunkCount.toLocaleString('en-US')} chunks)`)
-  L.push(`  embedding:  ${c.embedding_model}`)
-  L.push(`  golden set: ${c.golden_set} (${c.golden_set_size} questions)`)
-  L.push(`  K:          ${c.k}`)
+  L.push('  CAP MCP RAG — Eval Run')
+  L.push(`  run_id:         ${run_id}`)
+  L.push(`  capire version: ${c.capire_version} (${indexInfo.chunkCount.toLocaleString('en-US')} chunks)`)
+  L.push(`  golden set:     ${c.golden_set} (${c.golden_set_size} questions)`)
+  L.push(`  K:              ${c.k}`)
   L.push(bar)
   L.push('')
   L.push(`RETRIEVAL METRICS (avg over ${n} questions)`)
@@ -219,8 +210,10 @@ function renderConsoleImpl(report, run_id, indexInfo, wq) {
   }
   L.push(bar)
   L.push('')
-  L.push('WORST QUESTIONS (by MRR drop vs baseline)')
-  if (wq.noBaseline) L.push('  (no baseline — first run)')
+  L.push(`WEAKEST QUESTIONS (lowest MRR${wq.noBaseline ? ' — no baseline, first run' : ' — change vs baseline'})`)
+  if (wq.items.length === 0) {
+    L.push('  (golden set is empty)')
+  }
   for (const w of wq.items) {
     L.push(`  ${w.id}  "${w.question}"`)
     L.push(`           ${w.detail}`)

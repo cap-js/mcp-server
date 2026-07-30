@@ -18,9 +18,7 @@ const GATES = {
 }
 
 const CONFIG = {
-  corpus_version: 'capire@test',
-  index_rev: 1,
-  embedding_model: 'test-model',
+  capire_version: '2026.5.0',
   golden_set: 'test-set',
   golden_set_size: 2,
   k: 5
@@ -182,6 +180,51 @@ describe('eval tests', () => {
     const wq = worstQuestions({ ...r, baseline_run_id: null }, null)
     assert.equal(wq.noBaseline, true)
     assert.equal(wq.items[0].id, 'q-001') // lowest mrr first
+  })
+
+  test('worstQuestions: always lists weakest by absolute MRR, even with no regression', () => {
+    const base = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']), // q-001 weak (mrr .333), q-002 strong (1.0)
+      baseline: null,
+      gates: GATES
+    })
+    const baseline = { run_id: 'base_wq', ...base }
+    // identical retrieval → nothing regressed, but q-001 is still the weakest
+    const r = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']),
+      baseline,
+      gates: GATES
+    })
+    const wq = worstQuestions(r, baseline)
+    assert.equal(wq.noBaseline, false)
+    assert.ok(wq.items.length > 0) // NOT empty — weakest still shown
+    assert.equal(wq.items[0].id, 'q-001') // weakest by absolute MRR
+    assert.equal(wq.items[0].regressed, false) // unchanged vs baseline
+    assert.match(wq.items[0].detail, /= baseline/) // annotated as no change
+  })
+
+  test('worstQuestions: annotates a real regression with the change + regressed flag', () => {
+    const base = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['a'], ['b']), // both rank 1, mrr 1.0
+      baseline: null,
+      gates: GATES
+    })
+    const baseline = { run_id: 'base_wq2', ...base }
+    // q-001 regresses: a → rank 3 (mrr .333); q-002 unchanged
+    const r = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']),
+      baseline,
+      gates: GATES
+    })
+    const wq = worstQuestions(r, baseline)
+    const q1 = wq.items.find(i => i.id === 'q-001')
+    assert.ok(q1) // present because it's now the weakest
+    assert.equal(q1.regressed, true)
+    assert.match(q1.detail, /1\.00 ▼ 0\.33/) // baseline → now, with down arrow
   })
 
 })

@@ -5,8 +5,8 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
   'EVAL_CONFIG', 'EVAL_K', 'EVAL_GOLDEN_SET', 'EVAL_BASELINE', 'EVAL_RUNS_DIR',
-  'EVAL_CORPUS_VERSION', 'EVAL_INDEX_REV', 'EVAL_EMBEDDING_MODEL', 'EVAL_GATES',
-  'EVAL_WRITE_TIMESTAMPED', 'EVAL_KEEP_RUNS', 'EVAL_LATEST_NAME', 'CDS_MCP_OFFLINE'
+  'EVAL_CAPIRE_VERSION', 'EVAL_GATES',
+  'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT', 'CDS_MCP_OFFLINE'
 ]
 function clearEnv() {
   for (const k of EVAL_ENV) delete process.env[k]
@@ -30,12 +30,10 @@ describe('config tests', () => {
   test('env vars override config.json', async () => {
     clearEnv()
     process.env.EVAL_K = '10'
-    process.env.EVAL_CORPUS_VERSION = 'capire@test-xyz'
-    process.env.EVAL_INDEX_REV = '9999'
+    process.env.EVAL_CAPIRE_VERSION = '2026.9.9'
     const cfg = await loadConfig()
     assert.equal(cfg.k, 10)
-    assert.equal(cfg.corpus.corpus_version, 'capire@test-xyz')
-    assert.equal(cfg.corpus.index_rev, 9999)
+    assert.equal(cfg.capire_version, '2026.9.9')
   })
 
   test('EVAL_GATES string overrides individual gates', async () => {
@@ -66,12 +64,23 @@ describe('config tests', () => {
   test('output hygiene knobs are configurable', async () => {
     clearEnv()
     process.env.EVAL_KEEP_RUNS = '3'
-    process.env.EVAL_WRITE_TIMESTAMPED = 'false'
-    process.env.EVAL_LATEST_NAME = 'current.json'
+    process.env.EVAL_RESULTS_NAME = 'runs.jsonl'
     const cfg = await loadConfig()
     assert.equal(cfg.output.keepRuns, 3)
-    assert.equal(cfg.output.writeTimestamped, false)
-    assert.equal(cfg.output.latestName, 'current.json')
+    assert.equal(cfg.output.resultsName, 'runs.jsonl')
+  })
+
+  test('compareFormat defaults to html and is overridable to md', async () => {
+    clearEnv()
+    assert.equal((await loadConfig()).output.compareFormat, 'html')
+    process.env.EVAL_COMPARE_FORMAT = 'md'
+    assert.equal((await loadConfig()).output.compareFormat, 'md')
+  })
+
+  test('rejects invalid compareFormat', async () => {
+    clearEnv()
+    process.env.EVAL_COMPARE_FORMAT = 'pdf'
+    await assert.rejects(() => loadConfig(), /compareFormat must be "html" or "md"/)
   })
 
   test('rejects invalid k', async () => {

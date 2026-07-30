@@ -62,7 +62,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
   }
 
   const paths = file.paths || {}
-  const corpus = file.corpus || {}
   const gatesFile = { ...(file.gates || {}) }
   delete gatesFile.$comment
   const output = file.output || {}
@@ -73,21 +72,17 @@ export async function loadConfig({ configPath, overrides } = {}) {
     configPath: cfgPath,
     k: envNum('EVAL_K', file.k ?? 5),
     offline: envBool('CDS_MCP_OFFLINE', file.offline ?? true),
+    capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
       baseline: resolve(envStr('EVAL_BASELINE', paths.baseline || 'data/baseline.json')),
       runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs'))
     },
-    corpus: {
-      corpus_version: envStr('EVAL_CORPUS_VERSION', corpus.corpus_version || 'capire@unknown'),
-      index_rev: envNum('EVAL_INDEX_REV', corpus.index_rev ?? 0),
-      embedding_model: envStr('EVAL_EMBEDDING_MODEL', corpus.embedding_model || 'Xenova/all-MiniLM-L6-v2')
-    },
     gates: {},
     output: {
-      writeTimestamped: envBool('EVAL_WRITE_TIMESTAMPED', output.writeTimestamped ?? true),
       keepRuns: envNum('EVAL_KEEP_RUNS', output.keepRuns ?? 20),
-      latestName: envStr('EVAL_LATEST_NAME', output.latestName || 'latest.json')
+      resultsName: envStr('EVAL_RESULTS_NAME', output.resultsName || 'result.jsonl'),
+      compareFormat: envStr('EVAL_COMPARE_FORMAT', output.compareFormat || 'html')
     }
   }
 
@@ -103,7 +98,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   // Programmatic overrides (used by tests / embedders) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
-    if (overrides.corpus) Object.assign(cfg.corpus, overrides.corpus)
+    if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
     if (overrides.offline !== undefined) cfg.offline = overrides.offline
@@ -115,6 +110,9 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
+  if (!['html', 'md'].includes(cfg.output.compareFormat)) {
+    throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
+  }
   for (const key of GATED_KEYS) {
     const g = cfg.gates[key]
     if (g !== null && (typeof g !== 'number' || g < 0 || g > 1)) {

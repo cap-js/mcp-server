@@ -1,55 +1,52 @@
 {
-  "run_id": "2026-07-30T07:11:55Z_2efc13",
-  "deterministic": true,
+  "run_id": "2026-07-30T13:18:10Z_cccb23",
   "config": {
-    "corpus_version": "capire@2026-07-28",
-    "index_rev": 4471,
-    "embedding_model": "Xenova/all-MiniLM-L6-v2",
+    "capire_version": "2026.5.0",
     "golden_set": "cap-golden-v1",
     "golden_set_size": 10,
-    "k": 5
+    "k": 10
   },
-  "baseline_run_id": null,
+  "baseline_run_id": "2026-07-30T12:17:25Z_bea564",
   "aggregate": {
     "recall_at_k": {
       "value": 1,
-      "baseline": null,
-      "delta": null,
+      "baseline": 1,
+      "delta": 0,
       "gate": 0.8,
       "status": "pass"
     },
     "mrr": {
       "value": 0.78,
-      "baseline": null,
-      "delta": null,
+      "baseline": 0.78,
+      "delta": 0,
       "gate": 0.5,
       "status": "pass"
     },
     "precision_at_k": {
-      "value": 0.38,
-      "baseline": null,
-      "delta": null,
+      "value": 0.19,
+      "baseline": 0.38,
+      "delta": -0.19,
       "gate": null,
       "status": "info"
     },
     "hit_rate_at_k": {
       "value": 1,
-      "baseline": null,
-      "delta": null,
+      "baseline": 1,
+      "delta": 0,
       "gate": 0.8,
       "status": "pass"
     },
     "ndcg_at_k": {
       "value": 0.84,
-      "baseline": null,
-      "delta": null,
+      "baseline": 0.84,
+      "delta": 0,
       "gate": null,
       "status": "info"
     }
   },
   "overall_status": "pass",
   "gated_failures": [],
-  "diagnosis": "no_regression",
+  "diagnosis": "precision_down → top-K padded with noise",
   "per_question": [
     {
       "id": "cap-001",
@@ -63,7 +60,12 @@
         "february-2025-cds-language-compiler-type#59541813",
         "march-2025-cds-language-compiler-actions#e9b209b0",
         "september-2020-cds-language-compiler-simplified#ab9bdaef",
-        "working-with-cds-models-examples#80d4f7b9"
+        "working-with-cds-models-examples#80d4f7b9",
+        "conceptual-definition-language-cdl-language-preliminaries#f6b0b479",
+        "cdl-compilation-to-database-specific-ddls#c2d24157",
+        "may-2025-cds-language-compiler-generated#af2c69dd",
+        "generic-service-providers-served-out-of#49566c12",
+        "change-tracking-identifiers-for-compositions#3eed4a12"
       ],
       "relevant_hits_at_rank": [
         1,
@@ -71,7 +73,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.4,
+        "precision_at_k": 0.2,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.92
@@ -88,14 +90,19 @@
         "april-2023-java-open-types-in#336e155d",
         "remote-services-remote-odata-services#aa8f277b",
         "remote-services-remote-odata-services-configuring#02a0f5af",
-        "remote-services-remote-odata-services-using#3d355412"
+        "remote-services-remote-odata-services-using#3d355412",
+        "august-2020-java-runtime-remote-odata#698bd0fd",
+        "remote-services-remote-odata-services-using#8e1cae82",
+        "application-services-serve-configuration-configure-base#2803cd22",
+        "serving-provided-services-cds-protocols-protocol#acfaa32d",
+        "custom-actions-and-functions-calling-actions#43eba3af"
       ],
       "relevant_hits_at_rank": [
         1
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.2,
+        "precision_at_k": 0.1,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 1
@@ -112,14 +119,19 @@
         "march-2025-cds-language-compiler-actions#e9b209b0",
         "building-applications-code-generation-for-typed#4d07c685",
         "change-tracking-identifiers-for-compositions#3eed4a12",
-        "july-2021-command-line-toolkit-importer#95a87d5f"
+        "july-2021-command-line-toolkit-importer#95a87d5f",
+        "generic-service-providers-served-out-of#85f1ca00",
+        "may-2025-cds-language-compiler-nesting#eee3857f",
+        "generic-service-providers-served-out-of#1f999384",
+        "november-2023-cds-language-compiler-annotating#3701b17b",
+        "parsing-and-compiling-models-cds-compile#17a8e67a"
       ],
       "relevant_hits_at_rank": [
         1
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.2,
+        "precision_at_k": 0.1,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 1
@@ -138,7 +150,12 @@
         "error-handler-the-following-example-of#c12c0e50",
         "java-sdk-error-response-handler#10823207",
         "indicating-errors-exceptions#668e3c47",
-        "indicating-errors-messages#199f60ee"
+        "indicating-errors-messages#199f60ee",
+        "december-2022-java-exception-handler-for#5db2b4fe",
+        "error-handling-don-t-hide-origins#ba496d08",
+        "java-runtime-customizing-error-messages#d77f797c",
+        "pub-sub-messaging-details-and-advanced#74bce02e",
+        "event-handlers-event-contexts-explicitly-proceeding#1a62a5ea"
       ],
       "relevant_hits_at_rank": [
         2,
@@ -147,7 +164,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.6,
+        "precision_at_k": 0.3,
         "mrr": 0.5,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.68
@@ -165,7 +182,12 @@
         "june-2022-cds-language-compiler-define#29dacdf9",
         "september-2023-cds-language-compiler-publish#fb87e5b4",
         "conceptual-definition-language-cdl-language-preliminaries#f6b0b479",
-        "february-2021-cds-language-compiler-resolving#bcaa2618"
+        "february-2021-cds-language-compiler-resolving#bcaa2618",
+        "cds-language-compiler-structs-and-associations#3377eeb9",
+        "june-2024-cds-language-compiler-association#a59e764f",
+        "december-2023-cds-language-compiler-association#206cf49c",
+        "september-2020-cds-language-compiler-simplified#ab9bdaef",
+        "cds-language-compiler-managed-compositions-for#45c7585d"
       ],
       "relevant_hits_at_rank": [
         2,
@@ -173,7 +195,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.4,
+        "precision_at_k": 0.2,
         "mrr": 0.5,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.651
@@ -192,7 +214,12 @@
         "cap-level-authorization-best-practices-separation#4b03a8a6",
         "cap-level-authorization-role-based-access#8013298a",
         "cap-level-authorization-instance-based-access#d17c0bb7",
-        "authentication-authorization-enforcement#dceddd27"
+        "authentication-authorization-enforcement#dceddd27",
+        "authentication-custom-authentication-overrule-partially-custom#f03b180c",
+        "cap-level-users-roles-roles#0e01a7d1",
+        "cap-level-authorization-declarative-access-control#4673f308",
+        "cap-level-users-roles-cap-roles#40ed9ad5",
+        "cap-level-authorization-role-based-access#ddd6b355"
       ],
       "relevant_hits_at_rank": [
         3,
@@ -201,7 +228,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.6,
+        "precision_at_k": 0.3,
         "mrr": 0.333,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.618
@@ -219,7 +246,12 @@
         "cds-command-line-interface-cli#ca38469f",
         "introduction-to-cap-jumpstart-grow-as#8828cf14",
         "cap-plugins-enhancements-as-cds-plugins#9b8f364d",
-        "tools-cds-watch-with-include-and#dddcb009"
+        "tools-cds-watch-with-include-and#dddcb009",
+        "cds-expression-language-cxl-preliminaries-trying#cdba8dbb",
+        "june-2024-tools-cli-new-cds#ea2d84c8",
+        "the-cds-fa-ade-object-properties#8a6415cb",
+        "august-2024-tools-faster-typescript-development#6ca9aee7",
+        "command-line-interface-cds-version#9450a6d6"
       ],
       "relevant_hits_at_rank": [
         1,
@@ -227,7 +259,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.4,
+        "precision_at_k": 0.2,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 1
@@ -245,7 +277,12 @@
         "june-2023-node-js-new-database#28841c9b",
         "june-2024-node-js-new-database#fece26f4",
         "migration-guides-cap-java-classic-to#e4629f17",
-        "deploy-multitenant-saas-applications-test-drive#c56aa4da"
+        "deploy-multitenant-saas-applications-test-drive#c56aa4da",
+        "december-2022-automatic-schema-migration-for#4d538d2c",
+        "persistence-services-datasources-postgresql-h2-sqlite#9ec68194",
+        "january-2024-open-telemetry-plugin#dd33e954",
+        "march-2023-new-sqlite-service#a8b39264",
+        "persistence-services-datasources-sqlite-file-based#0cc315ce"
       ],
       "relevant_hits_at_rank": [
         2,
@@ -253,7 +290,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.4,
+        "precision_at_k": 0.2,
         "mrr": 0.5,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.693
@@ -270,14 +307,19 @@
         "appendices-about-extension-models-extending-the#e9efd453",
         "configuring-required-services-cds-requires-srv#b08a370b",
         "march-2023-calculated-elements#414585f2",
-        "temporal-data-serving-temporal-data#e056fd32"
+        "temporal-data-serving-temporal-data#e056fd32",
+        "target-let-s-illustrate-with-the#5b31dfb1",
+        "the-bookshop-sample-services-use-case#ad83706e",
+        "messaging-declaring-events#638441f5",
+        "appendices-about-extension-models-extending-the#e0835fdd",
+        "core-concepts-of-cap-domain-models#03765a69"
       ],
       "relevant_hits_at_rank": [
         1
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.2,
+        "precision_at_k": 0.1,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 1
@@ -295,7 +337,12 @@
         "localized-data-behind-the-scenes#a88dbf68",
         "localized-data-behind-the-scenes#85ea28a8",
         "cds-language-compiler-reuse-type-sap#9b707792",
-        "cds-language-compiler-extending-the-generated#addfdfcb"
+        "cds-language-compiler-extending-the-generated#addfdfcb",
+        "localized-data-behind-the-scenes#8172d9c1",
+        "common-types-and-aspects-aspects-for#661bb166",
+        "appendices-about-extension-models-localizable-texts#873e4d9f",
+        "persistence-services-database-support-sap-hana#4a8e4fcb",
+        "july-2023-cds-language-compiler-calculated#fd5a3053"
       ],
       "relevant_hits_at_rank": [
         1,
@@ -303,7 +350,7 @@
       ],
       "metrics": {
         "recall_at_k": 1,
-        "precision_at_k": 0.4,
+        "precision_at_k": 0.2,
         "mrr": 1,
         "hit_rate_at_k": 1,
         "ndcg_at_k": 0.85
