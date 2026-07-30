@@ -33,7 +33,6 @@ async function writeGolden(questions, name = 'test-golden') {
 
 function baseOverrides(extra = {}) {
   return {
-    offline: true,
     k: 5,
     paths: { goldenSet: goldenPath, runsDir },
     capire_version: '2026.5.0',

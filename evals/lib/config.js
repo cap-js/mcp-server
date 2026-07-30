@@ -23,12 +23,6 @@ function envNum(name, fallback) {
   return n
 }
 
-function envBool(name, fallback) {
-  const v = process.env[name]
-  if (v === undefined || v === '') return fallback
-  return v === 'true' || v === '1'
-}
-
 function envStr(name, fallback) {
   const v = process.env[name]
   return v === undefined || v === '' ? fallback : v
@@ -71,7 +65,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
   const cfg = {
     configPath: cfgPath,
     k: envNum('EVAL_K', file.k ?? 5),
-    offline: envBool('CDS_MCP_OFFLINE', file.offline ?? true),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
@@ -100,7 +93,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
-    if (overrides.offline !== undefined) cfg.offline = overrides.offline
   }
 
   validateConfig(cfg)

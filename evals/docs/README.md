@@ -29,7 +29,7 @@ evals/
   docs/
     README.md          #   this file
     METRICS.md         #   metric definitions + stable-ID scheme + determinism
-  runs/                # transient run output (git-ignored except .gitkeep)
+  runs/                # transient run output (git-ignored; created on demand)
     result.jsonl       #   one JSON run report per line; capped to keepRuns (newest kept)
     compare.html       #   metric-trend dashboard (or compare.md if compareFormat=md)
   tests/
@@ -42,7 +42,7 @@ evals/
 From the repo root (`@cap-js/mcp-server`):
 
 ```sh
-npm run evals            # run the eval (reads config.json; offline) → appends to result.jsonl
+npm run evals            # run the eval (reads config.json) → appends to result.jsonl
 npm run evals:show       # re-print the newest run's console summary
 npm run evals:show -- <run_id>   # print a specific run from result.jsonl
 npm run evals:compare    # chart every run's metrics → runs/compare.html
@@ -78,9 +78,11 @@ EVAL_COMPARE_FORMAT=md npm run evals:compare  # markdown
 
 It reads only `result.jsonl` — running it never triggers an eval.
 
-The runner **requires the offline cache** (`embeddings/code-chunks.*` and the ONNX model
-under `models/`). If it's missing, run any `search_docs` query once online first to
-populate it, then run offline.
+The eval **always runs the retriever offline** — it scores against the already-downloaded
+chunk embeddings + model and never re-fetches the corpus during a run (that would break
+determinism). So the cache (`embeddings/code-chunks.*` and the ONNX model under
+`models/`) **must already exist**: on a fresh checkout, run any `search_docs` query once
+(online) to populate it, then all eval runs work against that frozen snapshot.
 
 ## Configuration
 
@@ -93,7 +95,6 @@ programmatically via `run({ overrides })` in `lib/cli.js` (overrides win last).
 | config.json key | Env override | Meaning |
 |---|---|---|
 | `k` | `EVAL_K` | Cutoff K for all @K metrics. |
-| `offline` | `CDS_MCP_OFFLINE` | Force the default retriever offline (deterministic). |
 | `capire_version` | `EVAL_CAPIRE_VERSION` | capire docs version, recorded in the report `config` + console header (provenance only). |
 | `gates.<metric>` | `EVAL_GATES` | Per-metric gate threshold (number) or `null` (reported only). |
 
@@ -143,7 +144,7 @@ run with `evals:show`, or chart all runs (including per-question sparklines) wit
 
 ## Run-output hygiene (no pollution over many runs)
 
-- All output lives under `runs/`, which is **git-ignored** except `.gitkeep`.
+- All output lives under `runs/`, which is **git-ignored** and created on demand.
 - `result.jsonl` is one append-only file — one line per run, no per-run folders.
 - It is capped to the most recent `output.keepRuns` runs (default 20); `-1` keeps all.
 - Nothing is written outside `runs/`; the golden set in `data/` is never mutated by a run.

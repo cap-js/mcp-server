@@ -23,8 +23,10 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const cfg = await loadConfig({ configPath, overrides })
 
-  // Offline flag must reach the retrieval internals via env before they load.
-  if (cfg.offline) process.env.CDS_MCP_OFFLINE = 'true'
+  // The eval always runs the retriever offline: it scores against the already-
+  // downloaded chunk embeddings + model, and never re-fetches the corpus during
+  // a run (that would break determinism). Set before the retriever loads.
+  process.env.CDS_MCP_OFFLINE = 'true'
 
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {

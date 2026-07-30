@@ -6,7 +6,7 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 const EVAL_ENV = [
   'EVAL_CONFIG', 'EVAL_K', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
   'EVAL_CAPIRE_VERSION', 'EVAL_GATES',
-  'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT', 'CDS_MCP_OFFLINE'
+  'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
 function clearEnv() {
   for (const k of EVAL_ENV) delete process.env[k]

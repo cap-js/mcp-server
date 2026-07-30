@@ -269,7 +269,7 @@ function renderHtml(runs) {
   .dot.below { fill:var(--gate); }
   .gate { stroke:var(--gate); stroke-width:1.5; stroke-dasharray:4 3; }
   .gatelabel { fill:var(--gate); font-size:10px; }
-  table { border-collapse:collapse; width:calc(100% - 56px); margin:0 28px 32px; font-size:12px; }
+  table { border-collapse:collapse; width:calc(100% - 56px); font-size:12px; }
   th,td { text-align:right; padding:5px 9px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
   th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align:left; }
   .mono { font-family: ui-monospace, monospace; font-size:11px; }
