@@ -41,10 +41,10 @@ From the aggregate deltas vs. the baseline:
 - **Gated** (a drop below threshold fails the run, non-zero exit): `recall_at_k`, `mrr`, `hit_rate_at_k`.
 - **Reported only** (`gate: null`, never fails the run): `precision_at_k`, `ndcg_at_k`.
 
-Thresholds live in `config.json` (`gates`) and are **derived empirically from the first baseline
-run** — they are not hardcoded "industry standard" numbers. Promote a known-good
-the newest run in `runs/result.jsonl` to `data/baseline.json` (via `npm run evals:baseline`), then set each gate at/below the baseline value
-with a small margin.
+Thresholds live in `config.json` (`gates`) and are **derived empirically from a baseline
+run** — they are not hardcoded "industry standard" numbers. The baseline is the oldest
+run in `runs/result.jsonl`; run the eval on a known-good state, read its metric values,
+and set each gate at/below them with a small margin.
 
 ## Stable identifiers (why not chunk index)
 

@@ -19,14 +19,13 @@ evals/
     cli.js             #   run(): orchestration — load → preflight → retrieve → score → append
     show.js            #   show(): re-render a stored run to the console
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
-    store.js           #   result.jsonl read/append (cap to keepRuns) + baseline promote
+    store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     runner.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
     ids.js             #   stable content-derived doc ids  (<label>#<sha1(text)[:8]>)
     retriever.js       #   index loader + default retriever (real search_docs path); pluggable
-  data/                # committed inputs
+  data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
-    baseline.json      #   promoted prior run — deltas, diagnosis, weakest-questions
   docs/
     README.md          #   this file
     METRICS.md         #   metric definitions + stable-ID scheme + determinism
@@ -48,11 +47,12 @@ npm run evals:show       # re-print the newest run's console summary
 npm run evals:show -- <run_id>   # print a specific run from result.jsonl
 npm run evals:compare    # chart every run's metrics → runs/compare.html
 npm run evals:test       # unit + determinism + config tests
-npm run evals:baseline   # promote the newest run in result.jsonl -> data/baseline.json
 ```
 
 Each run appends one line (its JSON report) to **`runs/result.jsonl`**, which is capped
-to the most recent `output.keepRuns` runs. The terminal shows the summary + the 3
+to the most recent `output.keepRuns` runs. Every run is compared against the **oldest
+run on file** (the baseline) — the first run has no baseline and becomes the reference.
+The terminal shows the summary + the 3
 weakest questions; `evals:show` re-prints any run, and `evals:compare` charts all of
 them. There is no per-run folder and no markdown report.
 
@@ -103,7 +103,6 @@ The following default in code and are omitted from `config.json`; set them via e
 | Setting | Env override | Default | Meaning |
 |---|---|---|---|
 | golden set path | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
-| baseline path | `EVAL_BASELINE` | `data/baseline.json` | Path to the baseline report. |
 | runs dir | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |
 | keep runs | `EVAL_KEEP_RUNS` | `20` | Max runs to keep in `result.jsonl` (`-1` = all). |
 | results name | `EVAL_RESULTS_NAME` | `result.jsonl` | Name of the append-only results file. |
@@ -124,10 +123,10 @@ EVAL_GATES='mrr=0.8' npm run evals
 EVAL_GOLDEN_SET=data/golden-set-large.json EVAL_KEEP_RUNS=-1 npm run evals
 ```
 
-> **K and the baseline are coupled.** Metrics are computed at `k`, and the baseline was
-> captured at a specific `k`. Comparing a run at a different `k` against that baseline
-> produces misleading deltas — re-capture a baseline (`npm run evals:baseline`) whenever
-> you change `k`.
+> **K and the baseline are coupled.** Metrics are computed at `k`, and the baseline is
+> the oldest run on file (captured at whatever `k` it ran with). Comparing a run at a
+> different `k` against it produces misleading deltas — start a fresh `result.jsonl`
+> (clear `runs/`) when you change `k` so the oldest run uses the new `k`.
 
 ## Outputs
 
@@ -147,8 +146,7 @@ run with `evals:show`, or chart all runs (including per-question sparklines) wit
 - All output lives under `runs/`, which is **git-ignored** except `.gitkeep`.
 - `result.jsonl` is one append-only file — one line per run, no per-run folders.
 - It is capped to the most recent `output.keepRuns` runs (default 20); `-1` keeps all.
-- Nothing is written outside `runs/`; the golden set and baseline in `data/` are never
-  mutated by a run (promoting a baseline is an explicit `npm run evals:baseline`).
+- Nothing is written outside `runs/`; the golden set in `data/` is never mutated by a run.
 
 ## Exit codes
 
@@ -169,17 +167,22 @@ run with `evals:show`, or chart all runs (including per-question sparklines) wit
 
 ## Gates & baseline
 
+The **baseline is the oldest run in `runs/result.jsonl`** — deltas, the diagnosis, and
+the weakest-questions annotation are all computed against it. The first run has no
+baseline (it *is* the reference); every later run is compared to it. To reset the
+reference point — e.g. after a known-good change, or when you change `k` — clear
+`runs/` so the next run starts a fresh `result.jsonl` and becomes the new baseline.
+
+> **Caveat — the baseline slides.** `result.jsonl` is capped to `output.keepRuns`, so
+> once you exceed that many runs the oldest (baseline) run is pruned and the *next*
+> oldest becomes the baseline. The reference point is not pinned; raise `keepRuns` (or
+> set `-1`) if you need the original baseline to persist across many runs.
+
 `config.json` gate thresholds are **derived empirically from a baseline run**, not
-hardcoded standards. To (re)establish a baseline:
-
-1. Run the eval on a known-good commit: `npm run evals`.
-2. Promote that run to the baseline: `npm run evals:baseline`
-   (writes the newest run in `runs/result.jsonl` → `data/baseline.json`).
-3. Set each gated threshold in `config.json` at or just below the baseline value
-   (leaving a small tolerance for noise). Reported-only metrics stay `null`.
-
-Only `recall_at_k`, `mrr`, and `hit_rate_at_k` are gated by default. `precision_at_k`
-and `ndcg_at_k` are reported (`gate: null`) and never fail the run.
+hardcoded standards: run the eval on a known-good state, read its metric values, and set
+each gated threshold at or just below them (small tolerance for noise). Only
+`recall_at_k`, `mrr`, and `hit_rate_at_k` are gated by default; `precision_at_k` and
+`ndcg_at_k` are reported (`gate: null`) and never fail the run.
 
 ## Refreshing the golden set after a corpus re-index
 
@@ -191,8 +194,7 @@ listing the stale ids — it never silently scores against dead labels. To refre
 2. For each stale id reported by the pre-flight check, find the current chunk that now
    covers the same topic and update `relevant_doc_ids` in `data/golden-set.json`.
    Relevance is a **human judgment** made once — re-confirm it, don't auto-map.
-3. Re-run `npm run evals`; when green, re-promote a baseline (above) if the index change
-   is intentional and the new numbers are the new reference.
+3. Clear `runs/` and re-run `npm run evals` so the new numbers form a fresh baseline.
 
 ## Adding questions
 

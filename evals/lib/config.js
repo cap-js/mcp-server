@@ -75,7 +75,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
-      baseline: resolve(envStr('EVAL_BASELINE', paths.baseline || 'data/baseline.json')),
       runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs'))
     },
     gates: {},

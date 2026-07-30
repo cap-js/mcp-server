@@ -25,7 +25,6 @@ const silentLogger = { log() {}, error() {} }
 
 let tmpDir
 let goldenPath
-let baselinePath
 let runsDir
 
 async function writeGolden(questions, name = 'test-golden') {
@@ -36,7 +35,7 @@ function baseOverrides(extra = {}) {
   return {
     offline: true,
     k: 5,
-    paths: { goldenSet: goldenPath, baseline: baselinePath, runsDir },
+    paths: { goldenSet: goldenPath, runsDir },
     capire_version: '2026.5.0',
     ...extra
   }
@@ -52,7 +51,6 @@ describe('cli tests', () => {
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-cli-'))
     goldenPath = path.join(tmpDir, 'golden.json')
-    baselinePath = path.join(tmpDir, 'baseline.json')
     runsDir = path.join(tmpDir, 'runs')
   })
   afterEach(async () => {
@@ -124,15 +122,15 @@ describe('cli tests', () => {
     assert.equal(res.code, 3)
   })
 
-  test('baseline diff populates delta', async () => {
+  test('baseline = oldest run: second run diffs against the first', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    // First run establishes numbers; promote to baseline manually.
+    // First run is the baseline (oldest); it has no baseline itself.
     const first = await run({
       overrides: baseOverrides(),
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
-    await fs.writeFile(baselinePath, JSON.stringify(first.report))
+    assert.equal(first.report.baseline_run_id, null)
     // Second run with a WORSE ranking (relevant doc pushed to rank 3).
     const worse = ['doc-x#000x', 'doc-y#000y', 'doc-a#0001', 'doc-b#0002', 'doc-c#0003']
     const second = await run({
@@ -140,7 +138,7 @@ describe('cli tests', () => {
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(worse) }
     })
-    assert.equal(second.report.baseline_run_id, first.report.run_id)
+    assert.equal(second.report.baseline_run_id, first.report.run_id) // diffed vs oldest
     assert.ok(second.report.aggregate.mrr.delta < 0) // mrr dropped vs baseline
     assert.match(second.report.diagnosis, /ranking\/scoring regression/)
   })

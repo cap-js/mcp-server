@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS } from './config.js'
 import { loadIndex, makeDefaultRetriever } from './retriever.js'
 import { preflight, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
-import { appendRun } from './store.js'
+import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
   try {
@@ -31,7 +31,9 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
     return { code: 3 }
   }
-  const baseline = await readJsonOrNull(cfg.paths.baseline)
+  // Baseline = the oldest run already on file (before this run is appended).
+  // The very first run has no baseline (it becomes the reference itself).
+  const baseline = baselineRun(await readRuns(cfg))
 
   const index = await loadIndexFn()
 

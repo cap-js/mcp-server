@@ -34,6 +34,16 @@ export function sortByRunId(runs) {
   return [...runs].sort((a, b) => (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0))
 }
 
+// The baseline is the OLDEST run currently on file (by run_id). Deltas, the gate
+// diagnosis, and the weakest-questions annotation are computed against it.
+// Returns null when there are no runs (the oldest run has no baseline — it IS
+// the reference). Note: result.jsonl is capped to keepRuns, so the "oldest"
+// slides forward as old runs are pruned — the reference point is not pinned.
+export function baselineRun(runs) {
+  const sorted = sortByRunId(runs)
+  return sorted.length ? sorted[0] : null
+}
+
 // Append one run, then cap the file to the most recent `keep` runs (by run_id).
 // keep < 0 => keep all. Rewrites the file so the cap is enforced deterministically.
 export async function appendRun(cfg, report) {
@@ -48,14 +58,5 @@ export async function appendRun(cfg, report) {
   const body = kept.map(r => JSON.stringify(r)).join('\n') + (kept.length ? '\n' : '')
   await fs.writeFile(resultsPath(cfg), body)
   return { path: resultsPath(cfg), total: kept.length }
-}
-
-// Write the newest run (by run_id) from result.jsonl to the baseline path.
-export async function promoteBaseline(cfg) {
-  const runs = sortByRunId(await readRuns(cfg))
-  if (runs.length === 0) return { promoted: false }
-  const latest = runs[runs.length - 1]
-  await fs.writeFile(cfg.paths.baseline, JSON.stringify(latest, null, 2) + '\n')
-  return { promoted: true, run_id: latest.run_id, baseline: cfg.paths.baseline }
 }
 

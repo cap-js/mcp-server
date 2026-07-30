@@ -1,18 +1,8 @@
 import path from 'path'
-import fs from 'fs/promises'
 import { loadConfig } from './config.js'
 import { loadIndex } from './retriever.js'
 import { renderConsoleWithBaseline } from './runner.js'
 import { readRuns, sortByRunId, resultsPath } from './store.js'
-
-async function readJsonOrNull(p) {
-  try {
-    return JSON.parse(await fs.readFile(p, 'utf8'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return null
-    throw err
-  }
-}
 
 // Re-render a stored run from result.jsonl to the console — no retrieval, no scoring.
 // target: undefined → newest run (by run_id timestamp); a run_id → that specific run.
@@ -46,12 +36,9 @@ export async function show({ configPath, overrides, target, logger = console } =
     /* index cache absent — header shows '?' */
   }
 
-  // Worst-questions annotation needs the baseline this run was diffed against.
-  let baseline = null
-  if (report.baseline_run_id) {
-    const b = await readJsonOrNull(cfg.paths.baseline)
-    if (b && b.run_id === report.baseline_run_id) baseline = b
-  }
+  // Weakest-questions annotation needs the baseline this run was diffed against
+  // (the oldest run) — find it among the runs already loaded from result.jsonl.
+  const baseline = report.baseline_run_id ? runs.find(r => r.run_id === report.baseline_run_id) || null : null
 
   logger.log(renderConsoleWithBaseline(report, report.run_id, { chunkCount }, baseline))
   return { code: 0, report }
