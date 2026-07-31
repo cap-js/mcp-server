@@ -9,6 +9,11 @@ import { round } from './metrics.js'
 // in compare.html / result.jsonl.
 const MD_TOP_N = 50
 
+// Escape a cell for a markdown table: backslashes first, then pipes.
+function mdCell(text) {
+  return (text || '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
+}
+
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
 }
@@ -548,7 +553,7 @@ function renderMarkdownCompare(runs) {
     L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|`)
     for (const row of shown) {
       const cells = METRIC_KEYS.map(k => fmtCell(row.avg[k], row.delta[k])).join(' | ')
-      const text = (row.question || '').replace(/\|/g, '\\|')
+      const text = mdCell(row.question)
       L.push(`| ${row.id} | ${text} | ${cells} |`)
     }
     L.push('')
@@ -585,7 +590,7 @@ function renderMarkdownCompare(runs) {
       for (const q of shownPq) {
         const cells = METRIC_KEYS.map(k => (q.metrics[k] ?? 0).toFixed(3)).join(' | ')
         const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
-        const text = (q.question || '').replace(/\|/g, '\\|')
+        const text = mdCell(q.question)
         L.push(`| ${q.id} | ${text} | ${cells} | ${ranks} |`)
       }
     }

@@ -93,6 +93,14 @@ describe('compare tests', () => {
     await assert.rejects(() => fs.access(path.join(runsDir, 'compare.html')))
   })
 
+  test('md format: escapes backslashes and pipes in question text', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [pq('cap-001', 'a\\b | c', { mrr: 0.5 })] }))
+    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
+    // backslash doubled, pipe escaped → renders as one table cell
+    assert.ok(md.includes('a\\\\b \\| c'))
+  })
+
   test('md format: caps the per-question table to top-N for large golden sets', async () => {
     // 120 questions across 2 runs → MD should cap to 50 and say so
     const mk = (rid, seed) => {

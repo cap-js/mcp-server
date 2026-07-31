@@ -44,7 +44,7 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   for (const key of METRIC_KEYS) {
     const value = round(mean(per_question.map(q => q._full[key])), 2)
     const gate = key in gates ? gates[key] : null
-    const baselineVal = baseAgg && baseAgg[key] ? baseAgg[key].value : null
+    const baselineVal = baseAgg && baseAgg[key] != null ? baseAgg[key].value : null
     const delta = baselineVal === null || baselineVal === undefined ? null : round(value - baselineVal, 2)
     let status
     if (gate === null || gate === undefined) status = 'info'

@@ -35,7 +35,13 @@ function parseGateOverrides(str) {
     const [k, v] = pair.split('=').map(s => s && s.trim())
     if (!k) continue
     if (!METRIC_KEYS.includes(k)) throw new Error(`EVAL_GATES: unknown metric "${k}"`)
-    out[k] = v === 'null' ? null : Number(v)
+    if (v === 'null') {
+      out[k] = null
+    } else {
+      const num = Number(v)
+      if (Number.isNaN(num)) throw new Error(`EVAL_GATES: invalid value for "${k}": "${v}" (expected a number or "null")`)
+      out[k] = num
+    }
   }
   return out
 }
@@ -107,9 +113,11 @@ function validateConfig(cfg) {
   if (!['html', 'md'].includes(cfg.output.compareFormat)) {
     throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
   }
-  for (const key of GATED_KEYS) {
+  // Validate every gate that's set, not just the gated-by-default ones —
+  // EVAL_GATES / overrides can set any metric.
+  for (const key of METRIC_KEYS) {
     const g = cfg.gates[key]
-    if (g !== null && (typeof g !== 'number' || g < 0 || g > 1)) {
+    if (g !== null && (typeof g !== 'number' || Number.isNaN(g) || g < 0 || g > 1)) {
       throw new Error(`config: gate ${key} must be null or a number in [0,1] (got ${g})`)
     }
   }

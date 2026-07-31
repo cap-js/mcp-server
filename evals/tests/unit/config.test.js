@@ -114,6 +114,18 @@ describe('config tests', () => {
     await assert.rejects(() => loadConfig(), /unknown metric/)
   })
 
+  test('rejects a non-numeric gate value (no silent NaN)', async () => {
+    clearEnv()
+    process.env.EVAL_GATES = 'mrr=abc'
+    await assert.rejects(() => loadConfig(), /invalid value for "mrr"/)
+  })
+
+  test('validates gates on non-default metrics too (precision_at_k)', async () => {
+    clearEnv()
+    process.env.EVAL_GATES = 'precision_at_k=1.5'
+    await assert.rejects(() => loadConfig(), /gate precision_at_k must be null or a number in \[0,1\]/)
+  })
+
   test('absolute EVAL_RUNS_DIR is respected', async () => {
     clearEnv()
     process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'

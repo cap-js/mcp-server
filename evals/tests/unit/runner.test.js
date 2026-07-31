@@ -87,6 +87,27 @@ describe('eval tests', () => {
     assert.equal(r.baseline_run_id, 'base_1')
   })
 
+  test('zero baseline value yields a real delta, not null', () => {
+    // baseline: relevant docs absent → recall/mrr aggregate 0.00
+    const baseReport = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['x', 'y'], ['x', 'y']),
+      baseline: null,
+      gates: GATES
+    })
+    assert.equal(baseReport.aggregate.mrr.value, 0) // precondition: baseline is 0
+    const baseline = { run_id: 'base_0', ...baseReport }
+    // now: both relevant at rank 1 → mrr 1.0, a genuine improvement from 0
+    const r = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      baseline,
+      gates: GATES
+    })
+    assert.equal(r.aggregate.mrr.baseline, 0)
+    assert.equal(r.aggregate.mrr.delta, 1) // was masked to null before the fix
+  })
+
   test('recall regression → chunking/embedding diagnosis (first match wins)', () => {
     const baseReport = buildReport({
       config: CONFIG,
