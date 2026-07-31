@@ -22,6 +22,7 @@ The server helps AI models answer questions such as:
 - [Requirements](#requirements)
 - [Setup](#setup)
   - [Usage in VS Code](#usage-in-vs-code)
+  - [Usage in Claude Code](#usage-in-claude-code)
   - [Usage in opencode](#usage-in-opencode)
   - [CLI Usage](#cli-usage)
 - [Available Tools](#available-tools)
@@ -77,6 +78,14 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 ```
 
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
+
+### Usage in Claude Code
+
+Register the server with [Claude Code](https://claude.com/claude-code):
+
+```sh
+claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
+```
 
 ### Usage in opencode
 
