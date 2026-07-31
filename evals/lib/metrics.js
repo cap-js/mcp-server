@@ -3,26 +3,17 @@
 //
 // Conventions:
 // - `relevant` : array of relevant doc ids (the authored ground truth for a question)
-// - `retrieved`: array of retrieved doc ids in RANK ORDER (best first)
-// - `k`        : cutoff (top-K)
-//
-// All functions treat `relevant` as a set. `retrieved` is deduped preserving
-// first occurrence before applying the cutoff, so a retriever that emits the same
-// id twice can't inflate a hit.
+// - `retrieved`: the raw ranked result SLOTS search_docs returned (best first).
+//                Duplicates are KEPT — a page occupying 3 of the K slots counts as
+//                3 slots. This mirrors exactly what a caller asking for `maxResults=k`
+//                receives; the eval scores the tool's real output, not a cleaned copy.
+// - `k`        : cutoff (top-K slots)
 
 function topK(retrieved, k) {
-  const seen = new Set()
-  const out = []
-  for (const id of retrieved) {
-    if (seen.has(id)) continue
-    seen.add(id)
-    out.push(id)
-    if (out.length >= k) break
-  }
-  return out
+  return retrieved.slice(0, k) // raw slots, no dedup
 }
 
-// 1-based ranks (within top-K) at which a relevant doc appears.
+// 1-based ranks (within top-K) at which a relevant doc appears (per slot).
 export function relevantHitsAtRank(relevant, retrieved, k) {
   const rel = new Set(relevant)
   const ranks = []
@@ -33,23 +24,25 @@ export function relevantHitsAtRank(relevant, retrieved, k) {
   return ranks
 }
 
+// Recall counts DISTINCT relevant docs found (a relevant page in several slots
+// is still one doc), divided by the number of relevant docs — so recall ∈ [0,1].
 export function recallAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0
   const top = topK(retrieved, k)
-  let hits = 0
-  for (const id of top) if (rel.has(id)) hits++
-  return hits / rel.size
+  const found = new Set()
+  for (const id of top) if (rel.has(id)) found.add(id)
+  return found.size / rel.size
 }
 
+// Precision counts relevant SLOTS / k — duplicates count, matching "of the k
+// results the caller got, how many were relevant".
 export function precisionAtK(relevant, retrieved, k) {
   if (k <= 0) return 0
   const rel = new Set(relevant)
   const top = topK(retrieved, k)
   let hits = 0
   for (const id of top) if (rel.has(id)) hits++
-  // Divide by k (the intended cutoff), not top.length — a short result list
-  // that returns fewer than k docs is penalised, which is correct for P@K.
   return hits / k
 }
 
@@ -69,6 +62,9 @@ export function hitRateAtK(relevant, retrieved, k) {
   return 0
 }
 
+// nDCG over the raw slots: each relevant slot contributes a rank-discounted gain.
+// Ideal DCG packs the DISTINCT relevant docs at the top (a doc is worth finding
+// once), so nDCG ∈ [0,1] even when a relevant page repeats across slots.
 export function ndcgAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0
@@ -77,11 +73,10 @@ export function ndcgAtK(relevant, retrieved, k) {
   for (let i = 0; i < top.length; i++) {
     if (rel.has(top[i])) dcg += 1 / Math.log2(i + 2) // rank i+1 → log2((i+1)+1)
   }
-  // Ideal DCG: all relevant docs ranked first, up to k.
   const idealHits = Math.min(rel.size, k)
   let idcg = 0
   for (let i = 0; i < idealHits; i++) idcg += 1 / Math.log2(i + 2)
-  return idcg === 0 ? 0 : dcg / idcg
+  return idcg === 0 ? 0 : Math.min(1, dcg / idcg)
 }
 
 // Compute all per-question metrics at once.

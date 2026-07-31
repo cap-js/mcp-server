@@ -48,7 +48,7 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     return { code: 2, stale }
   }
 
-  const retrieve = await makeRetrieverFn()
+  const retrieve = await makeRetrieverFn(cfg.k)
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const retrieved_ids = await retrieve(q.question)

@@ -1,46 +1,49 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs/promises'
-import { docIdFor, buildIdMap } from './ids.js'
+import { parseId, buildIdMap } from './ids.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 // this file lives in evals/lib/ → repo root is two levels up
 const repoRoot = path.join(here, '..', '..')
 const chunksJsonPath = path.join(repoRoot, 'embeddings', 'code-chunks.json')
 
-// Load the current index's chunk texts + stable-id map (no embeddings needed
-// for the id map itself). Used by both the retriever and the pre-flight check.
+// The set of doc ids present in the current index. Parsed (url#breadcrumb) from
+// the corpus first-lines — no embeddings needed for identity. Used by the
+// pre-flight check (are the golden ids still present?) and the header count.
 export async function loadIndex() {
   const raw = await fs.readFile(chunksJsonPath, 'utf8')
   const meta = JSON.parse(raw)
   if (!meta || !Array.isArray(meta.chunks)) {
-    throw new Error(`Corrupt or missing chunk store at ${chunksJsonPath}`)
+    throw new Error(`Corrupt or missing corpus at ${chunksJsonPath}`)
   }
-  const { ids, byId } = buildIdMap(meta.chunks)
+  const { ids, idSet } = buildIdMap(meta.chunks)
   return {
-    chunks: meta.chunks,
-    ids, // all stable ids in the current index
-    byId, // id -> text
-    idSet: new Set(ids),
-    count: meta.count ?? meta.chunks.length,
-    dim: meta.dim
+    ids, // all distinct doc ids in the current index
+    idSet,
+    count: ids.length // distinct docs (what the report header shows)
   }
 }
 
-// Default retriever binding: calls the REAL retrieval path (cosine similarity
-// over the pre-built embeddings, same code search_docs uses) and maps each
-// ranked result to its stable id. Returns ranked ids, best-first.
+// search_docs returns the top-`maxResults` chunk contents joined by '\n---\n'.
+// We split that back into chunks and parse each chunk's id (<url>#<breadcrumb>),
+// in rank order, WITHOUT deduping — each of the K returned chunks is one result
+// slot (a page appearing N times fills N slots). Unidentifiable chunks keep a
+// null id so positions/counts still line up with what the tool returned.
 //
 // Kept pluggable: the runner accepts any `retrieve(question) -> string[]`, so a
 // deterministic fixture retriever can be injected in tests.
-export async function makeDefaultRetriever() {
-  // Import the production retrieval internals lazily so that pure-metric tests
-  // (which inject a fixture retriever) never load the ONNX model.
-  // Production lib lives at the repo root: evals/lib/ → ../../lib/
-  const { loadChunks, searchEmbeddings } = await import('../../lib/embeddings.js')
-  const chunks = await loadChunks('code-chunks')
+export async function makeDefaultRetriever(k) {
+  // Import the tool the same way an MCP client reaches it — its handler — rather
+  // than the retrieval internals. Repo root: evals/lib/ → ../../
+  const tools = (await import('../../lib/tools.js')).default
+  const searchDocs = tools.search_docs
   return async function retrieve(question) {
-    const scored = await searchEmbeddings(question, chunks) // sorted desc by similarity
-    return scored.map(c => docIdFor(c.content))
+    const out = await searchDocs.handler({ query: question, maxResults: k })
+    if (!out) return []
+    return out
+      .split('\n---\n')
+      .map(chunk => parseId(chunk))
+      .filter(id => id !== null)
   }
 }

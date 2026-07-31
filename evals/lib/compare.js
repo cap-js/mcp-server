@@ -197,6 +197,29 @@ function renderRunDetails(r) {
        </table>`
     : '<div class="rd-sub muted">No per-question data recorded for this run.</div>'
 
+  // per-question retrieval detail: what search_docs returned, ranked, hits marked
+  const retrievalSection = (r.per_question || []).length
+    ? `<div class="rd-sub">Retrieved results per question <span class="muted">(rank order; ✅ = relevant, ✗ = not)</span></div>
+       ${(r.per_question).map(q => {
+        const relevant = new Set(q.relevant_doc_ids || [])
+        const question = (q.question || '').replace(/</g, '&lt;')
+        const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
+        const retList = (q.retrieved_ids || []).map((id, i) => {
+          const hit = relevant.has(id)
+          return `<li class="mono ${hit ? 'hit' : 'miss'}">${i + 1}. ${hit ? '✅' : '✗'} ${id}</li>`
+        }).join('')
+        return `<details class="q-retr">
+  <summary><span class="mono">${q.id}</span> <span class="q-cell">${question}</span></summary>
+  <div class="q-retr-body">
+    <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
+    <ul class="id-list">${relList}</ul>
+    <div class="rd-sub2">retrieved top-${r.config.k}</div>
+    <ul class="id-list">${retList || '<li class="muted">(none)</li>'}</ul>
+  </div>
+</details>`
+      }).join('')}`
+    : ''
+
   return `<details class="run-detail">
   <summary><span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
@@ -207,6 +230,7 @@ function renderRunDetails(r) {
     </table>
     <div class="rd-sub">Diagnosis: <code>${r.diagnosis}</code></div>
     ${pqSection}
+    ${retrievalSection}
   </div>
 </details>`
 }
@@ -307,6 +331,17 @@ function renderHtml(runs) {
   .rd-table td.q-cell { color:var(--ink2); max-width:340px; white-space:normal; }
   .rd-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); font-weight:600; }
   .mono { font-family: ui-monospace, monospace; }
+  .rd-sub2 { font-size:11px; color:var(--muted); font-weight:600; margin:6px 0 2px; }
+  .q-retr { border-top:1px solid var(--grid); }
+  .q-retr > summary { cursor:pointer; padding:5px 2px; font-size:12px; list-style:none; }
+  .q-retr > summary::-webkit-details-marker { display:none; }
+  .q-retr > summary::before { content:"▸"; color:var(--muted); display:inline-block; width:10px; }
+  .q-retr[open] > summary::before { content:"▾"; }
+  .q-retr-body { padding:2px 0 8px 14px; }
+  .id-list { list-style:none; margin:0 0 4px; padding:0; }
+  .id-list li { font-size:11px; padding:1px 0; word-break:break-all; }
+  .id-list li.hit { color:var(--ink); }
+  .id-list li.miss { color:var(--ink2); }
 </style>
 </head>
 <body>

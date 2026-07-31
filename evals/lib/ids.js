@@ -1,63 +1,55 @@
-import crypto from 'crypto'
+// Doc identity for eval ground truth: a deterministic id parsed from a chunk's
+// FIRST LINE — no embeddings, no content hashing involved.
+//
+//   docId = "<source-url>#<breadcrumb-slug>"
+//
+// A chunk's first line looks like:
+//   "CDS Language & Compiler > Managed Compositions ... > Source: https://cap.cloud.sap/docs/releases/2020/july20"
+// From it we take:
+//   - the Source: URL           → the stable page identity (survives re-index)
+//   - the breadcrumb before it  → slugified section identity (granularity)
+// giving e.g. "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for".
+//
+// This is fully deterministic (pure string parsing) and re-index-stable at the
+// page level. Only the RANK of retrieved docs still comes from the embedding
+// retriever; identity and matching never touch embeddings.
+//
+// Fallbacks:
+//   - chunk has a breadcrumb but no Source: URL → "nourl#<slug>"
+//   - chunk has neither                          → null (unidentifiable; dropped)
 
-// Stable identifier scheme for eval ground truth.
-//
-// The published chunk store (embeddings/code-chunks.json) holds only chunk TEXT
-// — there is no built-in id, and the array index is volatile (it shifts on every
-// corpus re-index). We therefore derive a STABLE id from the chunk content:
-//
-//   docId = "<label>#<sha1(text)[:8]>"
-//
-// - sha1(text)[:8] is deterministic, collision-free across distinct chunks, and
-//   survives reordering: the same text yields the same id regardless of position.
-// - <label> is a short human-readable slug derived from the chunk's first-line
-//   breadcrumb (e.g. "getting-started-initial-setup"), purely for readability in
-//   reports. It is NOT the identity — the hash is. Two chunks with the same
-//   breadcrumb still get distinct ids via the hash.
-//
-// relevant_doc_ids in the golden set and retrieved_ids from the retriever are
-// both expressed in this id space, so scoring is exact set/rank math.
-
-export function hashText(text) {
-  return crypto.createHash('sha1').update(text, 'utf8').digest('hex').slice(0, 8)
-}
-
-export function labelFor(text) {
-  const first = text.split('\n')[0] || ''
-  // Prefer the breadcrumb portion before any "Source:" marker.
-  const crumb = first.split(/Source:/i)[0]
-  const slug = crumb
+function slugify(text) {
+  return text
     .toLowerCase()
     .replace(/[>]/g, ' ')
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
-    .split('-')
-    .filter(Boolean)
-    .slice(0, 6)
-    .join('-')
-  return slug || 'chunk'
 }
 
-export function docIdFor(text) {
-  return `${labelFor(text)}#${hashText(text)}`
+// Parse the "<url>#<slug>" id from a chunk's text. Returns null if the chunk has
+// neither a Source: URL nor any breadcrumb text to slugify.
+export function parseId(text) {
+  const first = (text || '').split('\n')[0] || ''
+  const m = first.match(/Source:\s*(\S+)/i)
+  const url = m ? m[1] : null
+  const crumb = first.split(/Source:/i)[0]
+  const slug = slugify(crumb)
+  if (url) return `${url}#${slug || 'section'}`
+  return slug ? `nourl#${slug}` : null
 }
 
-// Build the chunk-id -> chunk-text map for the current index.
-// Returns { ids: string[], byId: Map<id, text> }.
-// Throws on a hash collision between two DIFFERENT texts (should never happen).
+// Build the set of ids present in the current index, from the chunk texts.
+// Returns { ids: string[], idSet: Set<string> }. Chunks that parse to the same
+// id (a section legitimately split across chunks) collapse to one entry; chunks
+// with no id are skipped.
 export function buildIdMap(chunks) {
-  const byId = new Map()
+  const idSet = new Set()
   const ids = []
   for (const text of chunks) {
-    const id = docIdFor(text)
-    const existing = byId.get(id)
-    if (existing !== undefined && existing !== text) {
-      throw new Error(`Stable-id collision on ${id} between two different chunks`)
-    }
-    if (existing === undefined) {
-      byId.set(id, text)
-      ids.push(id)
-    }
+    const id = parseId(text)
+    if (id === null || idSet.has(id)) continue
+    idSet.add(id)
+    ids.push(id)
   }
-  return { ids, byId }
+  return { ids, idSet }
 }

@@ -177,28 +177,38 @@ run** — they are not hardcoded "industry standard" numbers. The baseline is th
 run in `runs/result.jsonl`; run the eval on a known-good state, read its metric values,
 and set each gate at/below them with a small margin.
 
-## Stable identifiers (why not chunk index)
+## Doc identity (why URL + breadcrumb, not chunk index)
 
 The corpus re-indexes and chunk array positions shift, so ground truth must NOT be
-keyed on the array index. The chunk store has no built-in id, so we derive a stable id
-from the chunk **content**:
+keyed on the array index. Instead we derive a deterministic id by **parsing the chunk's
+first line** — no embeddings, no hashing:
 
 ```
-docId = "<label>#<sha1(text)[:8]>"
+docId = "<source-url>#<breadcrumb-slug>"
 ```
 
-- `sha1(text)[:8]` is the identity: deterministic, collision-free across distinct
-  chunks, and stable under reordering (same text → same id, wherever it lands).
-- `<label>` is a readable slug from the chunk's first-line breadcrumb
-  (e.g. `serving-provided-services-cds-serve#1a2b3c4d`), for human-friendly reports.
-  It does not affect identity.
+A chunk's first line looks like
+`CDS Language & Compiler > Managed Compositions … > Source: https://cap.cloud.sap/docs/releases/2020/july20`,
+which parses to
+`https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling`.
+
+- The **Source: URL** is the page identity — stable across a re-index.
+- The **breadcrumb slug** adds section granularity, so distinct sections of the same
+  page are distinct ids (e.g. two `#…authorization…` sections under one auth page).
+- Chunks with a breadcrumb but no `Source:` URL get `nourl#<slug>`; a chunk with neither
+  is unidentifiable and dropped from retrieval.
+
+This scheme is fully **deterministic** (pure string parsing). Only the *rank order* of
+retrieved docs comes from the embedding retriever; the identity used for matching never
+touches embeddings. Because many chunks share a page URL, the retriever **dedups**
+retrieved ids keeping best rank, so `retrieved_ids` is a ranked list of distinct docs.
 
 `relevant_doc_ids` (golden set) and `retrieved_ids` (retriever output) are both in this
-id space. The implementation is in `lib/ids.js` (`docIdFor`, `buildIdMap`).
+id space. The implementation is in `lib/ids.js` (`parseId`, `buildIdMap`).
 
 ### Consequence for re-index / golden-set refresh
 
-If a chunk's **text** changes, its id changes. The **pre-flight check** in the runner
-verifies every `relevant_doc_id` still exists in the current index and aborts loudly
-(listing the stale ids) if not — so a corpus re-index that alters labelled chunks fails
+If a page's **URL or breadcrumb** changes, its id changes. The **pre-flight check** in
+the runner verifies every `relevant_doc_id` still exists in the current index and aborts
+loudly (listing the stale ids) if not — so a re-index that moves a labelled page fails
 fast instead of silently scoring against dead labels. Refresh procedure is in `README.md`.

@@ -22,7 +22,7 @@ evals/
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     runner.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
-    ids.js             #   stable content-derived doc ids  (<label>#<sha1(text)[:8]>)
+    ids.js             #   parse doc id from a chunk's first line  (<source-url>#<breadcrumb-slug>)
     retriever.js       #   index loader + default retriever (real search_docs path); pluggable
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
@@ -200,8 +200,8 @@ listing the stale ids — it never silently scores against dead labels. To refre
 ## Adding questions
 
 Append `{ id, question, relevant_doc_ids }` to `data/golden-set.json` (keep `id`s
-ascending; they sort deterministically). `relevant_doc_ids` must be stable ids present
-in the current index — the pre-flight check enforces this on the next run. To discover
-ids for a question, retrieve for it and inspect the top results' ids via
-`lib/retriever.js` (`makeDefaultRetriever` returns ranked ids; `loadIndex().byId` maps
-id → text).
+ascending; they sort deterministically). `relevant_doc_ids` are `<source-url>#<breadcrumb-slug>`
+ids that must be present in the current index — the pre-flight check enforces this on the
+next run. To discover ids for a question, retrieve for it and inspect the top results'
+ids via `lib/retriever.js` (`makeDefaultRetriever` returns the ranked, deduped ids;
+`loadIndex().idSet` is the set of all ids in the index).

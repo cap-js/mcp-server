@@ -80,13 +80,24 @@ describe('metrics tests', () => {
     assert.equal(mrr(['d'], ['a', 'b', 'c', 'd', 'e'], 5), 0.25)
   })
 
-  test('duplicate retrieved ids do not inflate hits', () => {
-    // 'a' appears twice; should count once and consume rank slots in order.
+  test('duplicate relevant slots: recall counts distinct, precision counts slots', () => {
+    // 'a' fills two of the three slots (a page returned twice).
     const rel = ['a', 'b']
     const ret = ['a', 'a', 'b']
-    assert.equal(recallAtK(rel, ret, 3), 1) // both a and b found
-    assert.equal(precisionAtK(rel, ret, 3), 2 / 3)
-    assert.equal(mrr(rel, ret, 3), 1) // a at rank 1
+    assert.equal(recallAtK(rel, ret, 3), 1) // distinct {a,b} found → 2/2
+    assert.equal(precisionAtK(rel, ret, 3), 1) // 3 relevant slots / 3 = 1 (dupes count)
+    assert.equal(mrr(rel, ret, 3), 1) // first relevant slot at rank 1
+    assert.equal(hitRateAtK(rel, ret, 3), 1)
+  })
+
+  test('recall never exceeds 1 when a relevant page fills every slot', () => {
+    assert.equal(recallAtK(['a'], ['a', 'a', 'a'], 3), 1) // one distinct relevant doc
+    assert.equal(precisionAtK(['a'], ['a', 'a', 'a'], 3), 1) // 3/3 slots relevant
+  })
+
+  test('ndcg is capped at 1 even with repeated relevant slots', () => {
+    // 'a' relevant, appears in slots 1 and 2 → raw DCG > IDCG(1 doc); clamp to 1.
+    assert.equal(ndcgAtK(['a'], ['a', 'a', 'b'], 3), 1)
   })
 
   test('precision divides by k even when fewer results returned', () => {
