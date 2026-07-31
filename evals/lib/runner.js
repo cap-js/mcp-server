@@ -1,7 +1,7 @@
 import { metricsFor, relevantHitsAtRank, mean, round } from './metrics.js'
 import { METRIC_KEYS, METRIC_LABEL } from './config.js'
 
-// ----- pre-flight: every relevant_doc_id must exist in the current index -----
+// Pre-flight: every relevant_doc_id must exist in the current index.
 export function preflight(goldenQuestions, idSet) {
   const stale = []
   for (const q of goldenQuestions) {
@@ -12,14 +12,10 @@ export function preflight(goldenQuestions, idSet) {
   return stale
 }
 
-// ----- pure core: given inputs, produce the report object (no run_id) --------
-// perQuestionRaw: [{ id, question, relevant_doc_ids, retrieved_ids }]
-// baseline: prior report object or null
-// gates: { metric: number|null }
+// Pure core: build the report object (run_id added by the caller).
 export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   const k = config.k
 
-  // per-question metrics (full precision → round to 3 dp for output)
   const per_question = perQuestionRaw
     .map(q => {
       const m = metricsFor(q.relevant_doc_ids, q.retrieved_ids, k)
@@ -36,12 +32,12 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
           hit_rate_at_k: m.hit_rate_at_k,
           ndcg_at_k: round(m.ndcg_at_k, 3)
         },
-        _full: m // internal, for aggregation; stripped before serialize
+        _full: m // full precision for aggregation; stripped before serialize
       }
     })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)) // deterministic order
+    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
 
-  // aggregate (mean of FULL-precision per-question values, rounded to 2 dp)
+  // aggregate = mean of full-precision per-question values, rounded to 2 dp
   const aggregate = {}
   const baseAgg = baseline ? baseline.aggregate : null
   const gated_failures = []
@@ -63,7 +59,6 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   const overall_status = gated_failures.length > 0 ? 'fail' : 'pass'
   const diagnosis = diagnose(aggregate)
 
-  // strip internal field
   for (const q of per_question) delete q._full
 
   return {
@@ -92,7 +87,7 @@ export function diagnose(aggregate) {
   return 'no_regression'
 }
 
-// ----- console rendering (deterministic; run_id/corpus passed in) ------------
+// ----- console rendering -----------------------------------------------------
 function renderMetricRow(key, agg, k) {
   const label = `${METRIC_LABEL[key]}@${k}`.padEnd(15)
   const value = agg.value.toFixed(2)
@@ -109,7 +104,6 @@ function renderMetricRow(key, agg, k) {
   if (agg.status === 'pass') icon = '✅ PASS'
   else if (agg.status === 'fail') icon = '❌ FAIL'
   else icon = '⚠️ info'
-  // spacing tuned to match the spec mock closely
   return `  ${label} ${value}   ${arrow} ${deltaStr}   ${baseStr}   ${gateStr}   ${icon}`
 }
 
@@ -166,15 +160,13 @@ export function worstQuestions(report, baseline) {
   return { noBaseline: !hasBaseline, items }
 }
 
-// ----- run_id (the ONLY nondeterministic value) ------------------------------
+// run_id is the ONLY nondeterministic value; `rand` is fixed in tests.
 export function makeRunId(now = new Date(), rand) {
   const ts = now.toISOString().replace(/\.\d+Z$/, 'Z')
-  // short suffix; deterministic when `rand` is provided (tests pass a fixed one)
   const suffix = rand || Math.random().toString(16).slice(2, 8)
   return `${ts}_${suffix}`
 }
 
-// wrapper so worstQuestions gets the baseline object
 export function renderConsoleWithBaseline(report, run_id, indexInfo, baseline) {
   const wq = worstQuestions(report, baseline)
   return renderConsoleImpl(report, run_id, indexInfo, wq)

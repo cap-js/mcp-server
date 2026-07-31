@@ -4,8 +4,8 @@ import { loadIndex } from './retriever.js'
 import { renderConsoleWithBaseline } from './runner.js'
 import { readRuns, sortByRunId, resultsPath } from './store.js'
 
-// Re-render a stored run from result.jsonl to the console — no retrieval, no scoring.
-// target: undefined → newest run (by run_id timestamp); a run_id → that specific run.
+// Re-render a stored run to the console — no retrieval, no scoring.
+// target: undefined → newest run; a run_id → that specific run.
 export async function show({ configPath, overrides, target, logger = console } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const runs = sortByRunId(await readRuns(cfg))
@@ -24,20 +24,19 @@ export async function show({ configPath, overrides, target, logger = console } =
       return { code: 3 }
     }
   } else {
-    report = runs[runs.length - 1] // newest by run_id timestamp
+    report = runs[runs.length - 1]
   }
 
-  // Header shows chunk count; the report doesn't store it, so read the current
-  // index (cheap JSON parse, no ONNX). Fall back to '?' if unavailable.
+  // Header shows the chunk count, which the report doesn't store — read the
+  // current index (cheap JSON parse, no ONNX). '?' if unavailable.
   let chunkCount = '?'
   try {
     chunkCount = (await loadIndex()).count
   } catch {
-    /* index cache absent — header shows '?' */
+    // index cache absent — header shows '?'
   }
 
-  // Weakest-questions annotation needs the baseline this run was diffed against
-  // (the oldest run) — find it among the runs already loaded from result.jsonl.
+  // Weakest-questions annotation needs the baseline this run was diffed against.
   const baseline = report.baseline_run_id ? runs.find(r => r.run_id === report.baseline_run_id) || null : null
 
   logger.log(renderConsoleWithBaseline(report, report.run_id, { chunkCount }, baseline))

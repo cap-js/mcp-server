@@ -1,10 +1,5 @@
 # CAP MCP RAG — Eval Metrics
 
-Deterministic, code-only retrieval evaluation for the CAP MCP server's `search_docs`
-RAG pipeline. Every metric is pure arithmetic computed from a frozen golden set whose
-relevance labels are authored once by a human and stored in `relevant_doc_ids`. No LLM
-is involved in scoring.
-
 ## The setup every metric shares
 
 For one golden question we have:
@@ -160,55 +155,3 @@ vs. the baseline:
 3. Recall & MRR ok but Precision down → `precision_down → top-K padded with noise`
    *(still finding + ranking the good ones, but adding junk around them)*
 4. Nothing regressed → `no_regression`
-
-## Gated vs. reported metrics
-
-- **Gated** (a drop below threshold fails the run, non-zero exit): `recall_at_k`, `mrr`, `hit_rate_at_k`.
-- **Reported only** (`gate: null`, never fails the run): `precision_at_k`, `ndcg_at_k`.
-
-Recall, MRR, and Hit-Rate are gated because they map most directly to "is retrieval doing
-its job" and to a clear failure mode. Precision and nDCG are reported for diagnosis but
-not gated — Precision because top-K noise is often an acceptable trade for recall, and
-nDCG because with binary labels it largely tracks MRR (revisit once graded relevance
-exists).
-
-Thresholds live in `config.json` (`gates`) and are **derived empirically from a baseline
-run** — they are not hardcoded "industry standard" numbers. The baseline is the oldest
-run in `runs/result.jsonl`; run the eval on a known-good state, read its metric values,
-and set each gate at/below them with a small margin.
-
-## Doc identity (why URL + breadcrumb, not chunk index)
-
-The corpus re-indexes and chunk array positions shift, so ground truth must NOT be
-keyed on the array index. Instead we derive a deterministic id by **parsing the chunk's
-first line** — no embeddings, no hashing:
-
-```
-docId = "<source-url>#<breadcrumb-slug>"
-```
-
-A chunk's first line looks like
-`CDS Language & Compiler > Managed Compositions … > Source: https://cap.cloud.sap/docs/releases/2020/july20`,
-which parses to
-`https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling`.
-
-- The **Source: URL** is the page identity — stable across a re-index.
-- The **breadcrumb slug** adds section granularity, so distinct sections of the same
-  page are distinct ids (e.g. two `#…authorization…` sections under one auth page).
-- Chunks with a breadcrumb but no `Source:` URL get `nourl#<slug>`; a chunk with neither
-  is unidentifiable and dropped from retrieval.
-
-This scheme is fully **deterministic** (pure string parsing). Only the *rank order* of
-retrieved docs comes from the embedding retriever; the identity used for matching never
-touches embeddings. Because many chunks share a page URL, the retriever **dedups**
-retrieved ids keeping best rank, so `retrieved_ids` is a ranked list of distinct docs.
-
-`relevant_doc_ids` (golden set) and `retrieved_ids` (retriever output) are both in this
-id space. The implementation is in `lib/ids.js` (`parseId`, `buildIdMap`).
-
-### Consequence for re-index / golden-set refresh
-
-If a page's **URL or breadcrumb** changes, its id changes. The **pre-flight check** in
-the runner verifies every `relevant_doc_id` still exists in the current index and aborts
-loudly (listing the stale ids) if not — so a re-index that moves a labelled page fails
-fast instead of silently scoring against dead labels. Refresh procedure is in `README.md`.

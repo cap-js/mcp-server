@@ -1,19 +1,15 @@
-// Pure-arithmetic retrieval metrics. Binary relevance.
-// No I/O, no randomness, no LLM, no wall-clock. Deterministic given inputs.
+// Pure-arithmetic retrieval metrics, binary relevance. Deterministic: no I/O,
+// randomness, LLM, or wall-clock.
 //
-// Conventions:
-// - `relevant` : array of relevant doc ids (the authored ground truth for a question)
-// - `retrieved`: the raw ranked result SLOTS search_docs returned (best first).
-//                Duplicates are KEPT — a page occupying 3 of the K slots counts as
-//                3 slots. This mirrors exactly what a caller asking for `maxResults=k`
-//                receives; the eval scores the tool's real output, not a cleaned copy.
-// - `k`        : cutoff (top-K slots)
+// `retrieved` is the raw ranked slots search_docs returned (best first).
+// Duplicates are KEPT — the eval scores the tool's real output, not a cleaned
+// copy, so a page filling 3 of the K slots counts as 3 slots.
 
 function topK(retrieved, k) {
-  return retrieved.slice(0, k) // raw slots, no dedup
+  return retrieved.slice(0, k)
 }
 
-// 1-based ranks (within top-K) at which a relevant doc appears (per slot).
+// 1-based ranks (within top-K) at which a relevant doc appears, per slot.
 export function relevantHitsAtRank(relevant, retrieved, k) {
   const rel = new Set(relevant)
   const ranks = []
@@ -24,8 +20,8 @@ export function relevantHitsAtRank(relevant, retrieved, k) {
   return ranks
 }
 
-// Recall counts DISTINCT relevant docs found (a relevant page in several slots
-// is still one doc), divided by the number of relevant docs — so recall ∈ [0,1].
+// Distinct relevant docs found / total relevant (a relevant page in several
+// slots is still one doc). ∈ [0,1].
 export function recallAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0
@@ -35,8 +31,7 @@ export function recallAtK(relevant, retrieved, k) {
   return found.size / rel.size
 }
 
-// Precision counts relevant SLOTS / k — duplicates count, matching "of the k
-// results the caller got, how many were relevant".
+// Relevant slots / k (duplicates count).
 export function precisionAtK(relevant, retrieved, k) {
   if (k <= 0) return 0
   const rel = new Set(relevant)
@@ -62,16 +57,15 @@ export function hitRateAtK(relevant, retrieved, k) {
   return 0
 }
 
-// nDCG over the raw slots: each relevant slot contributes a rank-discounted gain.
-// Ideal DCG packs the DISTINCT relevant docs at the top (a doc is worth finding
-// once), so nDCG ∈ [0,1] even when a relevant page repeats across slots.
+// nDCG over raw slots: each relevant slot contributes a rank-discounted gain;
+// ideal DCG packs the DISTINCT relevant docs at the top, so nDCG ∈ [0,1].
 export function ndcgAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0
   const top = topK(retrieved, k)
   let dcg = 0
   for (let i = 0; i < top.length; i++) {
-    if (rel.has(top[i])) dcg += 1 / Math.log2(i + 2) // rank i+1 → log2((i+1)+1)
+    if (rel.has(top[i])) dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
   }
   const idealHits = Math.min(rel.size, k)
   let idcg = 0
@@ -79,7 +73,6 @@ export function ndcgAtK(relevant, retrieved, k) {
   return idcg === 0 ? 0 : Math.min(1, dcg / idcg)
 }
 
-// Compute all per-question metrics at once.
 export function metricsFor(relevant, retrieved, k) {
   return {
     recall_at_k: recallAtK(relevant, retrieved, k),
@@ -90,7 +83,6 @@ export function metricsFor(relevant, retrieved, k) {
   }
 }
 
-// Arithmetic mean of a numeric field across per-question metric objects.
 export function mean(values) {
   if (values.length === 0) return 0
   let s = 0
@@ -98,10 +90,9 @@ export function mean(values) {
   return s / values.length
 }
 
-// Rounding helpers (banker-free, standard half-up via toFixed semantics).
 export function round(value, dp) {
   const f = Math.pow(10, dp)
-  // Add a tiny epsilon to counter binary-float representation of exact halves
-  // (e.g. 0.005) so rounding is stable and deterministic across runs/platforms.
+  // epsilon counters binary-float representation of exact halves (e.g. 0.005)
+  // so rounding is stable across runs/platforms.
   return Math.round((value + Number.EPSILON) * f) / f
 }

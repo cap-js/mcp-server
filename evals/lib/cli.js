@@ -14,18 +14,16 @@ async function readJsonOrNull(p) {
   }
 }
 
-// `deps` is an injection seam for tests: pass { loadIndex, makeRetriever } to
-// score against a fixture index + retriever without loading the ONNX model.
-// Production callers omit it and get the real search_docs path.
+// `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
+// fixture without loading the ONNX model. Production omits it.
 export async function run({ configPath, overrides, logger = console, deps = {} } = {}) {
   const loadIndexFn = deps.loadIndex || loadIndex
   const makeRetrieverFn = deps.makeRetriever || makeDefaultRetriever
 
   const cfg = await loadConfig({ configPath, overrides })
 
-  // The eval always runs the retriever offline: it scores against the already-
-  // downloaded chunk embeddings + model, and never re-fetches the corpus during
-  // a run (that would break determinism). Set before the retriever loads.
+  // Always score offline against the already-downloaded chunks + model; never
+  // re-fetch the corpus mid-run (that would break determinism). Set before load.
   process.env.CDS_MCP_OFFLINE = 'true'
 
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
@@ -33,13 +31,12 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
     return { code: 3 }
   }
-  // Baseline = the oldest run already on file (before this run is appended).
-  // The very first run has no baseline (it becomes the reference itself).
+  // Baseline = oldest run on file, read before this run is appended.
   const baseline = baselineRun(await readRuns(cfg))
 
   const index = await loadIndexFn()
 
-  // Pre-flight: fail loudly on stale relevant_doc_ids.
+  // Fail loudly on stale relevant_doc_ids (corpus likely re-indexed).
   const stale = preflight(golden.questions, index.idSet)
   if (stale.length > 0) {
     logger.error('PRE-FLIGHT FAILED: golden set references doc ids missing from the current index.')
@@ -80,10 +77,9 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }
 
-// Entry point for `npm run evals`: run the eval `config.runs` times (each run is
-// appended to result.jsonl), then always build the comparison report once at the
-// end. Returns the worst exit code across the runs (so a gated failure or a
-// pre-flight abort still surfaces even after later runs / the compare step).
+// Entry point for `npm run evals`: run the eval `config.runs` times (each
+// appended), then always build the comparison report. Returns the worst exit
+// code across runs so a failure still surfaces.
 export async function runAll({ configPath, overrides, logger = console, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const n = cfg.runs
@@ -92,13 +88,12 @@ export async function runAll({ configPath, overrides, logger = console, deps = {
     if (n > 1) logger.error(`\n--- run ${i + 1} of ${n} ---`)
     const { code } = await run({ configPath, overrides, logger, deps })
     worst = Math.max(worst, code)
-    // Stop the loop on a hard error (missing golden set / stale ids); a gated
-    // failure (code 1) is a real result — keep going so all N runs are recorded.
+    // Stop on a hard error (code ≥ 2); a gated failure (1) is a real result, so
+    // keep going and record all N runs.
     if (code >= 2) break
   }
 
-  // Always compare afterwards (best-effort; a compare failure doesn't override
-  // the eval's own exit code).
+  // Always compare afterwards; best-effort, doesn't override the eval exit code.
   try {
     const { compare } = await import('./compare.js')
     await compare({ configPath, overrides, logger })

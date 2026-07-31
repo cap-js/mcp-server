@@ -4,7 +4,7 @@ A **pure-code, fully deterministic** evaluation harness for the CAP MCP server's
 `search_docs` retrieval. It scores the real retrieval path against a **frozen golden
 set** with human-authored relevance labels, computes standard IR metrics by pure
 arithmetic, compares against a stored baseline, applies gate thresholds, and emits a
-machine-readable JSON report plus a human console summary. **No LLM is used anywhere.**
+machine-readable JSON report plus a human console summary.
 
 See [`METRICS.md`](./METRICS.md) for metric definitions, the stable-identifier scheme,
 and the determinism guarantees.
@@ -142,67 +142,3 @@ The **console** prints a summary (header, metrics table with trend arrows and
 gate/status icons, diagnosis, result line, and the 3 weakest questions). Re-print any
 run with `evals:show`, or chart all runs (including per-question sparklines) with
 `evals:compare`.
-
-## Run-output hygiene (no pollution over many runs)
-
-- All output lives under `runs/`, which is **git-ignored** and created on demand.
-- `result.jsonl` is one append-only file — one line per run, no per-run folders.
-- It is capped to the most recent `output.keepRuns` runs (default 20); `-1` keeps all.
-- Nothing is written outside `runs/`; the golden set in `data/` is never mutated by a run.
-
-## Exit codes
-
-| Code | Meaning |
-|---|---|
-| `0` | All gated metrics within threshold (`overall_status: pass`). |
-| `1` | A gated metric is below its threshold (`overall_status: fail`) — CI should block the merge. |
-| `2` | Pre-flight failed: a `relevant_doc_id` is missing from the current index (stale label). |
-| `3` | Unexpected error (e.g. golden set missing/malformed). |
-
-## Determinism
-
-- No LLM, no randomness, no wall-clock **in scoring**. `run_id` (an ISO timestamp + a
-  short suffix) is the **only** nondeterministic field, and it is stamped after
-  computation — it never affects a metric.
-- Same golden set + same retriever output → **byte-identical** report body (except
-  `run_id`) and byte-identical console body. Asserted by `tests/unit/runner.test.js`.
-
-## Gates & baseline
-
-The **baseline is the oldest run in `runs/result.jsonl`** — deltas, the diagnosis, and
-the weakest-questions annotation are all computed against it. The first run has no
-baseline (it *is* the reference); every later run is compared to it. To reset the
-reference point — e.g. after a known-good change, or when you change `k` — clear
-`runs/` so the next run starts a fresh `result.jsonl` and becomes the new baseline.
-
-> **Caveat — the baseline slides.** `result.jsonl` is capped to `output.keepRuns`, so
-> once you exceed that many runs the oldest (baseline) run is pruned and the *next*
-> oldest becomes the baseline. The reference point is not pinned; raise `keepRuns` (or
-> set `-1`) if you need the original baseline to persist across many runs.
-
-`config.json` gate thresholds are **derived empirically from a baseline run**, not
-hardcoded standards: run the eval on a known-good state, read its metric values, and set
-each gated threshold at or just below them (small tolerance for noise). Only
-`recall_at_k`, `mrr`, and `hit_rate_at_k` are gated by default; `precision_at_k` and
-`ndcg_at_k` are reported (`gate: null`) and never fail the run.
-
-## Refreshing the golden set after a corpus re-index
-
-Stable ids are derived from chunk **text** (`lib/ids.js`). If a re-index changes a
-labelled chunk's text, its id changes and the **pre-flight check aborts** (exit `2`)
-listing the stale ids — it never silently scores against dead labels. To refresh:
-
-1. Re-populate the offline cache with the new index (run a `search_docs` query online).
-2. For each stale id reported by the pre-flight check, find the current chunk that now
-   covers the same topic and update `relevant_doc_ids` in `data/golden-set.json`.
-   Relevance is a **human judgment** made once — re-confirm it, don't auto-map.
-3. Clear `runs/` and re-run `npm run evals` so the new numbers form a fresh baseline.
-
-## Adding questions
-
-Append `{ id, question, relevant_doc_ids }` to `data/golden-set.json` (keep `id`s
-ascending; they sort deterministically). `relevant_doc_ids` are `<source-url>#<breadcrumb-slug>`
-ids that must be present in the current index — the pre-flight check enforces this on the
-next run. To discover ids for a question, retrieve for it and inspect the top results'
-ids via `lib/retriever.js` (`makeDefaultRetriever` returns the ranked, deduped ids;
-`loadIndex().idSet` is the set of all ids in the index).

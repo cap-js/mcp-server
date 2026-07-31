@@ -4,20 +4,18 @@ import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
 import { round } from './metrics.js'
 
-// Markdown can't be searched or lazy-loaded like the HTML, so its per-question
-// tables are capped to the top-N most-attention-worthy questions (regressed /
-// weakest first). The full set always lives in compare.html / result.jsonl.
+// Markdown can't be searched/lazy-loaded, so its per-question tables are capped
+// to the top-N most-attention-worthy (regressed/weakest first). Full set lives
+// in compare.html / result.jsonl.
 const MD_TOP_N = 50
 
-// All run reports from result.jsonl, sorted chronologically by run_id.
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
 }
 
-// Inline browser script for the per-question section: builds the table rows from
-// the embedded JSON blob, supports search + column sort, and lazily renders the
-// 5 line charts for a row only when it is expanded. Kept as a plain string so the
-// whole compare page stays a single self-contained file with no external deps.
+// Inline browser script for the per-question section: builds table rows from the
+// embedded JSON blob, supports search + column sort, and lazily renders a row's
+// 5 line charts only when expanded. Plain string so the page stays self-contained.
 const PQ_SCRIPT = `
 (function(){
   var blob = JSON.parse(document.getElementById('pq-data').textContent);
@@ -119,7 +117,7 @@ function lineChartSvg({ key, label, points, gate, avg }) {
   const ih = H - m.top - m.bottom
   const n = points.length
 
-  // y always spans the metric's natural [0,1] range so charts are comparable.
+  // y spans the metric's natural [0,1] range so charts are comparable.
   const yMin = 0
   const yMax = 1
   const x = i => m.left + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw)
@@ -151,7 +149,7 @@ function lineChartSvg({ key, label, points, gate, avg }) {
     })
     .join('')
 
-  // x tick labels: first, last, and every ~ (n/6)th to avoid crowding
+  // x ticks: first, last, and every ~(n/6)th to avoid crowding
   const step = Math.max(1, Math.ceil(n / 6))
   const xticks = points
     .map((p, i) => {
@@ -172,11 +170,9 @@ function lineChartSvg({ key, label, points, gate, avg }) {
 </figure>`
 }
 
-// Build the per-question section. Scales to large golden sets (1000+ questions):
-// instead of eagerly emitting a chart per question, it emits ONE searchable /
-// sortable table plus a compact JSON data blob; the 5 line charts for a row are
-// rendered lazily by inline JS only when that row is expanded. Zero external
-// deps; the embedded data is fixed so output stays deterministic.
+// Per-question section, built to scale to 1000+ questions: ONE searchable /
+// sortable table + a compact JSON blob; a row's 5 charts render lazily (in JS)
+// only when expanded. No external deps; embedded data is fixed → deterministic.
 function renderPerQuestionSection(runs) {
   // Question order + latest text.
   const order = []
@@ -193,13 +189,12 @@ function renderPerQuestionSection(runs) {
   }
   if (order.length === 0) return ''
 
-  // Baseline (oldest run) per-question metrics, for Δ.
-  const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics]))
+  const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics])) // oldest run = baseline for Δ
   const runShorts = runs.map(shortRunId)
   const gates = {}
   for (const key of METRIC_KEYS) gates[key] = runs[runs.length - 1].aggregate[key].gate ?? null
 
-  // Per-question data model: series per metric + avg + delta-vs-baseline.
+  // Per-question model: series per metric + avg + delta-vs-baseline.
   const data = order.map(id => {
     const series = {}
     const avg = {}
@@ -260,11 +255,9 @@ function renderRunDetails(r) {
   const arrow = d => (d === null || d === undefined ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '═')
   const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
 
-  // summary line: run_id + one value per metric + overall result
   const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
   const res = r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'
 
-  // aggregate table
   const aggRows = METRIC_KEYS.map(k => {
     const a = r.aggregate[k]
     const delta = a.delta === null || a.delta === undefined ? '—' : `${arrow(a.delta)} ${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
@@ -272,7 +265,6 @@ function renderRunDetails(r) {
     return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${delta}</td><td>${base}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
   }).join('')
 
-  // per-question table (all 5 metrics)
   const pqHead = METRIC_KEYS.map(k => `<th>${METRIC_LABEL[k]}</th>`).join('')
   const pqRows = (r.per_question || [])
     .map(q => {
@@ -499,9 +491,7 @@ function renderMarkdownCompare(runs) {
   L.push(`| **result** |  | ${runs.map(r => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`)
   L.push('')
 
-  // 2) Per-question: a single compact avg+Δ table, sorted regressed/weakest-first
-  //    and capped to MD_TOP_N so the markdown stays readable at large golden sets.
-  //    (Markdown can't be searched/lazy-loaded like the HTML, so we bound output.)
+  // 2) Per-question: one compact avg+Δ table, regressed/weakest-first, capped to MD_TOP_N.
   const qOrder = []
   const seen = new Set()
   const textById = new Map()
