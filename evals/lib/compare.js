@@ -2,14 +2,116 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
+import { round } from './metrics.js'
+
+// Markdown can't be searched or lazy-loaded like the HTML, so its per-question
+// tables are capped to the top-N most-attention-worthy questions (regressed /
+// weakest first). The full set always lives in compare.html / result.jsonl.
+const MD_TOP_N = 50
 
 // All run reports from result.jsonl, sorted chronologically by run_id.
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
 }
 
+// Inline browser script for the per-question section: builds the table rows from
+// the embedded JSON blob, supports search + column sort, and lazily renders the
+// 5 line charts for a row only when it is expanded. Kept as a plain string so the
+// whole compare page stays a single self-contained file with no external deps.
+const PQ_SCRIPT = `
+(function(){
+  var blob = JSON.parse(document.getElementById('pq-data').textContent);
+  var KEYS = blob.metricKeys, LBL = blob.metricLabels, GATES = blob.gates;
+  var RUNS = blob.runShorts, K = blob.k, DATA = blob.data;
+  var tbody = document.querySelector('#pq-table tbody');
+  var search = document.getElementById('pq-search');
+  var countEl = document.getElementById('pq-count');
+  var sortKey = null, sortDir = 1; // null = default order (already regressed-first)
+
+  function fmt(v){ return (v==null)?'—':v.toFixed(2); }
+  function deltaStr(d){ if(d==null) return ''; var s = d>0?'▲':d<0?'▼':'═'; return ' '+s+(d>0?'+':d<0?'−':'')+Math.abs(d).toFixed(2); }
+
+  // Lazy chart: mirrors the server-side lineChartSvg geometry.
+  function chartSvg(key, vals){
+    var W=520,H=210,m={top:20,right:16,bottom:34,left:38},iw=W-m.left-m.right,ih=H-m.top-m.bottom;
+    var n=vals.length, gate=GATES[key];
+    function x(i){ return m.left+(n<=1?iw/2:(i/(n-1))*iw); }
+    function y(v){ return m.top+(1-v)*ih; }
+    var out='<svg viewBox="0 0 '+W+' '+H+'" class="pqc">';
+    [0,0.25,0.5,0.75,1].forEach(function(g){ var yy=y(g).toFixed(1);
+      out+='<line class="grid" x1="'+m.left+'" y1="'+yy+'" x2="'+(m.left+iw)+'" y2="'+yy+'"/>';
+      out+='<text class="axis" x="'+(m.left-6)+'" y="'+(y(g)+3).toFixed(1)+'" text-anchor="end">'+g.toFixed(2)+'</text>';
+    });
+    if(gate!=null){ out+='<line class="gate" x1="'+m.left+'" y1="'+y(gate).toFixed(1)+'" x2="'+(m.left+iw)+'" y2="'+y(gate).toFixed(1)+'"/>';
+      out+='<text class="gatelabel" x="'+(m.left+iw)+'" y="'+(y(gate)-4).toFixed(1)+'" text-anchor="end">gate ≥ '+gate.toFixed(2)+'</text>'; }
+    var d=vals.map(function(v,i){ return (i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1); }).join(' ');
+    out+='<path class="series" d="'+d+'" fill="none"/>';
+    vals.forEach(function(v,i){ var below=gate!=null&&v<gate;
+      out+='<circle class="dot'+(below?' below':'')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3"><title>'+RUNS[i]+': '+v.toFixed(3)+'</title></circle>'; });
+    vals.forEach(function(v,i){ if(n>1&&i!==0&&i!==n-1) return;
+      out+='<text class="axis" x="'+x(i).toFixed(1)+'" y="'+(H-m.bottom+14)+'" text-anchor="middle">'+RUNS[i]+'</text>'; });
+    out+='</svg>';
+    var avg=vals.reduce(function(s,v){return s+v;},0)/(n||1);
+    var gated = gate!=null;
+    return '<figure class="pqchart"><figcaption>'+LBL[key]+'@K'
+      +(gated?' <span class="tag">gated</span>':' <span class="tag muted">reported</span>')
+      +'<span class="chart-avg">avg '+avg.toFixed(2)+'</span></figcaption>'+out+'</figure>';
+  }
+
+  function render(list){
+    tbody.innerHTML='';
+    countEl.textContent = list.length + (list.length===DATA.length?'':' / '+DATA.length) + ' shown';
+    var frag=document.createDocumentFragment();
+    list.forEach(function(q){
+      var tr=document.createElement('tr'); tr.className='pq-row';
+      var cells='<td class="mono">'+q.id+'</td><td class="q-cell">'+q.question.replace(/</g,'&lt;')+'</td>';
+      KEYS.forEach(function(k){ cells+='<td>'+fmt(q.avg[k])+'<span class="d">'+deltaStr(q.delta[k])+'</span></td>'; });
+      tr.innerHTML=cells;
+      var det=document.createElement('tr'); det.className='pq-detail'; det.style.display='none';
+      det.innerHTML='<td colspan="'+(2+KEYS.length)+'"><div class="pq-charts"></div></td>';
+      var built=false;
+      tr.addEventListener('click', function(){
+        var open = det.style.display!=='none';
+        det.style.display = open?'none':'table-row';
+        tr.classList.toggle('open', !open);
+        if(!open && !built){ det.querySelector('.pq-charts').innerHTML = KEYS.map(function(k){return chartSvg(k,q.series[k]);}).join(''); built=true; }
+      });
+      frag.appendChild(tr); frag.appendChild(det);
+    });
+    tbody.appendChild(frag);
+  }
+
+  function apply(){
+    var term=search.value.trim().toLowerCase();
+    var list=DATA.filter(function(q){ return !term || q.id.toLowerCase().indexOf(term)>=0 || q.question.toLowerCase().indexOf(term)>=0; });
+    if(sortKey){ list=list.slice().sort(function(a,b){
+      var av,bv;
+      if(sortKey==='id'){ av=a.id; bv=b.id; return (av<bv?-1:av>bv?1:0)*sortDir; }
+      if(sortKey==='question'){ av=a.question; bv=b.question; return (av<bv?-1:av>bv?1:0)*sortDir; }
+      av=a.avg[sortKey]; bv=b.avg[sortKey]; return (av-bv)*sortDir;
+    }); }
+    render(list);
+  }
+
+  search.addEventListener('input', apply);
+  document.querySelectorAll('#pq-table thead th').forEach(function(th){
+    var key = th.getAttribute('data-sort') || th.getAttribute('data-metric');
+    if(!key) return;
+    th.classList.add('sortable');
+    th.addEventListener('click', function(){
+      if(sortKey===key){ sortDir=-sortDir; } else { sortKey=key; sortDir = (key==='id'||key==='question')?1:-1; }
+      document.querySelectorAll('#pq-table thead th').forEach(function(t){t.classList.remove('asc','desc');});
+      th.classList.add(sortDir>0?'asc':'desc');
+      apply();
+    });
+  });
+  render(DATA); // default: already sorted regressed-first
+  countEl.textContent = DATA.length + ' shown';
+})();
+`
+
 // ---- tiny SVG line chart (no dependencies) --------------------------------
-function lineChartSvg({ key, label, points, gate }) {
+function lineChartSvg({ key, label, points, gate, avg }) {
   const W = 680
   const H = 260
   const m = { top: 24, right: 20, bottom: 46, left: 44 }
@@ -59,8 +161,8 @@ function lineChartSvg({ key, label, points, gate }) {
     .join('')
 
   return `<figure class="chart">
-  <figcaption>${label}${gate !== null && gate !== undefined ? ' <span class="tag">gated</span>' : ' <span class="tag muted">reported</span>'}</figcaption>
-  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label} across ${n} runs">
+  <figcaption>${label}${gate !== null && gate !== undefined ? ' <span class="tag">gated</span>' : ' <span class="tag muted">reported</span>'}<span class="chart-avg">avg ${avg.toFixed(2)} across ${n} run${n === 1 ? '' : 's'}</span></figcaption>
+  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label}, average ${avg.toFixed(2)} across ${n} runs">
     ${grid}
     ${gateLine}
     <path class="series" d="${linePath}" fill="none"/>
@@ -70,49 +172,13 @@ function lineChartSvg({ key, label, points, gate }) {
 </figure>`
 }
 
-// ---- compact sparkline for one metric of one question across runs ---------
-// points: [{ value, runShort }]; gate: number|null. Fixed [0,1] y-range so all
-// sparklines are visually comparable. Shows the current (last) value as a label.
-function sparklineSvg({ label, points, gate }) {
-  const W = 150
-  const H = 46
-  const m = { top: 6, right: 34, bottom: 6, left: 6 }
-  const iw = W - m.left - m.right
-  const ih = H - m.top - m.bottom
-  const n = points.length
-  const x = i => m.left + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw)
-  const y = v => m.top + (1 - v) * ih // v already in [0,1]
-
-  const gateLine =
-    gate !== null && gate !== undefined
-      ? `<line class="spark-gate" x1="${m.left}" y1="${y(gate).toFixed(1)}" x2="${m.left + iw}" y2="${y(gate).toFixed(1)}"/>`
-      : ''
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')
-  const dots = points
-    .map((p, i) => {
-      const below = gate !== null && gate !== undefined && p.value < gate
-      return `<circle class="spark-dot${below ? ' below' : ''}" cx="${x(i).toFixed(1)}" cy="${y(p.value).toFixed(1)}" r="2.2"><title>${p.runShort}: ${p.value.toFixed(3)}</title></circle>`
-    })
-    .join('')
-  const lastVal = points[points.length - 1].value
-  const firstVal = points[0].value
-  const trend = n < 2 ? '' : lastVal > firstVal ? '▲' : lastVal < firstVal ? '▼' : '═'
-
-  return `<div class="spark">
-  <div class="spark-label">${label}</div>
-  <svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${label} across runs">
-    ${gateLine}
-    <path class="spark-line" d="${linePath}" fill="none"/>
-    ${dots}
-    <text class="spark-val" x="${W - 2}" y="${(H / 2 + 3).toFixed(1)}" text-anchor="end">${trend} ${lastVal.toFixed(2)}</text>
-  </svg>
-</div>`
-}
-
-// Build the per-question section: one block per question id, each with a
-// sparkline per metric showing that metric across the runs the question appears in.
+// Build the per-question section. Scales to large golden sets (1000+ questions):
+// instead of eagerly emitting a chart per question, it emits ONE searchable /
+// sortable table plus a compact JSON data blob; the 5 line charts for a row are
+// rendered lazily by inline JS only when that row is expanded. Zero external
+// deps; the embedded data is fixed so output stays deterministic.
 function renderPerQuestionSection(runs) {
-  // Collect question order + text from the most recent run that has per_question.
+  // Question order + latest text.
   const order = []
   const seen = new Set()
   const textById = new Map()
@@ -122,39 +188,67 @@ function renderPerQuestionSection(runs) {
         seen.add(q.id)
         order.push(q.id)
       }
-      textById.set(q.id, q.question) // last one wins → most recent text
+      textById.set(q.id, q.question)
     }
   }
   if (order.length === 0) return ''
 
-  const blocks = order
-    .map(id => {
-      // Per metric: series across only the runs where this question exists.
-      const sparks = METRIC_KEYS.map(key => {
-        const points = []
-        for (const r of runs) {
-          const q = (r.per_question || []).find(x => x.id === id)
-          if (q) points.push({ value: q.metrics[key], runShort: shortRunId(r) })
-        }
-        if (points.length === 0) return ''
-        const gate = runs.length ? runs[runs.length - 1].aggregate[key].gate : null
-        return sparklineSvg({ label: `${METRIC_LABEL[key]}`, points, gate })
-      }).join('\n')
-      const text = (textById.get(id) || '').replace(/</g, '&lt;')
-      return `<div class="q-block">
-  <div class="q-head"><span class="q-id">${id}</span> <span class="q-text">${text}</span></div>
-  <div class="q-sparks">${sparks}</div>
-</div>`
-    })
-    .join('\n')
+  // Baseline (oldest run) per-question metrics, for Δ.
+  const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics]))
+  const runShorts = runs.map(shortRunId)
+  const gates = {}
+  for (const key of METRIC_KEYS) gates[key] = runs[runs.length - 1].aggregate[key].gate ?? null
 
-  return `<h2 class="section-h">Per-question metric trends</h2>
-<div class="q-grid">
-${blocks}
-</div>`
+  // Per-question data model: series per metric + avg + delta-vs-baseline.
+  const data = order.map(id => {
+    const series = {}
+    const avg = {}
+    const delta = {}
+    for (const key of METRIC_KEYS) {
+      const vals = []
+      for (const r of runs) {
+        const q = (r.per_question || []).find(x => x.id === id)
+        if (q) vals.push(round(q.metrics[key], 3))
+      }
+      series[key] = vals
+      const a = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+      avg[key] = round(a, 3)
+      const b = baseById.get(id)
+      const last = vals.length ? vals[vals.length - 1] : 0
+      delta[key] = b ? round(last - b[key], 3) : null
+    }
+    return { id, question: textById.get(id) || '', series, avg, delta }
+  })
+
+  // Default sort: regressed / weakest first — biggest MRR drop, then lowest MRR avg.
+  data.sort((a, b) => {
+    const da = a.delta.mrr === null ? 0 : a.delta.mrr
+    const db = b.delta.mrr === null ? 0 : b.delta.mrr
+    if (da !== db) return da - db // most negative (biggest drop) first
+    if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr // lowest MRR first
+    return a.id < b.id ? -1 : 1
+  })
+
+  const headCells = METRIC_KEYS.map(k => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join('')
+
+  const blob = { runShorts, gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
+
+  return `<h2 class="section-h">Per-question metric trends
+    <span class="section-hint">${data.length} questions · sorted by MRR drop then lowest MRR · click a row for its charts</span>
+  </h2>
+  <div class="pq-controls">
+    <input id="pq-search" type="search" placeholder="filter ${data.length} questions by id or text…" autocomplete="off"/>
+    <span id="pq-count" class="pq-count"></span>
+  </div>
+  <table id="pq-table">
+    <thead><tr><th data-sort="id">id</th><th data-sort="question">question</th>${headCells}</tr></thead>
+    <tbody></tbody>
+  </table>
+  <script id="pq-data" type="application/json">${JSON.stringify(blob).replace(/</g, '\\u003c')}</script>
+  <script>${PQ_SCRIPT}</script>`
 }
 
-// short run id for sparkline tooltips (time-of-day)
+// short run id for chart tooltips / x-axis (time-of-day)
 function shortRunId(r) {
   return r.run_id.replace(/T/, ' ').replace(/Z.*$/, '').slice(5)
 }
@@ -246,7 +340,8 @@ function renderHtml(runs) {
     }))
     // gate: take the most recent run's gate for this metric (null = reported only)
     const gate = runs.length ? runs[runs.length - 1].aggregate[key].gate : null
-    return lineChartSvg({ key, label: `${METRIC_LABEL[key]}@K`, points, gate })
+    const avg = points.length ? points.reduce((s, p) => s + p.value, 0) / points.length : 0
+    return lineChartSvg({ key, label: `${METRIC_LABEL[key]}@K`, points, gate, avg })
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
@@ -283,6 +378,7 @@ function renderHtml(runs) {
   .grid-wrap { display:grid; grid-template-columns:repeat(auto-fit,minmax(340px,1fr)); gap:18px; padding:16px 28px 28px; }
   .chart { margin:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 12px 6px; }
   .chart figcaption { font-size:13px; font-weight:600; margin:2px 4px 6px; }
+  .chart-avg { float:right; font-size:11px; font-weight:600; color:var(--ink2); font-variant-numeric:tabular-nums; }
   .tag { font-size:10px; font-weight:600; color:var(--gate); border:1px solid var(--gate); border-radius:5px; padding:1px 5px; margin-left:4px; vertical-align:middle; }
   .tag.muted { color:var(--muted); border-color:var(--muted); }
   svg { width:100%; height:auto; display:block; }
@@ -299,20 +395,29 @@ function renderHtml(runs) {
   .mono { font-family: ui-monospace, monospace; font-size:11px; }
   thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); }
   .section-h { margin:8px 28px 8px; font-size:14px; }
-  .q-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); gap:14px; padding:0 28px 24px; }
-  .q-block { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; }
-  .q-head { font-size:12px; margin-bottom:6px; }
-  .q-id { font-family: ui-monospace, monospace; font-weight:600; }
-  .q-text { color:var(--ink2); }
-  .q-sparks { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:4px 10px; }
-  .spark { }
-  .spark-label { font-size:10px; color:var(--muted); font-weight:600; margin-bottom:1px; }
-  .spark-line { stroke:var(--series); stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round; }
-  .spark-dot { fill:var(--series); }
-  .spark-dot.below { fill:var(--gate); }
-  .spark-gate { stroke:var(--gate); stroke-width:1; stroke-dasharray:3 2; }
-  .spark-val { fill:var(--ink2); font-size:11px; font-variant-numeric:tabular-nums; }
   .section-hint { font-weight:400; color:var(--muted); font-size:12px; }
+  .pq-controls { padding:0 28px 8px; display:flex; align-items:center; gap:12px; }
+  #pq-search { flex:0 0 360px; max-width:60%; padding:6px 10px; font-size:13px; border-radius:6px;
+    border:1px solid var(--border); background:var(--surface); color:var(--ink); }
+  .pq-count { font-size:12px; color:var(--muted); }
+  #pq-table { border-collapse:collapse; width:calc(100% - 56px); margin:0 28px 28px; font-size:12px; }
+  #pq-table th, #pq-table td { text-align:right; padding:5px 9px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
+  #pq-table th:first-child, #pq-table td:first-child, #pq-table th.q-cell, #pq-table td.q-cell { text-align:left; }
+  #pq-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); font-weight:600; position:sticky; top:0; background:var(--page); }
+  #pq-table th.sortable { cursor:pointer; user-select:none; }
+  #pq-table th.sortable:hover { color:var(--ink); }
+  #pq-table th.asc::after { content:" ▲"; color:var(--muted); }
+  #pq-table th.desc::after { content:" ▼"; color:var(--muted); }
+  #pq-table td.q-cell { color:var(--ink2); max-width:520px; white-space:normal; }
+  #pq-table td .d { color:var(--muted); font-size:11px; }
+  .pq-row { cursor:pointer; }
+  .pq-row:hover { background:var(--surface); }
+  .pq-row.open { background:var(--surface); font-weight:600; }
+  .pq-detail > td { background:var(--surface); padding:8px 14px 14px; }
+  .pq-charts { display:grid; grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); gap:12px; }
+  .pqchart { margin:0; }
+  .pqchart figcaption { font-size:12px; font-weight:600; margin:2px 2px 4px; }
+  svg.pqc { width:100%; height:auto; display:block; }
   .run-list { padding:0 28px 32px; display:flex; flex-direction:column; gap:6px; }
   .run-detail { background:var(--surface); border:1px solid var(--border); border-radius:8px; }
   .run-detail > summary { cursor:pointer; padding:9px 12px; font-size:12px; display:flex; flex-wrap:wrap; align-items:center; gap:10px; list-style:none; }
@@ -394,7 +499,9 @@ function renderMarkdownCompare(runs) {
   L.push(`| **result** |  | ${runs.map(r => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`)
   L.push('')
 
-  // 2) Per-question: one matrix (question × run) per metric
+  // 2) Per-question: a single compact avg+Δ table, sorted regressed/weakest-first
+  //    and capped to MD_TOP_N so the markdown stays readable at large golden sets.
+  //    (Markdown can't be searched/lazy-loaded like the HTML, so we bound output.)
   const qOrder = []
   const seen = new Set()
   const textById = new Map()
@@ -408,23 +515,51 @@ function renderMarkdownCompare(runs) {
     }
   }
   if (qOrder.length) {
-    L.push('## Per-question metrics across runs')
-    for (const key of METRIC_KEYS) {
-      L.push('')
-      L.push(`### ${METRIC_LABEL[key]}@K`)
-      L.push('')
-      L.push(`| id | question | ${runs.map(r => shortId(r)).join(' | ')} |`)
-      L.push(`|---|---|${runs.map(() => '--:').join('|')}|`)
-      for (const id of qOrder) {
-        const cells = runs
-          .map(r => {
-            const q = (r.per_question || []).find(x => x.id === id)
-            return q ? q.metrics[key].toFixed(3) : '—'
-          })
-          .join(' | ')
-        const text = (textById.get(id) || '').replace(/\|/g, '\\|')
-        L.push(`| ${id} | ${text} | ${cells} |`)
+    const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics]))
+    // avg + delta-vs-baseline per question per metric
+    const rows = qOrder.map(id => {
+      const avg = {}
+      const delta = {}
+      for (const key of METRIC_KEYS) {
+        const vals = []
+        for (const r of runs) {
+          const q = (r.per_question || []).find(x => x.id === id)
+          if (q) vals.push(q.metrics[key])
+        }
+        avg[key] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
+        const b = baseById.get(id)
+        const last = vals.length ? vals[vals.length - 1] : 0
+        delta[key] = b ? last - b[key] : null
       }
+      return { id, question: textById.get(id) || '', avg, delta }
+    })
+    rows.sort((a, b) => {
+      const da = a.delta.mrr === null ? 0 : a.delta.mrr
+      const db = b.delta.mrr === null ? 0 : b.delta.mrr
+      if (da !== db) return da - db
+      if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr
+      return a.id < b.id ? -1 : 1
+    })
+    const shown = rows.slice(0, MD_TOP_N)
+
+    L.push('## Per-question metrics (avg across runs)')
+    L.push('')
+    L.push(
+      qOrder.length > shown.length
+        ? `Showing the ${shown.length} most-attention-worthy of ${qOrder.length} questions (sorted by MRR drop vs baseline, then lowest MRR). Full per-question detail: open \`compare.html\` or read \`result.jsonl\`.`
+        : `All ${qOrder.length} questions (sorted by MRR drop vs baseline, then lowest MRR).`
+    )
+    L.push('')
+    const fmtCell = (avg, d) => {
+      const dz = d === null ? '' : d > 0 ? ` (▲+${d.toFixed(2)})` : d < 0 ? ` (▼−${Math.abs(d).toFixed(2)})` : ''
+      return `${avg.toFixed(2)}${dz}`
+    }
+    L.push(`| id | question | ${METRIC_KEYS.map(k => METRIC_LABEL[k]).join(' | ')} |`)
+    L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|`)
+    for (const row of shown) {
+      const cells = METRIC_KEYS.map(k => fmtCell(row.avg[k], row.delta[k])).join(' | ')
+      const text = (row.question || '').replace(/\|/g, '\\|')
+      L.push(`| ${row.id} | ${text} | ${cells} |`)
     }
     L.push('')
   }
@@ -449,9 +584,15 @@ function renderMarkdownCompare(runs) {
     }
     if ((r.per_question || []).length) {
       L.push('')
+      const pq = r.per_question
+      const shownPq = pq.slice(0, MD_TOP_N)
+      if (pq.length > shownPq.length) {
+        L.push(`_First ${shownPq.length} of ${pq.length} questions (full detail in \`compare.html\` / \`result.jsonl\`)._`)
+        L.push('')
+      }
       L.push(`| id | question | ${METRIC_KEYS.map(k => METRIC_LABEL[k]).join(' | ')} | hit ranks |`)
       L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|:--|`)
-      for (const q of r.per_question) {
+      for (const q of shownPq) {
         const cells = METRIC_KEYS.map(k => (q.metrics[k] ?? 0).toFixed(3)).join(' | ')
         const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
         const text = (q.question || '').replace(/\|/g, '\\|')

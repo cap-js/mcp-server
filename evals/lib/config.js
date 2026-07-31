@@ -65,6 +65,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   const cfg = {
     configPath: cfgPath,
     k: envNum('EVAL_K', file.k ?? 5),
+    runs: envNum('EVAL_RUNS', file.runs ?? 1),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
@@ -90,6 +91,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   // Programmatic overrides (used by tests / embedders) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
+    if (overrides.runs !== undefined) cfg.runs = overrides.runs
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
@@ -101,6 +103,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
+  if (!Number.isInteger(cfg.runs) || cfg.runs <= 0) throw new Error(`config: runs must be a positive integer (got ${cfg.runs})`)
   if (!['html', 'md'].includes(cfg.output.compareFormat)) {
     throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
   }

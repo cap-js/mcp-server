@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { run } from '../../lib/cli.js'
+import { run, runAll } from '../../lib/cli.js'
 
 // ---- fixtures -------------------------------------------------------------
 // A tiny in-memory index + retriever so no ONNX model / network is touched.
@@ -174,5 +174,44 @@ describe('cli tests', () => {
     })
     const entries = await fs.readdir(runsDir)
     assert.deepEqual(entries.sort(), ['runs.jsonl'])
+  })
+
+  test('runAll runs the eval config.runs times, then writes compare', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const res = await runAll({
+      overrides: baseOverrides({ runs: 3 }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 0)
+    assert.equal(res.runs, 3)
+    const rows = await readResults()
+    assert.equal(rows.length, 3) // three runs appended
+    // compare always runs afterwards → compare.html present
+    await fs.access(path.join(runsDir, 'compare.html'))
+  })
+
+  test('runAll defaults to a single run + compare', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const res = await runAll({
+      overrides: baseOverrides(), // runs defaults to 1
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.runs, 1)
+    assert.equal((await readResults()).length, 1)
+    await fs.access(path.join(runsDir, 'compare.html'))
+  })
+
+  test('runAll stops on a hard error (stale pre-flight) and still compares', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['ghost#dead'] }])
+    const res = await runAll({
+      overrides: baseOverrides({ runs: 3 }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 2) // pre-flight abort code surfaces
+    // no runs were written (each attempt aborts before append)
+    await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })
 })

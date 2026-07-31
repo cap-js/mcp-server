@@ -42,14 +42,19 @@ evals/
 From the repo root (`@cap-js/mcp-server`):
 
 ```sh
-npm run evals            # run the eval (reads config.json) → appends to result.jsonl
+npm run evals            # run the eval config.runs× (default 1) → appends to result.jsonl, then compares
+EVAL_RUNS=10 npm run evals   # run it 10 times in one go
 npm run evals:show       # re-print the newest run's console summary
 npm run evals:show -- <run_id>   # print a specific run from result.jsonl
-npm run evals:compare    # chart every run's metrics → runs/compare.html
+npm run evals:compare    # (re)build the comparison report from result.jsonl
 npm run evals:test       # unit + determinism + config tests
 ```
 
-Each run appends one line (its JSON report) to **`runs/result.jsonl`**, which is capped
+`npm run evals` runs the eval `config.runs` times (each run appended to
+`runs/result.jsonl`) and **always builds the comparison report afterwards**
+(`runs/compare.html`, or `compare.md` when `compareFormat: md`). Use `EVAL_RUNS` to
+run it many times in one invocation. Each run appends one line (its JSON report) to
+**`runs/result.jsonl`**, which is capped
 to the most recent `output.keepRuns` runs. Every run is compared against the **oldest
 run on file** (the baseline) — the first run has no baseline and becomes the reference.
 The terminal shows the summary + the 3
@@ -90,24 +95,20 @@ All behaviour is driven by [`config.json`](../config.json); every value is overr
 by an `EVAL_*` environment variable (env wins over file), and both are overridable
 programmatically via `run({ overrides })` in `lib/cli.js` (overrides win last).
 
-`config.json` holds only the settings a project actually tunes:
+`config.json` holds the full set of knobs — every field is present with its default,
+so you can edit any of them in one place:
 
-| config.json key | Env override | Meaning |
-|---|---|---|
-| `k` | `EVAL_K` | Cutoff K for all @K metrics. |
-| `capire_version` | `EVAL_CAPIRE_VERSION` | capire docs version, recorded in the report `config` + console header (provenance only). |
-| `gates.<metric>` | `EVAL_GATES` | Per-metric gate threshold (number) or `null` (reported only). |
-
-The following default in code and are omitted from `config.json`; set them via env
-(or add them to `config.json`) only when you need to override a default:
-
-| Setting | Env override | Default | Meaning |
+| config.json key | Env override | Default | Meaning |
 |---|---|---|---|
-| golden set path | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
-| runs dir | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |
-| keep runs | `EVAL_KEEP_RUNS` | `20` | Max runs to keep in `result.jsonl` (`-1` = all). |
-| results name | `EVAL_RESULTS_NAME` | `result.jsonl` | Name of the append-only results file. |
-| compare format | `EVAL_COMPARE_FORMAT` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
+| `k` | `EVAL_K` | `5` | Cutoff K for all @K metrics. |
+| `runs` | `EVAL_RUNS` | `1` | How many times `npm run evals` runs the eval (each appended). |
+| `capire_version` | `EVAL_CAPIRE_VERSION` | `2026.5.0` | capire docs version, recorded in the report `config` + console header (provenance only). |
+| `paths.goldenSet` | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
+| `paths.runsDir` | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |
+| `gates.<metric>` | `EVAL_GATES` | see file | Per-metric gate threshold (number) or `null` (reported only). |
+| `output.keepRuns` | `EVAL_KEEP_RUNS` | `20` | Max runs to keep in `result.jsonl` (`-1` = all). |
+| `output.resultsName` | `EVAL_RESULTS_NAME` | `result.jsonl` | Name of the append-only results file. |
+| `output.compareFormat` | `EVAL_COMPARE_FORMAT` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
 `EVAL_GATES` is a comma list: `EVAL_GATES='recall_at_k=0.9,mrr=0.7,ndcg_at_k=null'`.
 

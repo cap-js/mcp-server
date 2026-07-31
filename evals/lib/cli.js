@@ -79,3 +79,32 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }
+
+// Entry point for `npm run evals`: run the eval `config.runs` times (each run is
+// appended to result.jsonl), then always build the comparison report once at the
+// end. Returns the worst exit code across the runs (so a gated failure or a
+// pre-flight abort still surfaces even after later runs / the compare step).
+export async function runAll({ configPath, overrides, logger = console, deps = {} } = {}) {
+  const cfg = await loadConfig({ configPath, overrides })
+  const n = cfg.runs
+  let worst = 0
+  for (let i = 0; i < n; i++) {
+    if (n > 1) logger.error(`\n--- run ${i + 1} of ${n} ---`)
+    const { code } = await run({ configPath, overrides, logger, deps })
+    worst = Math.max(worst, code)
+    // Stop the loop on a hard error (missing golden set / stale ids); a gated
+    // failure (code 1) is a real result — keep going so all N runs are recorded.
+    if (code >= 2) break
+  }
+
+  // Always compare afterwards (best-effort; a compare failure doesn't override
+  // the eval's own exit code).
+  try {
+    const { compare } = await import('./compare.js')
+    await compare({ configPath, overrides, logger })
+  } catch (err) {
+    logger.error(`(compare step failed: ${err.message})`)
+  }
+
+  return { code: worst, runs: n }
+}

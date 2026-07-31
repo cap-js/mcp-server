@@ -4,7 +4,7 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
-  'EVAL_CONFIG', 'EVAL_K', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
+  'EVAL_CONFIG', 'EVAL_K', 'EVAL_RUNS', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
   'EVAL_CAPIRE_VERSION', 'EVAL_GATES',
   'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
@@ -75,6 +75,19 @@ describe('config tests', () => {
     assert.equal((await loadConfig()).output.compareFormat, 'html')
     process.env.EVAL_COMPARE_FORMAT = 'md'
     assert.equal((await loadConfig()).output.compareFormat, 'md')
+  })
+
+  test('runs defaults to 1 and is overridable via EVAL_RUNS', async () => {
+    clearEnv()
+    assert.equal((await loadConfig()).runs, 1)
+    process.env.EVAL_RUNS = '5'
+    assert.equal((await loadConfig()).runs, 5)
+  })
+
+  test('rejects invalid runs', async () => {
+    clearEnv()
+    process.env.EVAL_RUNS = '0'
+    await assert.rejects(() => loadConfig(), /runs must be a positive integer/)
   })
 
   test('rejects invalid compareFormat', async () => {

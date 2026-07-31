@@ -83,12 +83,34 @@ describe('compare tests', () => {
     const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
     assert.match(md, /^# CAP MCP RAG/)
     assert.ok(md.includes('## Aggregate metrics across runs'))
-    assert.ok(md.includes('## Per-question metrics across runs'))
+    assert.ok(md.includes('## Per-question metrics (avg across runs)'))
     assert.ok(md.includes('## Inspect each run'))
     assert.ok(md.includes('cap-001'))
     assert.ok(!md.includes('<svg')) // no charts in markdown
+    // small golden set → shows all, no cap note
+    assert.ok(md.includes('All 1 question'))
     // html must NOT have been written
     await assert.rejects(() => fs.access(path.join(runsDir, 'compare.html')))
+  })
+
+  test('md format: caps the per-question table to top-N for large golden sets', async () => {
+    // 120 questions across 2 runs → MD should cap to 50 and say so
+    const mk = (rid, seed) => {
+      const per = []
+      for (let i = 1; i <= 120; i++) {
+        per.push(pq('cap-' + String(i).padStart(3, '0'), 'Q' + i, { mrr: ((i + seed) % 10) / 10 }))
+      }
+      return fakeReport(rid, { perQuestion: per })
+    }
+    await writeRun(null, mk('2026-07-30T10:00:00Z_a', 0))
+    await writeRun(null, mk('2026-07-30T11:00:00Z_b', 2))
+    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
+    assert.ok(md.includes('Showing the 50 most-attention-worthy of 120 questions'))
+    // per-question section table rows are capped (count '| cap-' lines in that section)
+    const section = md.split('## Per-question metrics (avg across runs)')[1].split('## Inspect each run')[0]
+    const rowCount = (section.match(/\n\| cap-/g) || []).length
+    assert.equal(rowCount, 50)
   })
 
   test('run-detail card includes aggregate + per-question tables', async () => {
@@ -122,7 +144,7 @@ describe('compare tests', () => {
     assert.equal(res.runs, 1)
   })
 
-  test('per-question section: one block per question id, sparkline per metric', async () => {
+  test('per-question section: searchable table + embedded data blob (scales, lazy charts)', async () => {
     const q1a = pq('cap-001', 'How do I define X?', { mrr: 1 })
     const q2a = pq('cap-002', 'How do I do Y?', { mrr: 0.5 })
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q1a, q2a] }))
@@ -135,11 +157,18 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
 
     assert.ok(html.includes('Per-question metric trends'))
-    // both question ids present, with their text
-    assert.ok(html.includes('cap-001') && html.includes('How do I define X?'))
-    assert.ok(html.includes('cap-002') && html.includes('How do I do Y?'))
-    // 2 questions × 5 metrics = 10 sparklines
-    assert.equal((html.match(/class="spark"/g) || []).length, 10)
+    // a searchable table + search box (not a chart per question)
+    assert.ok(html.includes('id="pq-table"'))
+    assert.ok(html.includes('id="pq-search"'))
+    // only the 5 overall charts are baked as SVG; per-question charts are lazy (JS)
+    assert.equal((html.match(/<figure class="chart">/g) || []).length, 5)
+    // the questions live in the embedded JSON data blob, regressed-first
+    const m = html.match(/id="pq-data"[^>]*>(.*?)<\/script>/s)
+    assert.ok(m, 'pq-data blob present')
+    const blob = JSON.parse(m[1].replace(/\\u003c/g, '<'))
+    assert.equal(blob.data.length, 2)
+    assert.equal(blob.data[0].id, 'cap-001') // biggest MRR drop first
+    assert.ok(blob.data[0].question === 'How do I define X?')
   })
 
   test('per-question section omitted when no run has per_question data', async () => {
