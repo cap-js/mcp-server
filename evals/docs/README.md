@@ -14,10 +14,12 @@ and the determinism guarantees.
 ```
 evals/
   config.json          # single source of all config (committed) — see "Configuration"
-  lib/                 # implementation (invoked via npm scripts; no wrapper entry files)
+  bin/                 # thin CLI entry files invoked by the npm scripts
+    eval.js            #   `npm run evals`         → runAll()
+    compare.js         #   `npm run evals:compare` → compare()
+  lib/                 # implementation (imported by bin/ and the tests)
     config.js          #   config loader (config.json + EVAL_* env overrides)
     cli.js             #   run(): orchestration — load → preflight → retrieve → score → append
-    show.js            #   show(): re-render a stored run to the console
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     runner.js          #   pure core: buildReport, diagnose, worstQuestions, console render
@@ -44,8 +46,6 @@ From the repo root (`@cap-js/mcp-server`):
 ```sh
 npm run evals            # run the eval config.runs× (default 1) → appends to result.jsonl, then compares
 EVAL_RUNS=10 npm run evals   # run it 10 times in one go
-npm run evals:show       # re-print the newest run's console summary
-npm run evals:show -- <run_id>   # print a specific run from result.jsonl
 npm run evals:compare    # (re)build the comparison report from result.jsonl
 npm run evals:test       # unit + determinism + config tests
 ```
@@ -58,8 +58,7 @@ run it many times in one invocation. Each run appends one line (its JSON report)
 to the most recent `output.keepRuns` runs. Every run is compared against the **oldest
 run on file** (the baseline) — the first run has no baseline and becomes the reference.
 The terminal shows the summary + the 3
-weakest questions; `evals:show` re-prints any run, and `evals:compare` charts all of
-them. There is no per-run folder and no markdown report.
+weakest questions; `evals:compare` charts all runs. There is no per-run folder and no markdown report.
 
 ### Compare runs (`evals:compare`)
 
@@ -139,6 +138,5 @@ code-derived `diagnosis`, `per_question` sorted by `id`). Aggregate values are r
 to 2 dp; per-question to 3 dp.
 
 The **console** prints a summary (header, metrics table with trend arrows and
-gate/status icons, diagnosis, result line, and the 3 weakest questions). Re-print any
-run with `evals:show`, or chart all runs (including per-question sparklines) with
-`evals:compare`.
+gate/status icons, diagnosis, result line, and the 3 weakest questions). Chart all
+runs (including per-question trends) with `evals:compare`.
