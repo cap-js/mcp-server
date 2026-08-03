@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Entry point for `npm run evals:compare`: (re)build the comparison report.
 import { compare } from '../lib/compare.js'
 

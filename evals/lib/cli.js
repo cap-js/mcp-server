@@ -1,6 +1,6 @@
 import path from 'path'
 import fs from 'fs/promises'
-import { loadConfig, METRIC_KEYS } from './config.js'
+import { loadConfig } from './config.js'
 import { loadIndex, makeDefaultRetriever } from './retriever.js'
 import { preflight, validateGolden, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
 import { appendRun, readRuns, baselineRun } from './store.js'

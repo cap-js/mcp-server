@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 // Entry point for `npm run evals`: run the eval config.runs times, then compare.
 import { runAll } from '../lib/cli.js'
 

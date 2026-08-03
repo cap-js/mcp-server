@@ -114,7 +114,7 @@ const PQ_SCRIPT = `
 `
 
 // ---- tiny SVG line chart (no dependencies) --------------------------------
-function lineChartSvg({ key, label, points, gate, avg }) {
+function lineChartSvg({ label, points, gate, avg }) {
   const W = 680
   const H = 260
   const m = { top: 24, right: 20, bottom: 46, left: 44 }
@@ -338,7 +338,7 @@ function renderHtml(runs) {
     // gate: take the most recent run's gate for this metric (null = reported only)
     const gate = runs.length ? runs[runs.length - 1].aggregate[key].gate : null
     const avg = points.length ? points.reduce((s, p) => s + p.value, 0) / points.length : 0
-    return lineChartSvg({ key, label: `${METRIC_LABEL[key]}@K`, points, gate, avg })
+    return lineChartSvg({ label: `${METRIC_LABEL[key]}@K`, points, gate, avg })
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
