@@ -1,10 +1,9 @@
 /* eslint-disable no-console */
 // Entry point for `npm run evals`: run the eval config.runs times, then compare.
 //
-// Score offline: search_docs reads CDS_MCP_OFFLINE at module-load time to decide
-// whether to (re)download embeddings, so it MUST be set before any eval module
-// (which transitively imports lib/tools.js → searchMarkdownDocs) is imported.
-// Scoring against the already-downloaded corpus is what keeps runs deterministic.
+// search_docs reads CDS_MCP_OFFLINE at module-load, so set it BEFORE the dynamic
+// import below — offline scoring against the downloaded corpus keeps runs
+// deterministic (no mid-run re-download).
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { runAll } = await import('../lib/cli.js')

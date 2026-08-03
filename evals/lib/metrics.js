@@ -57,11 +57,9 @@ export function hitRateAtK(relevant, retrieved, k) {
   return 0
 }
 
-// nDCG over the top-K ranking. Each DISTINCT relevant doc contributes gain once,
-// at its BEST (earliest) rank — so a page that fills several slots can't inflate
-// DCG past the ideal and mask a bad ordering (the old raw-slot sum did, then got
-// clamped to 1.0, hiding exactly what nDCG is meant to measure). Ideal DCG packs
-// the distinct relevant docs at the top. nDCG ∈ [0,1].
+// nDCG over the top-K ranking. Each DISTINCT relevant doc is credited once, at
+// its best rank, so duplicate slots can't inflate DCG past the ideal and mask a
+// bad ordering. Ideal DCG packs the distinct relevant docs at the top. ∈ [0,1].
 export function ndcgAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0

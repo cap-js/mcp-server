@@ -75,8 +75,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     k: envNum('EVAL_K', file.k ?? 5),
     runs: envNum('EVAL_RUNS', file.runs ?? 1),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
-    // Optional pinned baseline run_id (a tagged known-good run). Empty/absent →
-    // baseline is the oldest run on file (which slides as runs are pruned).
+    // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
     baselineRunId: envStr('EVAL_BASELINE_RUN_ID', file.baselineRunId || null),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
@@ -116,8 +115,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
   if (!Number.isInteger(cfg.runs) || cfg.runs <= 0) throw new Error(`config: runs must be a positive integer (got ${cfg.runs})`)
-  // keepRuns: -1 means keep all; otherwise a positive integer. 0 would wipe the
-  // just-appended run, and fractions break the slice cap.
+  // keepRuns: -1 (keep all) or a positive integer; 0 would wipe the just-appended run.
   const keep = cfg.output.keepRuns
   if (keep !== -1 && (!Number.isInteger(keep) || keep <= 0)) {
     throw new Error(`config: keepRuns must be -1 (keep all) or a positive integer (got ${keep})`)

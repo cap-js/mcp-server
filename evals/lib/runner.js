@@ -1,10 +1,9 @@
 import { metricsFor, relevantHitsAtRank, mean, round } from './metrics.js'
 import { METRIC_KEYS, METRIC_LABEL } from './config.js'
 
-// Structural validation of the golden set. Returns an array of human-readable
-// problem strings ([] = valid). Catches the malformed-label cases that would
-// otherwise crash the run (missing relevant_doc_ids) or silently skew scoring
-// (empty relevant sets, duplicate ids, null entries).
+// Structural validation of the golden set. Returns human-readable problem
+// strings ([] = valid); catches malformed labels that would crash the run or
+// silently skew scoring.
 export function validateGolden(questions) {
   const problems = []
   const seenIds = new Set()
@@ -96,14 +95,12 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   }
 }
 
-// A delta must exceed this magnitude to count as a regression — aggregates are
-// rounded to 2dp, so anything ≤ 0.02 is within two quantization steps (noise on
-// a 10-question set) and must not trip a confident cause string.
+// Min delta magnitude to count as a regression — below this is rounding noise on
+// a small golden set (aggregates are 2dp).
 export const DIAGNOSE_DEADBAND = 0.02
 
-// Diagnosis from aggregate deltas vs baseline. Reports ALL causes above the
-// dead-band (not first-match-wins), ordered recall → ranking → precision, so a
-// change that hurts several stages isn't reported as monocausal.
+// Diagnosis from aggregate deltas vs baseline. Reports ALL causes past the
+// dead-band (not first-match-wins), so a multi-stage regression isn't monocausal.
 export function diagnose(aggregate) {
   const d = key => (aggregate[key] ? aggregate[key].delta : null)
   const down = v => v !== null && v < -DIAGNOSE_DEADBAND
@@ -193,11 +190,10 @@ export function worstQuestions(report, baseline) {
   return { noBaseline: !hasBaseline, items }
 }
 
-// run_id is the ONLY nondeterministic value; `rand` is fixed in tests. The full
-// millisecond timestamp is kept so same-second runs (e.g. a runAll batch) sort
-// by actual execution time, not by the random suffix.
+// run_id is the ONLY nondeterministic value (`rand` is fixed in tests). Full ms
+// timestamp so same-second runs sort by execution time, not by the suffix.
 export function makeRunId(now = new Date(), rand) {
-  const ts = now.toISOString() // e.g. 2026-07-30T07:11:55.123Z
+  const ts = now.toISOString()
   const suffix = rand || Math.random().toString(16).slice(2, 8)
   return `${ts}_${suffix}`
 }

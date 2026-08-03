@@ -40,13 +40,11 @@ export function sortByRunId(runs) {
   return [...runs].sort((a, b) => (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0))
 }
 
-// The baseline this run is compared against.
-//   - pinnedId set → that specific run (a tagged known-good reference that
-//     doesn't move as the file is pruned). If it's not on file, returns null
-//     rather than silently substituting a different run.
-//   - otherwise → the OLDEST run on file. Note this slides forward as old runs
-//     are pruned past keepRuns, so it is not a stable anchor; pin an id for that.
-// Returns null when there are no runs (the reference run has no baseline itself).
+// The baseline this run is compared against:
+//   - pinnedId set → that specific run (null if it's not on file — never a
+//     silent substitute), a stable anchor that doesn't move as runs are pruned.
+//   - otherwise → the oldest run on file (slides forward as runs are pruned).
+// null when there are no runs.
 export function baselineRun(runs, pinnedId) {
   const sorted = sortByRunId(runs)
   if (pinnedId) return sorted.find(r => r.run_id === pinnedId) || null

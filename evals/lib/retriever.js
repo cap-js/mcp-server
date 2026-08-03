@@ -19,17 +19,12 @@ export async function loadIndex() {
   return { ids, idSet, count: ids.length }
 }
 
-// Reaches search_docs the same way an MCP client would — through its handler,
-// not its internals — so the eval measures the tool's real behaviour. Returns
+// Reaches search_docs through its handler (like an MCP client), not its
+// internals, so the eval measures the tool's real behaviour. Returns
 // `retrieve(question) -> string[]`; the runner can inject a fixture instead.
-// search_docs returns top-`maxResults` chunks joined by '\n---\n'; we split and
-// parse each chunk's id in rank order, no dedup (each chunk = one slot).
-// Chunks whose id won't parse are dropped and logged — a silent drop would
-// shrink the effective K and quietly understate Precision@K.
-//
-// Offline scoring: search_docs reads CDS_MCP_OFFLINE at module-load time (in
-// lib/searchMarkdownDocs.js), so it must be set BEFORE this dynamic import — the
-// entry point (bin/eval.js) does that. We don't touch the env here.
+// search_docs joins top-`maxResults` chunks with '\n---\n'; we split and parse
+// each id in rank order, no dedup. Unparseable chunks are dropped + logged
+// (a silent drop would shrink effective K and understate Precision).
 export async function makeDefaultRetriever(k, logger = console) {
   const tools = (await import('../../lib/tools.js')).default
   const searchDocs = tools.search_docs

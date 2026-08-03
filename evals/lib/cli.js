@@ -33,8 +33,7 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     for (const p of problems) logger.error(`  ${p}`)
     return { code: 3 }
   }
-  // Baseline: the pinned run if configured, else the oldest run on file.
-  // Read before this run is appended.
+  // Baseline (read before this run is appended): pinned run if set, else oldest.
   const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
     logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
