@@ -102,10 +102,11 @@ so you can edit any of them in one place:
 | `k` | `EVAL_K` | `5` | Cutoff K for all @K metrics. |
 | `runs` | `EVAL_RUNS` | `1` | How many times `npm run evals` runs the eval (each appended). |
 | `capire_version` | `EVAL_CAPIRE_VERSION` | `2026.5.0` | capire docs version, recorded in the report `config` + console header (provenance only). |
+| `baselineRunId` | `EVAL_BASELINE_RUN_ID` | _(unset)_ | Pin the baseline to a specific `run_id` (a tagged known-good run). Unset → baseline is the oldest run on file (which slides as runs are pruned). |
 | `paths.goldenSet` | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
 | `paths.runsDir` | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |
 | `gates.<metric>` | `EVAL_GATES` | see file | Per-metric gate threshold (number) or `null` (reported only). |
-| `output.keepRuns` | `EVAL_KEEP_RUNS` | `20` | Max runs to keep in `result.jsonl` (`-1` = all). |
+| `output.keepRuns` | `EVAL_KEEP_RUNS` | `20` (code default; `config.json` ships `100`) | Max runs to keep in `result.jsonl` — `-1` = all, otherwise a positive integer. |
 | `output.resultsName` | `EVAL_RESULTS_NAME` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `EVAL_COMPARE_FORMAT` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
@@ -128,6 +129,15 @@ EVAL_GOLDEN_SET=data/golden-set-large.json EVAL_KEEP_RUNS=-1 npm run evals
 > the oldest run on file (captured at whatever `k` it ran with). Comparing a run at a
 > different `k` against it produces misleading deltas — start a fresh `result.jsonl`
 > (clear `runs/`) when you change `k` so the oldest run uses the new `k`.
+
+> **The default gates are aspirational, and the current retriever does not meet them.**
+> The golden set (`cap-golden-v3`, 42 questions) labels the *canonical* reference/guide
+> page each question should surface, not whatever the retriever happens to return. Against
+> that, `search_docs` currently scores ~Recall 0.44 / MRR 0.32 / Hit-Rate 0.48 — below the
+> `0.8 / 0.5 / 0.8` gates — so a fresh `npm run evals` **fails by design**. That red result
+> is a real, measured quality gap (the retriever is release-notes-biased and misses
+> canonical pages), not a broken harness. Lower the gates only if you consciously choose a
+> lower floor; raising retrieval quality is the intended way to turn this green.
 
 ## Outputs
 

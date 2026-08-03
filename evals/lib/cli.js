@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS } from './config.js'
 import { loadIndex, makeDefaultRetriever } from './retriever.js'
-import { preflight, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
+import { preflight, validateGolden, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
@@ -33,8 +33,18 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
       logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
       return { code: 3 }
     }
-    // Baseline = oldest run on file, read before this run is appended.
-    const baseline = baselineRun(await readRuns(cfg))
+    const problems = validateGolden(golden.questions)
+    if (problems.length > 0) {
+      logger.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
+      for (const p of problems) logger.error(`  ${p}`)
+      return { code: 3 }
+    }
+    // Baseline: the pinned run if configured, else the oldest run on file.
+    // Read before this run is appended.
+    const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
+    if (cfg.baselineRunId && !baseline) {
+      logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
+    }
 
     const index = await loadIndexFn()
 
@@ -47,7 +57,7 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
       return { code: 2, stale }
     }
 
-    const retrieve = await makeRetrieverFn(cfg.k)
+    const retrieve = await makeRetrieverFn(cfg.k, logger)
     const perQuestionRaw = []
     for (const q of golden.questions) {
       const retrieved_ids = await retrieve(q.question)

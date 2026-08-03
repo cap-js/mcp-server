@@ -57,20 +57,27 @@ export function hitRateAtK(relevant, retrieved, k) {
   return 0
 }
 
-// nDCG over raw slots: each relevant slot contributes a rank-discounted gain;
-// ideal DCG packs the DISTINCT relevant docs at the top, so nDCG ∈ [0,1].
+// nDCG over the top-K ranking. Each DISTINCT relevant doc contributes gain once,
+// at its BEST (earliest) rank — so a page that fills several slots can't inflate
+// DCG past the ideal and mask a bad ordering (the old raw-slot sum did, then got
+// clamped to 1.0, hiding exactly what nDCG is meant to measure). Ideal DCG packs
+// the distinct relevant docs at the top. nDCG ∈ [0,1].
 export function ndcgAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   if (rel.size === 0) return 0
   const top = topK(retrieved, k)
   let dcg = 0
+  const credited = new Set()
   for (let i = 0; i < top.length; i++) {
-    if (rel.has(top[i])) dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
+    if (rel.has(top[i]) && !credited.has(top[i])) {
+      credited.add(top[i])
+      dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
+    }
   }
   const idealHits = Math.min(rel.size, k)
   let idcg = 0
   for (let i = 0; i < idealHits; i++) idcg += 1 / Math.log2(i + 2)
-  return idcg === 0 ? 0 : Math.min(1, dcg / idcg)
+  return idcg === 0 ? 0 : dcg / idcg
 }
 
 export function metricsFor(relevant, retrieved, k) {
@@ -92,7 +99,9 @@ export function mean(values) {
 
 export function round(value, dp) {
   const f = Math.pow(10, dp)
-  // epsilon counters binary-float representation of exact halves (e.g. 0.005)
-  // so rounding is stable across runs/platforms.
-  return Math.round((value + Number.EPSILON) * f) / f
+  // Round on magnitude so negatives round symmetrically with positives (e.g.
+  // -0.005 → -0.01, mirroring 0.005 → 0.01). Epsilon counters binary-float
+  // representation of exact halves so rounding is stable across platforms.
+  const r = Math.sign(value) * Math.round(Math.abs(value) * f + Number.EPSILON) / f
+  return r === 0 ? 0 : r // normalise -0 → 0
 }

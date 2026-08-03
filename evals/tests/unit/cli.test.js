@@ -137,6 +137,18 @@ describe('cli tests', () => {
     assert.equal(res.code, 3)
   })
 
+  test('malformed golden question → exit 3, no crash, no run written', async () => {
+    // question missing relevant_doc_ids would previously TypeError in preflight
+    await writeGolden([{ id: 'q-001', question: 'q1' }])
+    const res = await run({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 3)
+    await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
+  })
+
   test('baseline = oldest run: second run diffs against the first', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     // First run is the baseline (oldest); it has no baseline itself.
@@ -156,6 +168,33 @@ describe('cli tests', () => {
     assert.equal(second.report.baseline_run_id, first.report.run_id) // diffed vs oldest
     assert.ok(second.report.aggregate.mrr.delta < 0) // mrr dropped vs baseline
     assert.match(second.report.diagnosis, /ranking\/scoring regression/)
+  })
+
+  test('pinned baselineRunId: diffs against the pinned run, not the oldest', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    const r1 = await run({ overrides: baseOverrides(), logger: silentLogger, deps })
+    const r2 = await run({ overrides: baseOverrides(), logger: silentLogger, deps })
+    // Pin the SECOND run as baseline for a third run — not the oldest (r1).
+    const r3 = await run({
+      overrides: baseOverrides({ baselineRunId: r2.report.run_id }),
+      logger: silentLogger,
+      deps
+    })
+    assert.equal(r3.report.baseline_run_id, r2.report.run_id)
+    assert.notEqual(r3.report.baseline_run_id, r1.report.run_id)
+  })
+
+  test('pinned baselineRunId not found → no baseline, no crash', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    await run({ overrides: baseOverrides(), logger: silentLogger, deps })
+    const r = await run({
+      overrides: baseOverrides({ baselineRunId: 'no-such-run' }),
+      logger: silentLogger,
+      deps
+    })
+    assert.equal(r.report.baseline_run_id, null)
   })
 
   test('result.jsonl accumulates one line per run, chronologically', async () => {

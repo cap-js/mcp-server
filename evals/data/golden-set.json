@@ -1,13 +1,13 @@
 {
-  "golden_set": "cap-golden-v2",
-  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. IDs are deterministic '<source-url>#<breadcrumb-slug>' identifiers parsed from each chunk's first line (see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing — no embeddings involved. If a re-index changes a page's URL or breadcrumb, the id changes and the runner's pre-flight check flags it.",
+  "golden_set": "cap-golden-v3",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. IDs are deterministic '<source-url>#<breadcrumb-slug>' identifiers parsed from each chunk's first line (see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL or breadcrumb, the id changes and the runner's pre-flight check flags it.",
   "questions": [
     {
       "id": "cap-001",
       "question": "How do I define a composition of one entity in CDS?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling",
-        "https://cap.cloud.sap/docs/releases/2025/mar25#march-2025-cds-language-compiler-actions-in-composition-of-aspects"
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations",
+        "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling"
       ]
     },
     {
@@ -21,6 +21,7 @@
       "id": "cap-003",
       "question": "What is the difference between managed and unmanaged compositions?",
       "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations",
         "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling"
       ]
     },
@@ -28,7 +29,6 @@
       "id": "cap-004",
       "question": "How do I add custom error handling in a service handler?",
       "relevant_doc_ids": [
-        "nourl#error-handler-the-following-example-of-a-simple-error-handler-overrides-the-standard-message-text-of-authorization-errors",
         "https://cap.cloud.sap/docs/java/event-handlers/indicating-errors#indicating-errors-exceptions"
       ]
     },
@@ -36,15 +36,14 @@
       "id": "cap-005",
       "question": "How do I define an association in CDL?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-language-preliminaries-keywords-identifiers",
-        "https://cap.cloud.sap/docs/releases/2022/jun22#june-2022-cds-language-compiler-define-association-in-a-projection"
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations"
       ]
     },
     {
       "id": "cap-006",
       "question": "How do I add authorization with @requires and @restrict?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/security/authorization#cap-level-authorization-role-based-access-control-propagation-of-restrictions",
+        "https://cap.cloud.sap/docs/guides/security/authorization#cap-level-authorization-role-based-access-control-requires-and-restrict",
         "https://cap.cloud.sap/docs/guides/security/authorization#cap-level-authorization-instance-based-access-control-filter-conditions-association-paths-checking-input-data"
       ]
     },
@@ -52,21 +51,19 @@
       "id": "cap-007",
       "question": "How do I run a CAP project locally with cds watch?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/tools/cds-cli#cds-command-line-interface-cli",
-        "https://cap.cloud.sap/docs/tools/cds-editors#cds-editors-and-ides-visual-studio-code-run-services"
+        "https://cap.cloud.sap/docs/tools/cds-cli#cds-command-line-interface-cli"
       ]
     },
     {
       "id": "cap-008",
-      "question": "How do I connect to a SQLite database in CAP?",
+      "question": "How do I configure a database service and its connection pool in CAP Node.js?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/releases/2024/jun24#june-2024-node-js-new-database-services-ga",
-        "https://cap.cloud.sap/docs/releases/2023/jun23#june-2023-node-js-new-database-services"
+        "https://cap.cloud.sap/docs/node.js/databases#database-services-cds-databaseservice-configuration-pool"
       ]
     },
     {
       "id": "cap-009",
-      "question": "How do I define a service with entities projected from the data model?",
+      "question": "What are the core concepts of CAP services as facades over the domain model?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/get-started/concepts#core-concepts-of-cap-services-services-as-interfaces-services-as-facades"
       ]
@@ -75,8 +72,231 @@
       "id": "cap-010",
       "question": "How do I add localized texts to entities in CDS?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/uis/localized-data#localized-data-declaring-localized-data",
-        "https://cap.cloud.sap/docs/releases/2023/jan23#cds-language-compiler-extending-the-generated-texts-entities"
+        "https://cap.cloud.sap/docs/guides/uis/localized-data#localized-data-declaring-localized-data"
+      ]
+    },
+    {
+      "id": "cap-011",
+      "question": "How do I define a view or projection in CDL?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-views-projections"
+      ]
+    },
+    {
+      "id": "cap-012",
+      "question": "How do I use aspects to extend entities in CDS?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-aspects"
+      ]
+    },
+    {
+      "id": "cap-013",
+      "question": "How do I declare a service in CDL?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-services"
+      ]
+    },
+    {
+      "id": "cap-014",
+      "question": "How do I add annotations to a CDS model?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-annotations"
+      ]
+    },
+    {
+      "id": "cap-015",
+      "question": "How do I define custom types in CDL?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-entities-type-definitions"
+      ]
+    },
+    {
+      "id": "cap-016",
+      "question": "How do I write a SELECT query with CQN?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cqn#query-notation-cqn-select"
+      ]
+    },
+    {
+      "id": "cap-017",
+      "question": "How do I express an INSERT statement in CQN?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/cqn#query-notation-cqn-insert"
+      ]
+    },
+    {
+      "id": "cap-018",
+      "question": "What is a CDS model at runtime?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/models#on-the-nature-of-models-what-is-a-cds-model-in-plain-coding-at-runtime"
+      ]
+    },
+    {
+      "id": "cap-019",
+      "question": "What common reuse types and aspects does CAP provide?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/cds/common#common-types-and-aspects-common-reuse-types-type-country"
+      ]
+    },
+    {
+      "id": "cap-020",
+      "question": "How do I model temporal data with valid-from and valid-to in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/domain/temporal-data#temporal-data-declaring-temporal-entities-using-annotations-cds-valid-from-to"
+      ]
+    },
+    {
+      "id": "cap-021",
+      "question": "How does CAP handle deep inserts across compositions?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/services/served-ootb#generic-service-providers-served-out-of-the-box-deep-reads-and-writes-deep-insert"
+      ]
+    },
+    {
+      "id": "cap-022",
+      "question": "How do I enable multitenancy for a SaaS CAP application?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/multitenancy/#deploy-multitenant-saas-applications-enable-multitenancy"
+      ]
+    },
+    {
+      "id": "cap-023",
+      "question": "How do I serve SAP Fiori UIs from a CAP service?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/uis/fiori#serving-sap-fiori-uis-fiori-annotations"
+      ]
+    },
+    {
+      "id": "cap-024",
+      "question": "How do I add draft support for Fiori editing?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/uis/fiori#serving-sap-fiori-uis-fiori-draft-support"
+      ]
+    },
+    {
+      "id": "cap-025",
+      "question": "How do I externalize UI texts into i18n bundles?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/uis/i18n#localization-i18n-externalizing-texts-bundles"
+      ]
+    },
+    {
+      "id": "cap-026",
+      "question": "How do I set up audit logging for personal data in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/security/dpp-audit-logging#audit-logging-add-the-plugin"
+      ]
+    },
+    {
+      "id": "cap-027",
+      "question": "How do I configure mock user authentication for local testing?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/security/authentication#authentication-mock-user-authentication-automated-testing"
+      ]
+    },
+    {
+      "id": "cap-028",
+      "question": "How do I set up a new CAP Java project locally?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/getting-started#getting-started-setting-up-local-development"
+      ]
+    },
+    {
+      "id": "cap-029",
+      "question": "How do I start a new CAP Java project with the Maven archetype?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/getting-started#getting-started-starting-a-new-project-run-the-maven-archetype"
+      ]
+    },
+    {
+      "id": "cap-030",
+      "question": "How do I handle CRUD events in a CAP Java application service?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/cqn-services/application-services#application-services-handling-crud-events"
+      ]
+    },
+    {
+      "id": "cap-031",
+      "question": "How do I inspect a CDS model with the Java reflection API?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/reflection-api#working-with-cds-models-the-cds-model"
+      ]
+    },
+    {
+      "id": "cap-032",
+      "question": "How do I keep CAP Java dependency versions consistent?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/versions#versions-dependencies-maintain-dependencies-consistent-versions"
+      ]
+    },
+    {
+      "id": "cap-033",
+      "question": "How do I consume a remote OData service in CAP Java?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/java/cqn-services/remote-services#remote-services-remote-odata-services"
+      ]
+    },
+    {
+      "id": "cap-034",
+      "question": "What is the cds facade object in CAP Node.js?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/node.js/cds-facade#the-cds-fa-ade-object-refs-to-submodules"
+      ]
+    },
+    {
+      "id": "cap-035",
+      "question": "How do I configure the protocols a CAP Node.js service is served on?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/node.js/cds-serve#serving-provided-services-cds-protocols"
+      ]
+    },
+    {
+      "id": "cap-036",
+      "question": "How do I bootstrap a CAP Node.js server with cds serve?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/node.js/cds-server#bootstrapping-servers-cli-command-cds-serve"
+      ]
+    },
+    {
+      "id": "cap-037",
+      "question": "How do I initialize a new CAP project with cds init?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/tools/cds-cli#cds-command-line-interface-cli-cds-init"
+      ]
+    },
+    {
+      "id": "cap-038",
+      "question": "How do I add a feature to a project with cds add?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/tools/cds-cli#cds-command-line-interface-cli-cds-add"
+      ]
+    },
+    {
+      "id": "cap-039",
+      "question": "How do I compile a CDS model to DDL and deploy it to a database?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#cdl-compilation-to-database-specific-ddls-using-cds-deploy"
+      ]
+    },
+    {
+      "id": "cap-040",
+      "question": "How does CAP support intrinsic extensibility of models?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/get-started/concepts#core-concepts-of-cap-intrinsic-extensibility-extending-models-extension-logic-extensible-framework"
+      ]
+    },
+    {
+      "id": "cap-041",
+      "question": "What is the initial setup needed to get started with CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/get-started/#getting-started-initial-setup"
+      ]
+    },
+    {
+      "id": "cap-042",
+      "question": "How are events, event handlers and listeners modeled in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/get-started/concepts#core-concepts-of-cap-events-event-handlers-event-listeners-sync-async-local-remote"
       ]
     }
   ]

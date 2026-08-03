@@ -24,15 +24,20 @@ export async function loadIndex() {
 // `retrieve(question) -> string[]`; the runner can inject a fixture instead.
 // search_docs returns top-`maxResults` chunks joined by '\n---\n'; we split and
 // parse each chunk's id in rank order, no dedup (each chunk = one slot).
-export async function makeDefaultRetriever(k) {
+// Chunks whose id won't parse are dropped and logged — a silent drop would
+// shrink the effective K and quietly understate Precision@K.
+export async function makeDefaultRetriever(k, logger = console) {
   const tools = (await import('../../lib/tools.js')).default
   const searchDocs = tools.search_docs
   return async function retrieve(question) {
     const out = await searchDocs.handler({ query: question, maxResults: k })
     if (!out) return []
-    return out
-      .split('\n---\n')
-      .map(chunk => parseId(chunk))
-      .filter(id => id !== null)
+    const chunks = out.split('\n---\n')
+    const ids = chunks.map(chunk => parseId(chunk)).filter(id => id !== null)
+    const dropped = chunks.length - ids.length
+    if (dropped > 0) {
+      logger.error(`  (warning: ${dropped}/${chunks.length} retrieved chunk(s) had no parseable id and were dropped for "${question}")`)
+    }
+    return ids
   }
 }

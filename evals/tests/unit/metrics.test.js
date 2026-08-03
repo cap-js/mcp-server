@@ -95,8 +95,12 @@ describe('metrics tests', () => {
     assert.equal(precisionAtK(['a'], ['a', 'a', 'a'], 3), 1) // 3/3 slots relevant
   })
 
-  test('ndcg is capped at 1 even with repeated relevant slots', () => {
-    // 'a' relevant, appears in slots 1 and 2 → raw DCG > IDCG(1 doc); clamp to 1.
+  test('ndcg dedups relevant gain → duplicates cannot mask a bad rank', () => {
+    // 'a' relevant, first appears at rank 2 then repeats at rank 3.
+    // Old raw-slot sum: 1/log2(3)+1/log2(4)=1.131 → clamped to 1.0 (masked!).
+    // Deduped: credit 'a' once at its best rank (2) → 1/log2(3)/1 ≈ 0.631.
+    assert.equal(round(ndcgAtK(['a'], ['x', 'a', 'a'], 3), 3), 0.631)
+    // a genuinely perfect ranking (rank 1) still scores 1.0
     assert.equal(ndcgAtK(['a'], ['a', 'a', 'b'], 3), 1)
   })
 
@@ -116,5 +120,13 @@ describe('metrics tests', () => {
     assert.equal(round(0.005, 2), 0.01)
     assert.equal(round(0.125, 2), 0.13)
     assert.equal(round(0.6510, 3), 0.651)
+  })
+
+  test('round() is symmetric for negatives (no -0, magnitude preserved)', () => {
+    assert.equal(round(-0.005, 2), -0.01) // mirrors +0.005 → 0.01, not -0
+    assert.equal(round(-0.015, 2), -0.02)
+    assert.equal(round(-0.025, 2), -0.03)
+    assert.ok(!Object.is(round(-0.004, 2), -0)) // rounds to a clean 0, not -0
+    assert.equal(round(-0.004, 2), 0)
   })
 })

@@ -19,11 +19,18 @@ export async function readRuns(cfg) {
   for (const line of text.split('\n')) {
     const t = line.trim()
     if (!t) continue
+    let parsed
     try {
-      runs.push(JSON.parse(t))
+      parsed = JSON.parse(t)
     } catch {
-      // skip a corrupt line rather than fail the whole read
+      continue // skip a corrupt line rather than fail the whole read
     }
+    // Skip structurally-valid JSON that isn't a run report, so downstream code
+    // reading r.aggregate[...].value can't crash on a wrong-shape line.
+    if (!parsed || typeof parsed !== 'object' || typeof parsed.run_id !== 'string' || typeof parsed.aggregate !== 'object' || parsed.aggregate === null) {
+      continue
+    }
+    runs.push(parsed)
   }
   return runs
 }
@@ -33,11 +40,16 @@ export function sortByRunId(runs) {
   return [...runs].sort((a, b) => (a.run_id < b.run_id ? -1 : a.run_id > b.run_id ? 1 : 0))
 }
 
-// Baseline = the OLDEST run on file (null when none — that run IS the reference).
-// Not pinned: result.jsonl is capped to keepRuns, so the oldest slides forward
-// as old runs are pruned.
-export function baselineRun(runs) {
+// The baseline this run is compared against.
+//   - pinnedId set → that specific run (a tagged known-good reference that
+//     doesn't move as the file is pruned). If it's not on file, returns null
+//     rather than silently substituting a different run.
+//   - otherwise → the OLDEST run on file. Note this slides forward as old runs
+//     are pruned past keepRuns, so it is not a stable anchor; pin an id for that.
+// Returns null when there are no runs (the reference run has no baseline itself).
+export function baselineRun(runs, pinnedId) {
   const sorted = sortByRunId(runs)
+  if (pinnedId) return sorted.find(r => r.run_id === pinnedId) || null
   return sorted.length ? sorted[0] : null
 }
 

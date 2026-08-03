@@ -37,6 +37,8 @@ function parseGateOverrides(str) {
     if (!METRIC_KEYS.includes(k)) throw new Error(`EVAL_GATES: unknown metric "${k}"`)
     if (v === 'null') {
       out[k] = null
+    } else if (!v) {
+      throw new Error(`EVAL_GATES: missing value for "${k}" (expected a number or "null")`)
     } else {
       const num = Number(v)
       if (Number.isNaN(num)) throw new Error(`EVAL_GATES: invalid value for "${k}": "${v}" (expected a number or "null")`)
@@ -73,6 +75,9 @@ export async function loadConfig({ configPath, overrides } = {}) {
     k: envNum('EVAL_K', file.k ?? 5),
     runs: envNum('EVAL_RUNS', file.runs ?? 1),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
+    // Optional pinned baseline run_id (a tagged known-good run). Empty/absent →
+    // baseline is the oldest run on file (which slides as runs are pruned).
+    baselineRunId: envStr('EVAL_BASELINE_RUN_ID', file.baselineRunId || null),
     paths: {
       goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
       runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs'))
@@ -99,6 +104,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.runs !== undefined) cfg.runs = overrides.runs
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
+    if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
   }
@@ -110,6 +116,12 @@ export async function loadConfig({ configPath, overrides } = {}) {
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
   if (!Number.isInteger(cfg.runs) || cfg.runs <= 0) throw new Error(`config: runs must be a positive integer (got ${cfg.runs})`)
+  // keepRuns: -1 means keep all; otherwise a positive integer. 0 would wipe the
+  // just-appended run, and fractions break the slice cap.
+  const keep = cfg.output.keepRuns
+  if (keep !== -1 && (!Number.isInteger(keep) || keep <= 0)) {
+    throw new Error(`config: keepRuns must be -1 (keep all) or a positive integer (got ${keep})`)
+  }
   if (!['html', 'md'].includes(cfg.output.compareFormat)) {
     throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
   }

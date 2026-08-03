@@ -5,7 +5,7 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
   'EVAL_CONFIG', 'EVAL_K', 'EVAL_RUNS', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
-  'EVAL_CAPIRE_VERSION', 'EVAL_GATES',
+  'EVAL_CAPIRE_VERSION', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
   'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
 function clearEnv() {
@@ -118,6 +118,31 @@ describe('config tests', () => {
     clearEnv()
     process.env.EVAL_GATES = 'mrr=abc'
     await assert.rejects(() => loadConfig(), /invalid value for "mrr"/)
+  })
+
+  test('rejects an empty gate value (no silent 0)', async () => {
+    clearEnv()
+    process.env.EVAL_GATES = 'mrr='
+    await assert.rejects(() => loadConfig(), /missing value for "mrr"/)
+  })
+
+  test('rejects keepRuns = 0 (would wipe the just-appended run)', async () => {
+    clearEnv()
+    process.env.EVAL_KEEP_RUNS = '0'
+    await assert.rejects(() => loadConfig(), /keepRuns must be -1 .* or a positive integer/)
+  })
+
+  test('rejects fractional keepRuns', async () => {
+    clearEnv()
+    process.env.EVAL_KEEP_RUNS = '1.5'
+    await assert.rejects(() => loadConfig(), /keepRuns must be -1/)
+  })
+
+  test('accepts keepRuns = -1 (keep all)', async () => {
+    clearEnv()
+    process.env.EVAL_KEEP_RUNS = '-1'
+    const cfg = await loadConfig()
+    assert.equal(cfg.output.keepRuns, -1)
   })
 
   test('validates gates on non-default metrics too (precision_at_k)', async () => {

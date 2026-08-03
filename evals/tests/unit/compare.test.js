@@ -152,6 +152,20 @@ describe('compare tests', () => {
     assert.equal(res.runs, 1)
   })
 
+  test('skips structurally-valid-but-wrong-shape lines (no aggregate)', async () => {
+    const p = path.join(runsDir, 'result.jsonl')
+    // valid JSON that isn't a run report — must be skipped, not crash downstream
+    await fs.writeFile(p, [
+      JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')),
+      '123',
+      '"a string"',
+      '{"run_id":"x"}', // no aggregate
+      '{"aggregate":{}}' // no run_id
+    ].join('\n') + '\n')
+    const res = await compare({ overrides: overrides(), logger: silentLogger })
+    assert.equal(res.runs, 1) // only the well-formed report survives
+  })
+
   test('per-question section: searchable table + embedded data blob (scales, lazy charts)', async () => {
     const q1a = pq('cap-001', 'How do I define X?', { mrr: 1 })
     const q2a = pq('cap-002', 'How do I do Y?', { mrr: 0.5 })

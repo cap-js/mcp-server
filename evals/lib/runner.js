@@ -1,6 +1,30 @@
 import { metricsFor, relevantHitsAtRank, mean, round } from './metrics.js'
 import { METRIC_KEYS, METRIC_LABEL } from './config.js'
 
+// Structural validation of the golden set. Returns an array of human-readable
+// problem strings ([] = valid). Catches the malformed-label cases that would
+// otherwise crash the run (missing relevant_doc_ids) or silently skew scoring
+// (empty relevant sets, duplicate ids, null entries).
+export function validateGolden(questions) {
+  const problems = []
+  const seenIds = new Set()
+  questions.forEach((q, i) => {
+    const where = q && q.id ? `question "${q.id}"` : `question #${i + 1}`
+    if (!q || typeof q !== 'object') {
+      problems.push(`${where}: not an object`)
+      return
+    }
+    if (typeof q.id !== 'string' || !q.id) problems.push(`${where}: missing string "id"`)
+    else if (seenIds.has(q.id)) problems.push(`${where}: duplicate id`)
+    else seenIds.add(q.id)
+    if (typeof q.question !== 'string' || !q.question.trim()) problems.push(`${where}: missing non-empty "question"`)
+    if (!Array.isArray(q.relevant_doc_ids)) problems.push(`${where}: "relevant_doc_ids" must be an array`)
+    else if (q.relevant_doc_ids.length === 0) problems.push(`${where}: "relevant_doc_ids" is empty (no ground truth)`)
+    else if (q.relevant_doc_ids.some(id => typeof id !== 'string' || !id)) problems.push(`${where}: "relevant_doc_ids" contains a non-string/empty id`)
+  })
+  return problems
+}
+
 // Pre-flight: every relevant_doc_id must exist in the current index.
 export function preflight(goldenQuestions, idSet) {
   const stale = []
@@ -72,19 +96,27 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   }
 }
 
-// diagnosis rules (first match wins), driven by aggregate deltas vs baseline.
+// A delta must exceed this magnitude to count as a regression — aggregates are
+// rounded to 2dp, so anything ≤ 0.02 is within two quantization steps (noise on
+// a 10-question set) and must not trip a confident cause string.
+export const DIAGNOSE_DEADBAND = 0.02
+
+// Diagnosis from aggregate deltas vs baseline. Reports ALL causes above the
+// dead-band (not first-match-wins), ordered recall → ranking → precision, so a
+// change that hurts several stages isn't reported as monocausal.
 export function diagnose(aggregate) {
   const d = key => (aggregate[key] ? aggregate[key].delta : null)
-  const down = v => v !== null && v < 0
+  const down = v => v !== null && v < -DIAGNOSE_DEADBAND
   const recall = d('recall_at_k')
   const mrrD = d('mrr')
   const ndcg = d('ndcg_at_k')
   const prec = d('precision_at_k')
 
-  if (down(recall)) return 'recall_down → chunking/embedding regression'
-  if (down(mrrD) || down(ndcg)) return 'recall_stable_mrr_down → ranking/scoring regression'
-  if (down(prec)) return 'precision_down → top-K padded with noise'
-  return 'no_regression'
+  const causes = []
+  if (down(recall)) causes.push('recall_down → chunking/embedding regression')
+  if (down(mrrD) || down(ndcg)) causes.push('recall_stable_mrr_down → ranking/scoring regression')
+  if (down(prec)) causes.push('precision_down → top-K padded with noise')
+  return causes.length ? causes.join('; ') : 'no_regression'
 }
 
 // ----- console rendering -----------------------------------------------------
@@ -109,16 +141,17 @@ function renderMetricRow(key, agg, k) {
 
 function diagnosisProse(report) {
   const code = report.diagnosis
-  if (code.startsWith('recall_down')) {
-    return ['Recall dropped → relevant chunks are no longer being retrieved.', 'Chunking/embedding regression, not ranking.']
+  const lines = []
+  if (code.includes('recall_down')) {
+    lines.push('Recall dropped → relevant chunks are no longer being retrieved.', 'Chunking/embedding regression, not ranking.')
   }
-  if (code.startsWith('recall_stable_mrr_down')) {
-    return ['Recall stable/up but MRR & nDCG down → relevant chunks still', 'retrieved, ranked LOWER. Ranking/scoring regression, not chunking.']
+  if (code.includes('recall_stable_mrr_down')) {
+    lines.push('MRR/nDCG down → relevant chunks retrieved but ranked LOWER.', 'Ranking/scoring regression.')
   }
-  if (code.startsWith('precision_down')) {
-    return ['Recall & MRR ok but precision down → top-K padded with', 'irrelevant docs (noise).']
+  if (code.includes('precision_down')) {
+    lines.push('Precision down → top-K padded with irrelevant docs (noise).')
   }
-  return ['No regression against baseline across gated metrics.']
+  return lines.length ? lines : ['No regression against baseline across gated metrics.']
 }
 
 // The 3 weakest questions by ABSOLUTE MRR right now (tie-break by id). When a
@@ -160,9 +193,11 @@ export function worstQuestions(report, baseline) {
   return { noBaseline: !hasBaseline, items }
 }
 
-// run_id is the ONLY nondeterministic value; `rand` is fixed in tests.
+// run_id is the ONLY nondeterministic value; `rand` is fixed in tests. The full
+// millisecond timestamp is kept so same-second runs (e.g. a runAll batch) sort
+// by actual execution time, not by the random suffix.
 export function makeRunId(now = new Date(), rand) {
-  const ts = now.toISOString().replace(/\.\d+Z$/, 'Z')
+  const ts = now.toISOString() // e.g. 2026-07-30T07:11:55.123Z
   const suffix = rand || Math.random().toString(16).slice(2, 8)
   return `${ts}_${suffix}`
 }
@@ -190,15 +225,15 @@ function renderConsoleImpl(report, run_id, indexInfo, wq) {
   for (const key of METRIC_KEYS) L.push(renderMetricRow(key, report.aggregate[key], c.k))
   L.push('')
   L.push(rule)
-  L.push('DIAGNOSIS')
+  L.push('DIAGNOSIS (advisory — direction of change vs baseline, not the gate)')
   for (const line of diagnosisProse(report)) L.push('  ' + line)
   L.push('')
   if (report.overall_status === 'fail') {
     const names = report.gated_failures.map(k => METRIC_LABEL[k]).join(', ')
     const cnt = report.gated_failures.length
-    L.push(`RESULT: ❌ FAILED  (${cnt} gated metric${cnt === 1 ? '' : 's'} below threshold: ${names})  → block merge`)
+    L.push(`RESULT: ❌ FAILED  (${cnt} gated metric${cnt === 1 ? '' : 's'} below absolute threshold: ${names})  → block merge`)
   } else {
-    L.push('RESULT: ✅ PASSED  → all gated metrics within threshold')
+    L.push('RESULT: ✅ PASSED  → all gated metrics at/above their absolute threshold')
   }
   L.push(bar)
   L.push('')

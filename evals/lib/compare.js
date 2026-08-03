@@ -250,7 +250,7 @@ function renderPerQuestionSection(runs) {
 
 // short run id for chart tooltips / x-axis (time-of-day)
 function shortRunId(r) {
-  return r.run_id.replace(/T/, ' ').replace(/Z.*$/, '').slice(5)
+  return r.run_id.replace(/T/, ' ').replace(/(\.\d+)?Z.*$/, '').slice(5)
 }
 
 // A click-to-expand card for one run: summary row + aggregate table +
@@ -328,7 +328,7 @@ function renderRunDetails(r) {
 
 function renderHtml(runs) {
   // Build per-metric point series.
-  const shortId = r => r.run_id.replace(/T/, ' ').replace(/Z.*$/, '').slice(5) // MM-DD HH:MM:SS
+  const shortId = r => r.run_id.replace(/T/, ' ').replace(/(\.\d+)?Z.*$/, '').slice(5) // MM-DD HH:MM:SS
   const charts = METRIC_KEYS.map(key => {
     const points = runs.map(r => ({
       value: r.aggregate[key].value,

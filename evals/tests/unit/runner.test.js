@@ -4,6 +4,7 @@ import {
   buildReport,
   diagnose,
   preflight,
+  validateGolden,
   worstQuestions,
   renderConsoleWithBaseline,
   makeRunId
@@ -37,6 +38,31 @@ describe('eval tests', () => {
     const idSet = new Set(['a', 'c'])
     const stale = preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], idSet)
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'b' }])
+  })
+
+  test('validateGolden: accepts a well-formed set', () => {
+    const ok = [
+      { id: 'q-001', question: 'a?', relevant_doc_ids: ['x'] },
+      { id: 'q-002', question: 'b?', relevant_doc_ids: ['y', 'z'] }
+    ]
+    assert.deepEqual(validateGolden(ok), [])
+  })
+
+  test('validateGolden: catches missing/empty/duplicate/null cases', () => {
+    const bad = [
+      { id: 'q-001', question: 'a?', relevant_doc_ids: ['x'] },
+      { id: 'q-001', question: 'dup id', relevant_doc_ids: ['y'] }, // duplicate id
+      { id: 'q-002', question: 'no rel' }, // missing relevant_doc_ids
+      { id: 'q-003', question: 'empty', relevant_doc_ids: [] }, // empty ground truth
+      { id: 'q-004', question: 'nullid', relevant_doc_ids: [null] }, // null entry
+      { id: 'q-005', relevant_doc_ids: ['z'] } // missing question
+    ]
+    const problems = validateGolden(bad)
+    assert.ok(problems.some(p => /duplicate id/.test(p)))
+    assert.ok(problems.some(p => /q-002.*must be an array/.test(p)))
+    assert.ok(problems.some(p => /q-003.*empty/.test(p)))
+    assert.ok(problems.some(p => /q-004.*non-string\/empty/.test(p)))
+    assert.ok(problems.some(p => /q-005.*missing non-empty "question"/.test(p)))
   })
 
   test('per_question is sorted by id ascending', () => {
@@ -149,6 +175,31 @@ describe('eval tests', () => {
     assert.equal(diagnose(agg), 'no_regression')
   })
 
+  test('diagnose(): a within-dead-band drop is NOT a regression', () => {
+    // -0.02 is exactly the dead-band; must not trip a cause (noise on n=10).
+    const agg = {
+      recall_at_k: { delta: -0.02 },
+      mrr: { delta: -0.01 },
+      ndcg_at_k: { delta: -0.02 },
+      precision_at_k: { delta: -0.02 }
+    }
+    assert.equal(diagnose(agg), 'no_regression')
+  })
+
+  test('diagnose(): reports ALL causes above dead-band, not first-match-wins', () => {
+    // recall AND precision both drop meaningfully → both reported.
+    const agg = {
+      recall_at_k: { delta: -0.1 },
+      mrr: { delta: 0 },
+      ndcg_at_k: { delta: 0 },
+      precision_at_k: { delta: -0.1 }
+    }
+    const d = diagnose(agg)
+    assert.match(d, /chunking\/embedding regression/)
+    assert.match(d, /top-K padded with noise/)
+    assert.ok(d.includes(';')) // multiple causes joined
+  })
+
   test('delta rounding: aggregate 2dp, per-question 3dp', () => {
     const baseReport = buildReport({
       config: CONFIG,
@@ -188,7 +239,15 @@ describe('eval tests', () => {
 
   test('makeRunId is deterministic when now + rand are fixed', () => {
     const id = makeRunId(new Date('2026-07-30T07:11:55.123Z'), 'abc123')
-    assert.equal(id, '2026-07-30T07:11:55Z_abc123')
+    assert.equal(id, '2026-07-30T07:11:55.123Z_abc123')
+  })
+
+  test('makeRunId keeps millisecond precision → same-second runs sort by time', () => {
+    // Two runs 4ms apart in the same wall-clock second must order by time,
+    // not by the random suffix.
+    const early = makeRunId(new Date('2026-07-30T07:11:55.001Z'), 'zzzzzz')
+    const late = makeRunId(new Date('2026-07-30T07:11:55.005Z'), 'aaaaaa')
+    assert.ok(early < late) // string sort respects the ms component
   })
 
   test('worstQuestions: no baseline → lowest absolute MRR, noBaseline flag', () => {

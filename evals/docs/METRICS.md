@@ -118,6 +118,11 @@ the question has. It's the most complete ranking-quality signal, which is why we
 it — but it needs graded relevance to shine, so with our binary labels it mostly
 corroborates MRR.
 
+> **Duplicates:** unlike Precision/Hit-Rate, nDCG credits each *distinct* relevant doc
+> once, at its best (earliest) rank. If a relevant page fills several slots, the extra
+> slots add no gain — otherwise a ranking that spams one good page would score a
+> perfect ordering, hiding the very defect nDCG exists to catch.
+
 **A drop means** the ordering degraded even if the retrieved *set* is unchanged →
 **ranking / scoring**, same family as MRR.
 
@@ -143,10 +148,22 @@ The **set** metrics (Recall, Precision, Hit-Rate) tell you *what* was found; the
 **rank** metrics (MRR, nDCG) tell you *where*. A regression in the first group points at
 chunking/embedding; a regression only in the second points at ranking/scoring.
 
-### Diagnosis (code-derived, first match wins)
+### Diagnosis (code-derived, advisory)
 
-The runner turns that logic into a single diagnosis string, from the aggregate deltas
-vs. the baseline:
+The runner reports **two independent signals**, and it's important not to conflate them:
+
+- **The gate → `RESULT: PASS/FAIL`** is an **absolute floor**: each gated metric is
+  checked against its threshold (`value ≥ gate`), *no baseline involved*. This is the
+  CI tripwire — it answers "is retrieval good enough right now?"
+- **The diagnosis** is **advisory** and **delta-based**: it looks at the *direction of
+  change vs the baseline* to suggest *where* a regression came from. It does not affect
+  pass/fail. A run can PASS the gate while the diagnosis notes a downward drift, or FAIL
+  the gate with `no_regression` (below the floor but unchanged since baseline).
+
+A delta must exceed a small **dead-band** (0.02, two rounding steps) to count — so
+rounding-level noise on a small golden set doesn't trip a confident cause. All causes
+above the dead-band are reported (not just the first), so a change that hurts several
+stages isn't described as monocausal:
 
 1. Recall down → `recall_down → chunking/embedding regression`
    *(the relevant docs stopped being retrieved — a set problem)*
@@ -154,4 +171,4 @@ vs. the baseline:
    *(same docs retrieved, ranked worse — a rank problem)*
 3. Recall & MRR ok but Precision down → `precision_down → top-K padded with noise`
    *(still finding + ranking the good ones, but adding junk around them)*
-4. Nothing regressed → `no_regression`
+4. Nothing past the dead-band → `no_regression`
