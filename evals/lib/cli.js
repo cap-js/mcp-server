@@ -22,75 +22,65 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const cfg = await loadConfig({ configPath, overrides })
 
-  // Always score offline against the already-downloaded chunks + model; never
-  // re-fetch the corpus mid-run (that would break determinism). Restored in
-  // finally so run() doesn't leak the mutation to the rest of the process.
-  const prevOffline = process.env.CDS_MCP_OFFLINE
-  process.env.CDS_MCP_OFFLINE = 'true'
-  try {
-    const golden = await readJsonOrNull(cfg.paths.goldenSet)
-    if (!golden || !Array.isArray(golden.questions)) {
-      logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
-      return { code: 3 }
-    }
-    const problems = validateGolden(golden.questions)
-    if (problems.length > 0) {
-      logger.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
-      for (const p of problems) logger.error(`  ${p}`)
-      return { code: 3 }
-    }
-    // Baseline: the pinned run if configured, else the oldest run on file.
-    // Read before this run is appended.
-    const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
-    if (cfg.baselineRunId && !baseline) {
-      logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
-    }
-
-    const index = await loadIndexFn()
-
-    // Fail loudly on stale relevant_doc_ids (corpus likely re-indexed).
-    const stale = preflight(golden.questions, index.idSet)
-    if (stale.length > 0) {
-      logger.error('PRE-FLIGHT FAILED: golden set references doc ids missing from the current index.')
-      logger.error('The corpus likely re-indexed and these labels are stale — refresh the golden set (see docs/README.md).')
-      for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
-      return { code: 2, stale }
-    }
-
-    const retrieve = await makeRetrieverFn(cfg.k, logger)
-    const perQuestionRaw = []
-    for (const q of golden.questions) {
-      const retrieved_ids = await retrieve(q.question)
-      perQuestionRaw.push({
-        id: q.id,
-        question: q.question,
-        relevant_doc_ids: q.relevant_doc_ids,
-        retrieved_ids
-      })
-    }
-
-    const config = {
-      capire_version: cfg.capire_version,
-      golden_set: golden.golden_set,
-      golden_set_size: golden.questions.length,
-      k: cfg.k
-    }
-
-    const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
-    const run_id = makeRunId()
-    const full = { run_id, ...report }
-
-    const indexInfo = { chunkCount: index.count }
-    const { path: resultsFile, total } = await appendRun(cfg, full)
-
-    logger.log(renderConsoleWithBaseline(full, run_id, indexInfo, baseline))
-    logger.error(`\n(appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file)`)
-
-    return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
-  } finally {
-    if (prevOffline === undefined) delete process.env.CDS_MCP_OFFLINE
-    else process.env.CDS_MCP_OFFLINE = prevOffline
+  const golden = await readJsonOrNull(cfg.paths.goldenSet)
+  if (!golden || !Array.isArray(golden.questions)) {
+    logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
+    return { code: 3 }
   }
+  const problems = validateGolden(golden.questions)
+  if (problems.length > 0) {
+    logger.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
+    for (const p of problems) logger.error(`  ${p}`)
+    return { code: 3 }
+  }
+  // Baseline: the pinned run if configured, else the oldest run on file.
+  // Read before this run is appended.
+  const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
+  if (cfg.baselineRunId && !baseline) {
+    logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
+  }
+
+  const index = await loadIndexFn()
+
+  // Fail loudly on stale relevant_doc_ids (corpus likely re-indexed).
+  const stale = preflight(golden.questions, index.idSet)
+  if (stale.length > 0) {
+    logger.error('PRE-FLIGHT FAILED: golden set references doc ids missing from the current index.')
+    logger.error('The corpus likely re-indexed and these labels are stale — refresh the golden set (see docs/README.md).')
+    for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
+    return { code: 2, stale }
+  }
+
+  const retrieve = await makeRetrieverFn(cfg.k, logger)
+  const perQuestionRaw = []
+  for (const q of golden.questions) {
+    const retrieved_ids = await retrieve(q.question)
+    perQuestionRaw.push({
+      id: q.id,
+      question: q.question,
+      relevant_doc_ids: q.relevant_doc_ids,
+      retrieved_ids
+    })
+  }
+
+  const config = {
+    capire_version: cfg.capire_version,
+    golden_set: golden.golden_set,
+    golden_set_size: golden.questions.length,
+    k: cfg.k
+  }
+
+  const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
+  const run_id = makeRunId()
+  const full = { run_id, ...report }
+
+  const indexInfo = { chunkCount: index.count }
+  const { path: resultsFile, total } = await appendRun(cfg, full)
+
+  logger.log(renderConsoleWithBaseline(full, run_id, indexInfo, baseline))
+  logger.error(`\n(appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file)`)
+
+  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }
 
 // Entry point for `npm run evals`: run the eval `config.runs` times (each

@@ -80,20 +80,13 @@ describe('cli tests', () => {
     assert.deepEqual(entries.sort(), ['result.jsonl'])
   })
 
-  test('run() restores CDS_MCP_OFFLINE (no env leak)', async () => {
+  test('run() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
-
-    // Case 1: previously unset → removed again afterwards.
     delete process.env.CDS_MCP_OFFLINE
     await run({ overrides: baseOverrides(), logger: silentLogger, deps })
+    // run() must not set/mutate the env — bin/eval.js sets it once before import.
     assert.equal('CDS_MCP_OFFLINE' in process.env, false)
-
-    // Case 2: previously set → original value restored.
-    process.env.CDS_MCP_OFFLINE = 'false'
-    await run({ overrides: baseOverrides(), logger: silentLogger, deps })
-    assert.equal(process.env.CDS_MCP_OFFLINE, 'false')
-    delete process.env.CDS_MCP_OFFLINE
   })
 
   test('gated failure → exit 1', async () => {

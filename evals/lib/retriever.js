@@ -26,6 +26,10 @@ export async function loadIndex() {
 // parse each chunk's id in rank order, no dedup (each chunk = one slot).
 // Chunks whose id won't parse are dropped and logged — a silent drop would
 // shrink the effective K and quietly understate Precision@K.
+//
+// Offline scoring: search_docs reads CDS_MCP_OFFLINE at module-load time (in
+// lib/searchMarkdownDocs.js), so it must be set BEFORE this dynamic import — the
+// entry point (bin/eval.js) does that. We don't touch the env here.
 export async function makeDefaultRetriever(k, logger = console) {
   const tools = (await import('../../lib/tools.js')).default
   const searchDocs = tools.search_docs
