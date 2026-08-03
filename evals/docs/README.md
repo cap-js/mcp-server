@@ -130,14 +130,14 @@ EVAL_GOLDEN_SET=data/golden-set-large.json EVAL_KEEP_RUNS=-1 npm run evals
 > different `k` against it produces misleading deltas — start a fresh `result.jsonl`
 > (clear `runs/`) when you change `k` so the oldest run uses the new `k`.
 
-> **The default gates are aspirational, and the current retriever does not meet them.**
-> The golden set (`cap-golden-v3`, 42 questions) labels the *canonical* reference/guide
-> page each question should surface, not whatever the retriever happens to return. Against
-> that, `search_docs` currently scores ~Recall 0.44 / MRR 0.32 / Hit-Rate 0.48 — below the
-> `0.8 / 0.5 / 0.8` gates — so a fresh `npm run evals` **fails by design**. That red result
-> is a real, measured quality gap (the retriever is release-notes-biased and misses
-> canonical pages), not a broken harness. Lower the gates only if you consciously choose a
-> lower floor; raising retrieval quality is the intended way to turn this green.
+> **The default gates are aspirational, and the current retriever does not fully meet
+> them.** The golden set labels the *canonical* reference/guide page each question should
+> surface, not whatever the retriever happens to return. Against that, `search_docs`
+> currently scores ~Recall 0.65 / MRR 0.60 / Hit-Rate 0.80 — Recall sits below its `0.80`
+> gate — so a fresh `npm run evals` **fails on Recall by design**. That red result is a
+> real, measured quality gap (the retriever is release-notes-biased and misses canonical
+> pages), not a broken harness. Lower the gates only if you consciously choose a lower
+> floor; raising retrieval quality is the intended way to turn this green.
 
 ## Outputs
 
