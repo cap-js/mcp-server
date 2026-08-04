@@ -1,78 +1,88 @@
 {
   "golden_set": "cap-golden-v3",
-  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. IDs are deterministic '<source-url>#<breadcrumb-slug>' identifiers parsed from each chunk's first line (see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL or breadcrumb, the id changes and the runner's pre-flight check flags it.",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
   "questions": [
     {
-      "id": "cap-001",
-      "question": "How do I define a composition of one entity in CDS?",
+      "id": "capire-1",
+      "question": "How to define key fields of domain entities?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations",
-        "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling"
+        "https://cap.cloud.sap/docs/guides/domain/#primary-keys",
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#primary-key-constraints",
+        "https://cap.cloud.sap/docs/cds/cdl#entity-definitions"
       ]
     },
     {
-      "id": "cap-002",
-      "question": "How do I expose a service via OData v4?",
+      "id": "capire-2",
+      "question": "How to model relationships between entities in cds files?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/java/cqn-services/application-services#application-services-handling-crud-events-odata-requests"
+        "https://cap.cloud.sap/docs/guides/domain#associations",
+        "https://cap.cloud.sap/docs/cds/cdl#associations"
       ]
     },
     {
-      "id": "cap-003",
-      "question": "What is the difference between managed and unmanaged compositions?",
+      "id": "capire-3",
+      "question": "Query field values of nested children",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations",
-        "https://cap.cloud.sap/docs/releases/2020/july20#cds-language-compiler-managed-compositions-for-improved-domain-modeling"
+        "https://cap.cloud.sap/docs/guides/services/served-ootb#deep-reads-and-writes",
+        "https://cap.cloud.sap/docs/cds/cxl#path-navigation"
       ]
     },
     {
-      "id": "cap-004",
-      "question": "How do I add custom error handling in a service handler?",
+      "id": "capire-4",
+      "question": "How do I register a before handler in CAP Node.js to validate incoming request data before the on handler runs?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/java/event-handlers/indicating-errors#indicating-errors-exceptions"
+        "https://cap.cloud.sap/docs/node.js/core-services#srv-before-request",
+        "https://cap.cloud.sap/docs/guides/services/custom-code#hooks-on-before-after"
       ]
     },
     {
-      "id": "cap-005",
-      "question": "How do I define an association in CDL?",
+      "id": "capire-5",
+      "question": "What is the difference between on, before, and after event handlers in CAP Node.js?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/cds/cdl#conceptual-definition-language-cdl-associations"
+        "https://cap.cloud.sap/docs/node.js/core-services#srv-on-before-after",
+        "https://cap.cloud.sap/docs/guides/services/custom-code#hooks-on-before-after"
       ]
     },
     {
-      "id": "cap-006",
-      "question": "How do I add authorization with @requires and @restrict?",
+      "id": "capire-6",
+      "question": "How do I define a calculated element in CDS?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/security/authorization#cap-level-authorization-role-based-access-control-requires-and-restrict",
-        "https://cap.cloud.sap/docs/guides/security/authorization#cap-level-authorization-instance-based-access-control-filter-conditions-association-paths-checking-input-data"
+        "https://cap.cloud.sap/docs/cds/cql#exists-predicate",
+        "https://cap.cloud.sap/docs/cds/cdl#calculated-elements",
+        "https://cap.cloud.sap/docs/guides/databases/performance#case-statement"
       ]
     },
     {
-      "id": "cap-007",
-      "question": "How do I run a CAP project locally with cds watch?",
+      "id": "capire-7",
+      "question": "How do I query for Authors that have Books with a specific stock level in CAP?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/tools/cds-cli#cds-command-line-interface-cli"
+        "https://cap.cloud.sap/docs/cds/cxl#exists-infix-filter",
+        "https://cap.cloud.sap/docs/cds/cxl#in-exists-predicates"
       ]
     },
     {
-      "id": "cap-008",
-      "question": "How do I configure a database service and its connection pool in CAP Node.js?",
+      "id": "capire-8",
+      "question": "What type should I use for a currency field in my CDS entity?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/node.js/databases#database-services-cds-databaseservice-configuration-pool"
+        "https://cap.cloud.sap/docs/cds/types",
+        "https://cap.cloud.sap/docs/cds/common#code-types"
       ]
     },
     {
-      "id": "cap-009",
-      "question": "What are the core concepts of CAP services as facades over the domain model?",
+      "id": "capire-9",
+      "question": "How do I configure messaging in my CAP Node.js application?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/get-started/concepts#core-concepts-of-cap-services-services-as-interfaces-services-as-facades"
+        "https://cap.cloud.sap/docs/node.js/messaging#configuring-message-brokers",
+        "https://cap.cloud.sap/docs/guides/events/event-queues#by-configuration"
       ]
     },
     {
-      "id": "cap-010",
-      "question": "How do I add localized texts to entities in CDS?",
+      "id": "capire-10",
+      "question": "What is the difference between IAS and XSUAA authentication in CAP and how do I set it up?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/uis/localized-data#localized-data-declaring-localized-data"
+        "https://cap.cloud.sap/docs/node.js/authentication#ias",
+        "https://cap.cloud.sap/docs/node.js/authentication#xsuaa",
+        "https://cap.cloud.sap/docs/guides/security/remote-authentication#ias-app-2-app"
       ]
     }
   ]

@@ -24,7 +24,7 @@ evals/
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     runner.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
-    ids.js             #   parse doc id from a chunk's first line  (<source-url>#<breadcrumb-slug>)
+    ids.js             #   parse doc id (the Source: URL) from a chunk's first line
     retriever.js       #   index loader + default retriever (real search_docs path); pluggable
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
