@@ -237,6 +237,19 @@ describe('eval tests', () => {
     assert.equal(c1, c2)
   })
 
+  test('console header shows the label line only when a label is set', () => {
+    const runId = '2026-01-01T00:00:00Z_fixed1'
+    const raw = fixtureRaw(['a'], ['b'])
+    // no label → no label line
+    const noLabel = buildReport({ config: CONFIG, perQuestionRaw: raw, baseline: null, gates: GATES })
+    const c1 = renderConsoleWithBaseline({ run_id: runId, ...noLabel }, runId, { chunkCount: 1 }, null)
+    assert.ok(!/\n\s*label:/.test(c1))
+    // label set → label line present
+    const withLabel = buildReport({ config: { ...CONFIG, label: 'tuned chunker' }, perQuestionRaw: raw, baseline: null, gates: GATES })
+    const c2 = renderConsoleWithBaseline({ run_id: runId, ...withLabel }, runId, { chunkCount: 1 }, null)
+    assert.match(c2, /label:\s+tuned chunker/)
+  })
+
   test('makeRunId is deterministic when now + rand are fixed', () => {
     const id = makeRunId(new Date('2026-07-30T07:11:55.123Z'), 'abc123')
     assert.equal(id, '2026-07-30T07:11:55.123Z_abc123')

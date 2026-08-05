@@ -212,6 +212,7 @@ function renderConsoleImpl(report, run_id, indexInfo, wq) {
   L.push(bar)
   L.push('  CAP MCP RAG — Eval Run')
   L.push(`  run_id:         ${run_id}`)
+  if (c.label) L.push(`  label:          ${c.label}`)
   L.push(`  capire version: ${c.capire_version} (${indexInfo.chunkCount.toLocaleString('en-US')} chunks)`)
   L.push(`  golden set:     ${c.golden_set} (${c.golden_set_size} questions)`)
   L.push(`  K:              ${c.k}`)

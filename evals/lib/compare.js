@@ -195,7 +195,7 @@ function renderPerQuestionSection(runs) {
   if (order.length === 0) return ''
 
   const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics])) // oldest run = baseline for Δ
-  const runShorts = runs.map(shortRunId)
+  const runShorts = runs.map(runDisplay)
   const gates = {}
   for (const key of METRIC_KEYS) gates[key] = runs[runs.length - 1].aggregate[key].gate ?? null
 
@@ -251,6 +251,11 @@ function renderPerQuestionSection(runs) {
 // short run id for chart tooltips / x-axis (time-of-day)
 function shortRunId(r) {
   return r.run_id.replace(/T/, ' ').replace(/(\.\d+)?Z.*$/, '').slice(5)
+}
+
+// Display name for a run: its label if set, else the short timestamp.
+function runDisplay(r) {
+  return (r.config && r.config.label) || shortRunId(r)
 }
 
 // A click-to-expand card for one run: summary row + aggregate table +
@@ -311,8 +316,9 @@ function renderRunDetails(r) {
       }).join('')}`
     : ''
 
+  const label = r.config && r.config.label
   return `<details class="run-detail">
-  <summary><span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
+  <summary>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
     <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}${r.baseline_run_id ? ` · baseline <span class="mono">${r.baseline_run_id}</span>` : ' · no baseline'}</div>
     <table class="rd-table">
@@ -328,11 +334,10 @@ function renderRunDetails(r) {
 
 function renderHtml(runs) {
   // Build per-metric point series.
-  const shortId = r => r.run_id.replace(/T/, ' ').replace(/(\.\d+)?Z.*$/, '').slice(5) // MM-DD HH:MM:SS
   const charts = METRIC_KEYS.map(key => {
     const points = runs.map(r => ({
       value: r.aggregate[key].value,
-      runShort: shortId(r),
+      runShort: runDisplay(r),
       runId: r.run_id
     }))
     // gate: take the most recent run's gate for this metric (null = reported only)
@@ -421,6 +426,7 @@ function renderHtml(runs) {
   .run-detail > summary::-webkit-details-marker { display:none; }
   .run-detail > summary::before { content:"▸"; color:var(--muted); display:inline-block; width:10px; }
   .run-detail[open] > summary::before { content:"▾"; }
+  .run-label { font-weight:600; }
   .sum-metrics { display:flex; flex-wrap:wrap; gap:10px; color:var(--ink2); }
   .sum-metric { font-variant-numeric:tabular-nums; }
   .sum-res { margin-left:auto; font-weight:600; }
@@ -466,7 +472,6 @@ ${runDetails}
 
 // ---- markdown compare report (full parity, tables only — no charts) -------
 function renderMarkdownCompare(runs) {
-  const shortId = r => r.run_id
   const L = []
   const first = runs[0].run_id
   const last = runs[runs.length - 1].run_id
@@ -479,7 +484,7 @@ function renderMarkdownCompare(runs) {
   // 1) Aggregate: metric × run matrix
   L.push('## Aggregate metrics across runs')
   L.push('')
-  L.push(`| metric | gate | ${runs.map(r => shortId(r)).join(' | ')} |`)
+  L.push(`| metric | gate | ${runs.map(r => mdCell(runDisplay(r))).join(' | ')} |`)
   L.push(`|---|:--:|${runs.map(() => '--:').join('|')}|`)
   for (const key of METRIC_KEYS) {
     const gate = runs[runs.length - 1].aggregate[key].gate
@@ -563,7 +568,8 @@ function renderMarkdownCompare(runs) {
   L.push('## Inspect each run')
   for (const r of [...runs].reverse()) {
     L.push('')
-    L.push(`### ${r.run_id} — ${r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'}`)
+    const heading = r.config && r.config.label ? `${r.config.label} — \`${r.run_id}\`` : `\`${r.run_id}\``
+    L.push(`### ${heading} — ${r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'}`)
     L.push('')
     L.push(`capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\``)
     L.push('')

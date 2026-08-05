@@ -5,7 +5,7 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
   'EVAL_CONFIG', 'EVAL_K', 'EVAL_RUNS', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
-  'EVAL_CAPIRE_VERSION', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
+  'EVAL_CAPIRE_VERSION', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
   'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
 function clearEnv() {
@@ -34,6 +34,15 @@ describe('config tests', () => {
     const cfg = await loadConfig()
     assert.equal(cfg.k, 10)
     assert.equal(cfg.capire_version, '2026.9.9')
+  })
+
+  test('label defaults to empty and is set via EVAL_LABEL / override', async () => {
+    clearEnv()
+    assert.equal((await loadConfig()).label, '') // unset → ''
+    process.env.EVAL_LABEL = 'tuned chunker'
+    assert.equal((await loadConfig()).label, 'tuned chunker') // env
+    const cfg = await loadConfig({ overrides: { label: 'baseline v1' } })
+    assert.equal(cfg.label, 'baseline v1') // override wins over env
   })
 
   test('EVAL_GATES string overrides individual gates', async () => {

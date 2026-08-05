@@ -66,7 +66,8 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     capire_version: cfg.capire_version,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
-    k: cfg.k
+    k: cfg.k,
+    label: cfg.label
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })

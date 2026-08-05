@@ -9,11 +9,11 @@ const silentLogger = { log() {}, error() {} }
 
 // Minimal valid report object for a given run_id + metric values.
 // `perQuestion` (optional) is an array of { id, question, metrics{...} }.
-function fakeReport(run_id, { recall = 1, mrr = 1, precision = 0.4, hit = 1, ndcg = 1, perQuestion = [] } = {}) {
+function fakeReport(run_id, { recall = 1, mrr = 1, precision = 0.4, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}) {
   const agg = (value, gate) => ({ value, baseline: null, delta: null, gate, status: gate === null ? 'info' : value >= gate ? 'pass' : 'fail' })
   return {
     run_id,
-    config: { capire_version: '2026.5.0', golden_set: 'g', golden_set_size: 1, k: 5 },
+    config: { capire_version: '2026.5.0', golden_set: 'g', golden_set_size: 1, k: 5, label },
     baseline_run_id: null,
     aggregate: {
       recall_at_k: agg(recall, 0.8),
@@ -72,6 +72,23 @@ describe('compare tests', () => {
     assert.equal((html.match(/<details class="run-detail">/g) || []).length, 2)
     // gated metrics draw a gate line (recall, mrr, hit_rate = 3)
     assert.equal((html.match(/class="gate"/g) || []).length, 3)
+  })
+
+  test('label shows in html (drill-down) and falls back to timestamp when unset', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_bbb')) // no label
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('<span class="run-label">tuned chunker</span>')) // labeled run
+    assert.ok(html.includes('07-30 11:00:00')) // unlabeled run → short timestamp
+  })
+
+  test('label shows in the md aggregate matrix header', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
+    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
+    assert.ok(md.includes('| metric | gate | tuned chunker |')) // column header = label
+    assert.ok(md.includes('tuned chunker — `2026-07-30T10:00:00Z_aaa`')) // drill-down heading keeps run_id
   })
 
   test('md format: writes compare.md with tables (no svg)', async () => {

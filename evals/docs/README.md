@@ -102,6 +102,7 @@ so you can edit any of them in one place:
 | `k` | `EVAL_K` | `5` | Cutoff K for all @K metrics. |
 | `runs` | `EVAL_RUNS` | `1` | How many times `npm run evals` runs the eval (each appended). |
 | `capire_version` | `EVAL_CAPIRE_VERSION` | `2026.5.0` | capire docs version, recorded in the report `config` + console header (provenance only). |
+| `label` | `EVAL_LABEL` | _(unset)_ | Optional human-readable tag for the run, shown in the console header and comparison reports to tell runs apart (e.g. `EVAL_LABEL="tuned chunker"`). Display-only. |
 | `baselineRunId` | `EVAL_BASELINE_RUN_ID` | _(unset)_ | Pin the baseline to a specific `run_id` (a tagged known-good run). Unset → baseline is the oldest run on file (which slides as runs are pruned). |
 | `paths.goldenSet` | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
 | `paths.runsDir` | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |

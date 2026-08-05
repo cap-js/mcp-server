@@ -80,6 +80,18 @@ describe('cli tests', () => {
     assert.deepEqual(entries.sort(), ['result.jsonl'])
   })
 
+  test('label is recorded in the report config', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const res = await run({
+      overrides: baseOverrides({ label: 'tuned chunker' }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.report.config.label, 'tuned chunker')
+    const rows = await readResults()
+    assert.equal(rows[0].config.label, 'tuned chunker')
+  })
+
   test('run() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
