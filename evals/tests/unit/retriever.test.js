@@ -56,6 +56,8 @@ describe('retriever tests', () => {
     }
     const retrieve = await makeDefaultRetriever(5, { searchDocs, corpusPath })
     assert.deepEqual(await retrieve('q'), ['https://x/setup#a', 'https://x/cdl#b'])
+    // exposes the raw per-slot text of the last retrieval (aligned with the ids)
+    assert.deepEqual(retrieve.lastTexts, [CORPUS.chunks[0], CORPUS.chunks[1]])
   })
 
   test('retriever matches a URL-less continuation chunk to its corpus generated-anker id', async () => {

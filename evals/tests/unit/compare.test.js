@@ -172,7 +172,24 @@ describe('compare tests', () => {
     assert.ok(html.includes('an irrelevant chunk body'))
   })
 
-  test('retrieved id not in the current corpus renders without expansion', async () => {
+  test('retrieved chunk text comes from the report snapshot even if corpus lookup is empty', async () => {
+    // retrieved_texts (snapshotted at run time) resolves regardless of the live corpus.
+    const q = {
+      id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
+      retrieved_ids: ['https://x/a#hit', 'https://x/b#miss'],
+      retrieved_texts: ['snapshot body A', 'snapshot body B'],
+      relevant_hits_at_rank: [1],
+      metrics: { recall_at_k: 1, precision_at_k: 0.5, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
+    }
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
+    // empty corpus lookup — text must still show from the snapshot
+    await compare({ overrides: overrides(), logger: silentLogger, deps: { loadChunkText: async () => new Map() } })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('<details class="chunk">'))
+    assert.ok(html.includes('snapshot body A') && html.includes('snapshot body B'))
+  })
+
+  test('retrieved id with no text (no snapshot, not in corpus) renders without expansion', async () => {
     const q = {
       id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
       retrieved_ids: ['https://x/gone#stale'], relevant_hits_at_rank: [],
@@ -181,7 +198,7 @@ describe('compare tests', () => {
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger, deps: { loadChunkText: async () => new Map() } })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
-    assert.ok(html.includes('(not in current corpus)'))
+    assert.ok(html.includes('(text unavailable)'))
     assert.ok(!html.includes('<details class="chunk">'))
   })
 

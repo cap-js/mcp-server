@@ -92,9 +92,10 @@ describe('ids tests', () => {
       'Timestamps', // URL-less continuation
       'C > Source: https://x/c#s\nbody'
     ]
-    const ids = resolveIds(retrieved, []) // empty corpus → falls back to local ids
+    const { ids, texts } = resolveIds(retrieved, []) // empty corpus → falls back to local ids
     assert.equal(ids.length, 4) // slot preserved
     assert.deepEqual(ids, ['https://x/a#s', 'https://x/b#s', 'https://x/b#generated-anker-1', 'https://x/c#s'])
+    assert.deepEqual(texts, retrieved) // per-slot text aligned with ids
   })
 
   test('resolveIds matches a URL-less chunk to its true corpus generated-anker id by text', () => {
@@ -105,13 +106,25 @@ describe('ids tests', () => {
     ]
     // Retrieved elsewhere, the same continuation text appears after a DIFFERENT page.
     const retrieved = ['Q > Source: https://x/q#s\nother', 'Timestamps']
-    const ids = resolveIds(retrieved, corpus)
+    const { ids } = resolveIds(retrieved, corpus)
     // The continuation resolves to its CORPUS id (p#generated-anker-1), not the retrieval-local q#generated-anker-1.
     assert.deepEqual(ids, ['https://x/q#s', 'https://x/p#generated-anker-1'])
   })
 
+  test('resolveIds keeps distinct per-slot text for two slots sharing an id', () => {
+    // A page split into two chunks emits the same first-line/id but different bodies.
+    const retrieved = [
+      'Domain > Primary Keys > Source: https://x/d#pk\nbody one',
+      'Domain > Primary Keys > Source: https://x/d#pk\nbody two'
+    ]
+    const { ids, texts } = resolveIds(retrieved, [])
+    assert.deepEqual(ids, ['https://x/d#pk', 'https://x/d#pk']) // same id, both slots
+    assert.notEqual(texts[0], texts[1]) // but distinct text per slot
+    assert.deepEqual(texts, retrieved)
+  })
+
   test('resolveIds does not dedup — repeated page fills repeated slots', () => {
     const retrieved = ['P > Source: https://x/p#s\n1', 'P again > Source: https://x/p#s\n2']
-    assert.deepEqual(resolveIds(retrieved, []), ['https://x/p#s', 'https://x/p#s'])
+    assert.deepEqual(resolveIds(retrieved, []).ids, ['https://x/p#s', 'https://x/p#s'])
   })
 })

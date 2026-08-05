@@ -28,18 +28,17 @@ export async function loadChunkText(corpusPath) {
 }
 
 // Reaches search_docs through its handler (like an MCP client), not its
-// internals, so the eval measures the tool's real behaviour. The runner can
-// inject a fixture instead. search_docs joins top-`maxResults` chunks with
-// '\n---\n'; we split and resolve each chunk to its corpus-consistent id in rank
-// order (no dedup). A URL-less continuation chunk keeps its slot and is matched
-// by text back to its true corpus `#generated-anker-N` id (resolves in compare).
-// `deps` ({ searchDocs, corpusPath }) is a test seam for the real ONNX/corpus I/O.
+// internals. `deps` ({ searchDocs, corpusPath }) is a test seam. Splits the
+// '\n---\n'-joined output into per-slot ids (no dedup) resolved corpus-consistent;
+// `retrieve.lastTexts` holds each slot's raw text (aligned with ids) for snapshots.
 export async function makeDefaultRetriever(k, deps = {}) {
   const searchDocs = deps.searchDocs || (await import('../../lib/tools.js')).default.search_docs
   const corpus = await readCorpus(deps.corpusPath)
-  return async function retrieve(question) {
+  const retrieve = async function (question) {
     const out = await searchDocs.handler({ query: question, maxResults: k })
-    if (!out) return []
-    return resolveIds(out.split('\n---\n'), corpus)
+    const { ids, texts } = resolveIds(out ? out.split('\n---\n') : [], corpus)
+    retrieve.lastTexts = texts
+    return ids
   }
+  return retrieve
 }

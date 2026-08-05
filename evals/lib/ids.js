@@ -30,17 +30,21 @@ function* chunkEntries(chunks) {
   }
 }
 
-// Ids for a retrieved chunk sequence, resolved to corpus-consistent ids by
-// matching each chunk's text to the corpus (so a synthesized #generated-anker
-// id matches buildIdMap's). Falls back to the local id if unmatched. No dedup.
+// Per-slot { ids, texts } for a retrieved chunk sequence (no dedup, aligned).
+// Ids are resolved corpus-consistent by matching each chunk's text to the corpus
+// (so a #generated-anker id matches buildIdMap's), falling back to the local id.
 export function resolveIds(chunks, corpusChunks) {
   const idByText = new Map()
   for (const [id, text] of chunkEntries(corpusChunks)) {
     if (!idByText.has(text)) idByText.set(text, id)
   }
   const ids = []
-  for (const [localId, text] of chunkEntries(chunks)) ids.push(idByText.get(text) || localId)
-  return ids
+  const texts = []
+  for (const [localId, text] of chunkEntries(chunks)) {
+    ids.push(idByText.get(text) || localId)
+    texts.push(text)
+  }
+  return { ids, texts }
 }
 
 // Distinct corpus ids, in order (chunks sharing an id collapse to the first).

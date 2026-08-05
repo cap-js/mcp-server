@@ -53,11 +53,14 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const retrieved_ids = await retrieve(q.question)
+    // Snapshot per-slot text so compare shows it even against a different live corpus.
+    const retrieved_texts = retrieve.lastTexts ? retrieve.lastTexts.slice() : undefined
     perQuestionRaw.push({
       id: q.id,
       question: q.question,
       relevant_doc_ids: q.relevant_doc_ids,
-      retrieved_ids
+      retrieved_ids,
+      retrieved_texts
     })
   }
 

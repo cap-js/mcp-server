@@ -322,12 +322,13 @@ function renderRunDetails(r, textById) {
         const retList = (q.retrieved_ids || []).map((id, i) => {
           const hit = relevant.has(id)
           const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${id}`
-          const text = textById && textById.get(id)
-          // Expandable to the chunk's text when the id resolves in the current corpus.
+          // Prefer the run-time text snapshot; fall back to the live corpus for
+          // older reports without one.
+          const text = (q.retrieved_texts && q.retrieved_texts[i]) || (textById && textById.get(id))
           if (text) {
             return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
           }
-          return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(not in current corpus)</span></li>`
+          return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
         }).join('')
         return `<details class="q-retr">
   <summary><span class="mono">${q.id}</span> <span class="q-cell">${question}</span></summary>
