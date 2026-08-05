@@ -36,9 +36,10 @@ describe('config tests', () => {
     assert.equal(cfg.capire_version, '2026.9.9')
   })
 
-  test('label defaults to empty and is set via EVAL_LABEL / override', async () => {
+  test('label is set via EVAL_LABEL / override (empty by default in code)', async () => {
     clearEnv()
-    assert.equal((await loadConfig()).label, '') // unset → ''
+    // Code default is '' (config.json may set its own value, so don't assume '').
+    assert.equal((await loadConfig({ configPath: '/no/such/config.json' })).label, '')
     process.env.EVAL_LABEL = 'tuned chunker'
     assert.equal((await loadConfig()).label, 'tuned chunker') // env
     const cfg = await loadConfig({ overrides: { label: 'baseline v1' } })

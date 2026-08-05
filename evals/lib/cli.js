@@ -41,13 +41,12 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const index = await loadIndexFn()
 
-  // Fail loudly on stale relevant_doc_ids (corpus likely re-indexed).
+  // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
+  // and these labels no longer match; they'll score as misses until refreshed.
   const stale = preflight(golden.questions, index.idSet)
   if (stale.length > 0) {
-    logger.error('PRE-FLIGHT FAILED: golden set references doc ids missing from the current index.')
-    logger.error('The corpus likely re-indexed and these labels are stale — refresh the golden set (see docs/README.md).')
+    logger.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
     for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
-    return { code: 2, stale }
   }
 
   const retrieve = await makeRetrieverFn(cfg.k)

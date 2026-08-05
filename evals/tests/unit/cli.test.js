@@ -119,17 +119,18 @@ describe('cli tests', () => {
     assert.ok(res.report.gated_failures.includes('recall_at_k'))
   })
 
-  test('pre-flight stale id → exit 2, no run written', async () => {
+  test('stale golden id → warns, proceeds, scores as a miss (run still written)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['ghost#dead'] }])
     const res = await run({
       overrides: baseOverrides(),
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
-    assert.equal(res.code, 2)
-    assert.deepEqual(res.stale, [{ question: 'q-001', doc_id: 'ghost#dead' }])
-    // nothing should have been written
-    await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
+    // No abort: the stale id is never retrieved → recall/hit-rate 0 → gated fail (exit 1),
+    // and the run is still recorded.
+    assert.equal(res.code, 1)
+    assert.equal(res.report.per_question[0].metrics.recall_at_k, 0)
+    await fs.access(path.join(runsDir, 'result.jsonl')) // written, not skipped
   })
 
   test('missing golden set → exit 3', async () => {
@@ -140,6 +141,15 @@ describe('cli tests', () => {
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
     assert.equal(res.code, 3)
+  })
+
+  test('a non-ENOENT error reading the golden set propagates', async () => {
+    // goldenPath is a directory → readFile fails with EISDIR (not ENOENT) → rethrown.
+    await fs.mkdir(goldenPath)
+    await assert.rejects(
+      () => run({ overrides: baseOverrides(), logger: silentLogger, deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) } }),
+      err => err.code !== 'ENOENT'
+    )
   })
 
   test('malformed golden question → exit 3, no crash, no run written', async () => {
@@ -263,14 +273,14 @@ describe('cli tests', () => {
     await fs.access(path.join(runsDir, 'compare.html'))
   })
 
-  test('runAll stops on a hard error (stale pre-flight) and still compares', async () => {
-    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['ghost#dead'] }])
+  test('runAll stops on a hard error (missing golden set) and still compares', async () => {
+    // No golden set written → run() returns exit 3 (hard error).
     const res = await runAll({
       overrides: baseOverrides({ runs: 3 }),
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
-    assert.equal(res.code, 2) // pre-flight abort code surfaces
+    assert.equal(res.code, 3) // hard-error code surfaces
     // no runs were written (each attempt aborts before append)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })

@@ -2,6 +2,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
+import { loadChunkText } from './retriever.js'
 import { round } from './metrics.js'
 
 // Markdown can't be searched/lazy-loaded, so its per-question tables are capped
@@ -260,7 +261,8 @@ function runDisplay(r) {
 
 // A click-to-expand card for one run: summary row + aggregate table +
 // per-question table (all 5 metrics). Native <details> — no JS.
-function renderRunDetails(r) {
+// `textById` (optional Map) resolves retrieved ids to chunk text for expansion.
+function renderRunDetails(r, textById) {
   const statusIcon = s => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
   const arrow = d => (d === null || d === undefined ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '═')
   const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
@@ -302,7 +304,13 @@ function renderRunDetails(r) {
         const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
         const retList = (q.retrieved_ids || []).map((id, i) => {
           const hit = relevant.has(id)
-          return `<li class="mono ${hit ? 'hit' : 'miss'}">${i + 1}. ${hit ? '✅' : '✗'} ${id}</li>`
+          const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${id}`
+          const text = textById && textById.get(id)
+          // Expandable to the chunk's text when the id resolves in the current corpus.
+          if (text) {
+            return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${text.replace(/</g, '&lt;')}</pre></details></li>`
+          }
+          return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(not in current corpus)</span></li>`
         }).join('')
         return `<details class="q-retr">
   <summary><span class="mono">${q.id}</span> <span class="q-cell">${question}</span></summary>
@@ -332,7 +340,7 @@ function renderRunDetails(r) {
 </details>`
 }
 
-function renderHtml(runs) {
+function renderHtml(runs, textById) {
   // Build per-metric point series.
   const charts = METRIC_KEYS.map(key => {
     const points = runs.map(r => ({
@@ -347,7 +355,7 @@ function renderHtml(runs) {
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
-  const runDetails = [...runs].reverse().map(renderRunDetails).join('\n')
+  const runDetails = [...runs].reverse().map(r => renderRunDetails(r, textById)).join('\n')
 
   const perQuestion = renderPerQuestionSection(runs)
 
@@ -450,6 +458,12 @@ function renderHtml(runs) {
   .id-list li { font-size:11px; padding:1px 0; word-break:break-all; }
   .id-list li.hit { color:var(--ink); }
   .id-list li.miss { color:var(--ink2); }
+  .chunk > summary { cursor:pointer; list-style:none; padding:1px 0; }
+  .chunk > summary::-webkit-details-marker { display:none; }
+  .chunk > summary::before { content:"▸"; color:var(--muted); display:inline-block; width:10px; }
+  .chunk[open] > summary::before { content:"▾"; }
+  .chunk-text { margin:4px 0 6px 14px; padding:8px 10px; background:var(--page); border:1px solid var(--grid);
+    border-radius:6px; font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
 </style>
 </head>
 <body>
@@ -605,7 +619,7 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({ configPath, overrides, outPath, logger = console } = {}) {
+export async function compare({ configPath, overrides, outPath, logger = console, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const runs = await collectRuns(cfg)
 
@@ -615,7 +629,20 @@ export async function compare({ configPath, overrides, outPath, logger = console
   }
 
   const fmt = cfg.output.compareFormat // 'html' | 'md' (validated in config)
-  const content = fmt === 'md' ? renderMarkdownCompare(runs) : renderHtml(runs)
+  let content
+  if (fmt === 'md') {
+    content = renderMarkdownCompare(runs)
+  } else {
+    // Resolve retrieved ids to chunk text for the expandable view (best-effort:
+    // the corpus may be absent, in which case ids just aren't expandable).
+    let textById = null
+    try {
+      textById = await (deps.loadChunkText || loadChunkText)()
+    } catch {
+      /* corpus unavailable — render ids without expandable content */
+    }
+    content = renderHtml(runs, textById)
+  }
   const out = outPath ? path.resolve(outPath) : path.join(cfg.paths.runsDir, `compare.${fmt}`)
   await fs.writeFile(out, content)
 

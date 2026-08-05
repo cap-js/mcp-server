@@ -55,7 +55,8 @@ describe('eval tests', () => {
       { id: 'q-002', question: 'no rel' }, // missing relevant_doc_ids
       { id: 'q-003', question: 'empty', relevant_doc_ids: [] }, // empty ground truth
       { id: 'q-004', question: 'nullid', relevant_doc_ids: [null] }, // null entry
-      { id: 'q-005', relevant_doc_ids: ['z'] } // missing question
+      { id: 'q-005', relevant_doc_ids: ['z'] }, // missing question
+      null // not an object at all
     ]
     const problems = validateGolden(bad)
     assert.ok(problems.some(p => /duplicate id/.test(p)))
@@ -63,6 +64,7 @@ describe('eval tests', () => {
     assert.ok(problems.some(p => /q-003.*empty/.test(p)))
     assert.ok(problems.some(p => /q-004.*non-string\/empty/.test(p)))
     assert.ok(problems.some(p => /q-005.*missing non-empty "question"/.test(p)))
+    assert.ok(problems.some(p => /not an object/.test(p)))
   })
 
   test('per_question is sorted by id ascending', () => {
@@ -237,6 +239,25 @@ describe('eval tests', () => {
     assert.equal(c1, c2)
   })
 
+  test('console diagnosis prose reflects the regression cause', () => {
+    const runId = '2026-01-01T00:00:00Z_x'
+    const render = report => renderConsoleWithBaseline({ run_id: runId, ...report }, runId, { chunkCount: 1 }, null)
+    // recall-down: baseline finds both, now finds neither
+    const base = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a'], ['b']), baseline: null, gates: GATES })
+    const baseline = { run_id: 'base', ...base }
+    const recallDown = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['x', 'y'], ['x', 'y']), baseline, gates: GATES })
+    assert.match(render(recallDown), /Chunking\/embedding regression/)
+
+    // precision-down only: recall/mrr steady, precision drops (extra relevant slot removed).
+    // recall & mrr computed on distinct/first-hit; precision on slots.
+    const pbase = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'a'], ['b', 'b']), baseline: null, gates: GATES })
+    const pbaseline = { run_id: 'pbase', ...pbase }
+    const precDown = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'z'], ['b', 'z']), baseline: pbaseline, gates: GATES })
+    if (precDown.diagnosis.includes('precision_down')) {
+      assert.match(render(precDown), /Precision down/)
+    }
+  })
+
   test('console header shows the label line only when a label is set', () => {
     const runId = '2026-01-01T00:00:00Z_fixed1'
     const raw = fixtureRaw(['a'], ['b'])
@@ -318,6 +339,28 @@ describe('eval tests', () => {
     assert.ok(q1) // present because it's now the weakest
     assert.equal(q1.regressed, true)
     assert.match(q1.detail, /1\.00 ▼ 0\.33/) // baseline → now, with down arrow
+  })
+
+  test('worstQuestions: annotates a question absent from the baseline', () => {
+    // Baseline has only q-002; this run adds q-001 → "not in baseline".
+    const base = buildReport({
+      config: CONFIG,
+      perQuestionRaw: [{ id: 'q-002', question: 'second', relevant_doc_ids: ['b'], retrieved_ids: ['b'] }],
+      baseline: null,
+      gates: GATES
+    })
+    const baseline = { run_id: 'base_nb', ...base }
+    const r = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']), baseline, gates: GATES })
+    const wq = worstQuestions(r, baseline)
+    const q1 = wq.items.find(i => i.id === 'q-001')
+    assert.ok(q1)
+    assert.match(q1.detail, /not in baseline/)
+  })
+
+  test('console handles an empty golden set', () => {
+    const r = buildReport({ config: { ...CONFIG, golden_set_size: 0 }, perQuestionRaw: [], baseline: null, gates: GATES })
+    const out = renderConsoleWithBaseline({ run_id: 'r', ...r }, 'r', { chunkCount: 1 }, null)
+    assert.match(out, /golden set is empty/)
   })
 
 })

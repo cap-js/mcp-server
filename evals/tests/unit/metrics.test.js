@@ -8,6 +8,7 @@ import {
   ndcgAtK,
   metricsFor,
   relevantHitsAtRank,
+  mean,
   round
 } from '../../lib/metrics.js'
 
@@ -128,5 +129,12 @@ describe('metrics tests', () => {
     assert.equal(round(-0.025, 2), -0.03)
     assert.ok(!Object.is(round(-0.004, 2), -0)) // rounds to a clean 0, not -0
     assert.equal(round(-0.004, 2), 0)
+  })
+
+  test('edge guards: empty relevant set and k<=0 → 0', () => {
+    assert.equal(recallAtK([], ['a'], 5), 0) // no relevant docs
+    assert.equal(ndcgAtK([], ['a'], 5), 0)
+    assert.equal(precisionAtK(['a'], ['a'], 0), 0) // k = 0
+    assert.equal(mean([]), 0) // empty mean
   })
 })
