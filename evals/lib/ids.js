@@ -1,23 +1,19 @@
 // Doc identity for eval ground truth: the `Source:` URL from a chunk's first
-// line, which already carries the #section anchor. Deterministic pure string
-// parsing, re-index-stable — only the RANK of results comes from embeddings.
+// line (which already carries the #section anchor). Pure string parsing,
+// re-index-stable — only result RANK comes from embeddings.
 //   "Getting Started > Initial Setup > Source: https://cap.cloud.sap/docs/get-started/#initial-setup"
 
-// The bare Source: URL of a chunk, or null when the first line has none (a
-// page-continuation chunk). Callers resolve URL-less chunks via chunkEntries,
-// which inherits the previous chunk's page URL.
+// The bare Source: URL of a chunk, or null when its first line has none.
 export function parseId(text) {
   const first = (text || '').split('\n')[0] || ''
   const m = first.match(/Source:\s*(\S+)/i)
   return m ? m[1] : null
 }
 
-// Walk chunks in order and yield [id, text] for each. A chunk with a Source: URL
-// uses it; a URL-less continuation chunk inherits the previous chunk's page URL
-// with a synthesized `#generated-anker-N` suffix (N = its position in
-// that page's continuation run) — deliberately verbose so it's obvious the
-// anchor was generated, not a real docs anchor. A leading URL-less chunk (no
-// predecessor) is unidentifiable and skipped. Used for the corpus AND retrieved.
+// Yield [id, text] per chunk in order. A URL-less continuation chunk inherits
+// the previous chunk's page URL with a `#generated-anker-N` suffix (verbose so
+// it's clearly synthesized) instead of being dropped; a leading URL-less chunk
+// (no predecessor) is skipped.
 function* chunkEntries(chunks) {
   let prevUrl = null
   let contN = 0
@@ -34,22 +30,20 @@ function* chunkEntries(chunks) {
   }
 }
 
-// Ids for a retrieved chunk sequence, resolved to be CORPUS-CONSISTENT so they
-// match buildIdMap's ids (and thus resolve in buildTextMap). A chunk with a
-// Source: URL uses it; a URL-less continuation chunk is matched by exact text
-// to its corpus entry to recover the true `#generated-anker-N` id, falling back to the
-// retrieval-local inherited id when the text isn't found. No dedup (keeps slots).
+// Ids for a retrieved chunk sequence, resolved to corpus-consistent ids by
+// matching each chunk's text to the corpus (so a synthesized #generated-anker
+// id matches buildIdMap's). Falls back to the local id if unmatched. No dedup.
 export function resolveIds(chunks, corpusChunks) {
   const idByText = new Map()
   for (const [id, text] of chunkEntries(corpusChunks)) {
     if (!idByText.has(text)) idByText.set(text, id)
   }
-  const entries = [...chunkEntries(chunks)]
-  return entries.map(([localId, text]) => idByText.get(text) || localId)
+  const ids = []
+  for (const [localId, text] of chunkEntries(chunks)) ids.push(idByText.get(text) || localId)
+  return ids
 }
 
-// Distinct ids for the whole corpus, in order. Chunks sharing an id (a section
-// split without continuation) collapse to the first occurrence.
+// Distinct corpus ids, in order (chunks sharing an id collapse to the first).
 export function buildIdMap(chunks) {
   const idSet = new Set()
   const ids = []
@@ -61,8 +55,8 @@ export function buildIdMap(chunks) {
   return { ids, idSet }
 }
 
-// Map of id → chunk text for the whole corpus (first occurrence wins, matching
-// buildIdMap's dedup). Lets a report's retrieved ids be resolved back to content.
+// id → chunk text for the corpus (first occurrence wins), to resolve a report's
+// retrieved ids back to content.
 export function buildTextMap(chunks) {
   const map = new Map()
   for (const [id, text] of chunkEntries(chunks)) {

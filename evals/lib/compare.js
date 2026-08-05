@@ -15,8 +15,70 @@ function mdCell(text) {
   return (text || '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
 
+// Escape text for HTML text content (prevent `<` injection).
+function escHtml(text) {
+  return (text || '').replace(/</g, '&lt;')
+}
+
+// Shared cell formatters (HTML + Markdown run-detail tables).
+const statusIcon = s => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
+const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
+
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
+}
+
+// Shared per-question model for both the HTML and Markdown reports: question
+// order + latest text, and one row per question with {id, question, series
+// (per-metric values across runs, 3dp), avg, delta-vs-baseline}. Rows are sorted
+// regressed/weakest-first (biggest MRR drop, then lowest MRR, then id). Baseline
+// = oldest run. Uses a per-run id→metrics Map so lookups aren't O(questions²).
+function buildPerQuestionModel(runs) {
+  const order = []
+  const seen = new Set()
+  const textById = new Map()
+  const metricsByRun = runs.map(r => {
+    const m = new Map()
+    for (const q of r.per_question || []) {
+      if (!seen.has(q.id)) {
+        seen.add(q.id)
+        order.push(q.id)
+      }
+      textById.set(q.id, q.question)
+      m.set(q.id, q.metrics)
+    }
+    return m
+  })
+  const baseMetrics = metricsByRun[0]
+
+  const rows = order.map(id => {
+    const series = {}
+    const avg = {}
+    const delta = {}
+    for (const key of METRIC_KEYS) {
+      const vals = []
+      for (const m of metricsByRun) {
+        const qm = m.get(id)
+        if (qm) vals.push(round(qm[key], 3))
+      }
+      series[key] = vals
+      avg[key] = vals.length ? round(vals.reduce((s, v) => s + v, 0) / vals.length, 3) : 0
+      const b = baseMetrics.get(id)
+      const last = vals.length ? vals[vals.length - 1] : 0
+      delta[key] = b ? round(last - b[key], 3) : null
+    }
+    return { id, question: textById.get(id) || '', series, avg, delta }
+  })
+
+  rows.sort((a, b) => {
+    const da = a.delta.mrr === null ? 0 : a.delta.mrr
+    const db = b.delta.mrr === null ? 0 : b.delta.mrr
+    if (da !== db) return da - db // biggest MRR drop first
+    if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr // then lowest MRR
+    return a.id < b.id ? -1 : 1
+  })
+
+  return { order, textById, rows }
 }
 
 // Inline browser script for the per-question section: builds table rows from the
@@ -180,55 +242,12 @@ function lineChartSvg({ label, points, gate, avg }) {
 // sortable table + a compact JSON blob; a row's 5 charts render lazily (in JS)
 // only when expanded. No external deps; embedded data is fixed → deterministic.
 function renderPerQuestionSection(runs) {
-  // Question order + latest text.
-  const order = []
-  const seen = new Set()
-  const textById = new Map()
-  for (const r of runs) {
-    for (const q of r.per_question || []) {
-      if (!seen.has(q.id)) {
-        seen.add(q.id)
-        order.push(q.id)
-      }
-      textById.set(q.id, q.question)
-    }
-  }
+  const { order, rows: data } = buildPerQuestionModel(runs)
   if (order.length === 0) return ''
 
-  const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics])) // oldest run = baseline for Δ
   const runShorts = runs.map(runDisplay)
   const gates = {}
   for (const key of METRIC_KEYS) gates[key] = runs[runs.length - 1].aggregate[key].gate ?? null
-
-  // Per-question model: series per metric + avg + delta-vs-baseline.
-  const data = order.map(id => {
-    const series = {}
-    const avg = {}
-    const delta = {}
-    for (const key of METRIC_KEYS) {
-      const vals = []
-      for (const r of runs) {
-        const q = (r.per_question || []).find(x => x.id === id)
-        if (q) vals.push(round(q.metrics[key], 3))
-      }
-      series[key] = vals
-      const a = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
-      avg[key] = round(a, 3)
-      const b = baseById.get(id)
-      const last = vals.length ? vals[vals.length - 1] : 0
-      delta[key] = b ? round(last - b[key], 3) : null
-    }
-    return { id, question: textById.get(id) || '', series, avg, delta }
-  })
-
-  // Default sort: regressed / weakest first — biggest MRR drop, then lowest MRR avg.
-  data.sort((a, b) => {
-    const da = a.delta.mrr === null ? 0 : a.delta.mrr
-    const db = b.delta.mrr === null ? 0 : b.delta.mrr
-    if (da !== db) return da - db // most negative (biggest drop) first
-    if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr // lowest MRR first
-    return a.id < b.id ? -1 : 1
-  })
 
   const headCells = METRIC_KEYS.map(k => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join('')
 
@@ -263,9 +282,7 @@ function runDisplay(r) {
 // per-question table (all 5 metrics). Native <details> — no JS.
 // `textById` (optional Map) resolves retrieved ids to chunk text for expansion.
 function renderRunDetails(r, textById) {
-  const statusIcon = s => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
   const arrow = d => (d === null || d === undefined ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '═')
-  const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
 
   const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
   const res = r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'
@@ -282,7 +299,7 @@ function renderRunDetails(r, textById) {
     .map(q => {
       const cells = METRIC_KEYS.map(k => `<td>${(q.metrics[k] ?? 0).toFixed(3)}</td>`).join('')
       const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
-      const question = (q.question || '').replace(/</g, '&lt;')
+      const question = escHtml(q.question)
       return `<tr><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>`
     })
     .join('')
@@ -300,7 +317,7 @@ function renderRunDetails(r, textById) {
     ? `<div class="rd-sub">Retrieved results per question <span class="muted">(rank order; ✅ = relevant, ✗ = not)</span></div>
        ${(r.per_question).map(q => {
         const relevant = new Set(q.relevant_doc_ids || [])
-        const question = (q.question || '').replace(/</g, '&lt;')
+        const question = escHtml(q.question)
         const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
         const retList = (q.retrieved_ids || []).map((id, i) => {
           const hit = relevant.has(id)
@@ -308,7 +325,7 @@ function renderRunDetails(r, textById) {
           const text = textById && textById.get(id)
           // Expandable to the chunk's text when the id resolves in the current corpus.
           if (text) {
-            return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${text.replace(/</g, '&lt;')}</pre></details></li>`
+            return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
           }
           return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(not in current corpus)</span></li>`
         }).join('')
@@ -502,7 +519,6 @@ function renderMarkdownCompare(runs) {
   L.push(`|---|:--:|${runs.map(() => '--:').join('|')}|`)
   for (const key of METRIC_KEYS) {
     const gate = runs[runs.length - 1].aggregate[key].gate
-    const gateStr = gate === null || gate === undefined ? '—' : `≥ ${gate.toFixed(2)}`
     const cells = runs
       .map(r => {
         const a = r.aggregate[key]
@@ -510,50 +526,14 @@ function renderMarkdownCompare(runs) {
         return `${a.value.toFixed(2)}${flag}`
       })
       .join(' | ')
-    L.push(`| ${METRIC_LABEL[key]}@K | ${gateStr} | ${cells} |`)
+    L.push(`| ${METRIC_LABEL[key]}@K | ${gateStr(gate)} | ${cells} |`)
   }
   L.push(`| **result** |  | ${runs.map(r => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`)
   L.push('')
 
   // 2) Per-question: one compact avg+Δ table, regressed/weakest-first, capped to MD_TOP_N.
-  const qOrder = []
-  const seen = new Set()
-  const textById = new Map()
-  for (const r of runs) {
-    for (const q of r.per_question || []) {
-      if (!seen.has(q.id)) {
-        seen.add(q.id)
-        qOrder.push(q.id)
-      }
-      textById.set(q.id, q.question)
-    }
-  }
+  const { order: qOrder, rows } = buildPerQuestionModel(runs)
   if (qOrder.length) {
-    const baseById = new Map((runs[0].per_question || []).map(q => [q.id, q.metrics]))
-    // avg + delta-vs-baseline per question per metric
-    const rows = qOrder.map(id => {
-      const avg = {}
-      const delta = {}
-      for (const key of METRIC_KEYS) {
-        const vals = []
-        for (const r of runs) {
-          const q = (r.per_question || []).find(x => x.id === id)
-          if (q) vals.push(q.metrics[key])
-        }
-        avg[key] = vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0
-        const b = baseById.get(id)
-        const last = vals.length ? vals[vals.length - 1] : 0
-        delta[key] = b ? last - b[key] : null
-      }
-      return { id, question: textById.get(id) || '', avg, delta }
-    })
-    rows.sort((a, b) => {
-      const da = a.delta.mrr === null ? 0 : a.delta.mrr
-      const db = b.delta.mrr === null ? 0 : b.delta.mrr
-      if (da !== db) return da - db
-      if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr
-      return a.id < b.id ? -1 : 1
-    })
     const shown = rows.slice(0, MD_TOP_N)
 
     L.push('## Per-question metrics (avg across runs)')
@@ -593,9 +573,7 @@ function renderMarkdownCompare(runs) {
       const a = r.aggregate[key]
       const delta = a.delta === null || a.delta === undefined ? '—' : `${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
       const base = a.baseline === null || a.baseline === undefined ? '—' : a.baseline.toFixed(2)
-      const gate = a.gate === null || a.gate === undefined ? '—' : `≥ ${a.gate.toFixed(2)}`
-      const icon = a.status === 'pass' ? '✅' : a.status === 'fail' ? '❌' : 'ℹ️'
-      L.push(`| ${METRIC_LABEL[key]}@${r.config.k} | ${a.value.toFixed(2)} | ${delta} | ${base} | ${gate} | ${icon} |`)
+      L.push(`| ${METRIC_LABEL[key]}@${r.config.k} | ${a.value.toFixed(2)} | ${delta} | ${base} | ${gateStr(a.gate)} | ${statusIcon(a.status)} |`)
     }
     if ((r.per_question || []).length) {
       L.push('')

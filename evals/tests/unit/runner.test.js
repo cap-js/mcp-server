@@ -5,8 +5,6 @@ import {
   diagnose,
   preflight,
   validateGolden,
-  worstQuestions,
-  renderConsoleWithBaseline,
   makeRunId
 } from '../../lib/runner.js'
 
@@ -224,51 +222,10 @@ describe('eval tests', () => {
     assert.equal(q1.metrics.mrr, 0.5)
   })
 
-  test('DETERMINISM: same inputs → byte-identical report (ignoring run_id) and console', () => {
-    const raw = fixtureRaw(['a', 'x'], ['x', 'b'])
-    const r1 = buildReport({ config: CONFIG, perQuestionRaw: raw, baseline: null, gates: GATES })
+  test('DETERMINISM: same inputs → byte-identical report (ignoring run_id)', () => {
+    const r1 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'x'], ['x', 'b']), baseline: null, gates: GATES })
     const r2 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'x'], ['x', 'b']), baseline: null, gates: GATES })
     assert.equal(JSON.stringify(r1), JSON.stringify(r2))
-
-    // Console body identical when run_id is fixed
-    const runId = '2026-01-01T00:00:00Z_fixed1'
-    const full1 = { run_id: runId, ...r1 }
-    const full2 = { run_id: runId, ...r2 }
-    const c1 = renderConsoleWithBaseline(full1, runId, { chunkCount: 1452 }, null)
-    const c2 = renderConsoleWithBaseline(full2, runId, { chunkCount: 1452 }, null)
-    assert.equal(c1, c2)
-  })
-
-  test('console diagnosis prose reflects the regression cause', () => {
-    const runId = '2026-01-01T00:00:00Z_x'
-    const render = report => renderConsoleWithBaseline({ run_id: runId, ...report }, runId, { chunkCount: 1 }, null)
-    // recall-down: baseline finds both, now finds neither
-    const base = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a'], ['b']), baseline: null, gates: GATES })
-    const baseline = { run_id: 'base', ...base }
-    const recallDown = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['x', 'y'], ['x', 'y']), baseline, gates: GATES })
-    assert.match(render(recallDown), /Chunking\/embedding regression/)
-
-    // precision-down only: recall/mrr steady, precision drops (extra relevant slot removed).
-    // recall & mrr computed on distinct/first-hit; precision on slots.
-    const pbase = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'a'], ['b', 'b']), baseline: null, gates: GATES })
-    const pbaseline = { run_id: 'pbase', ...pbase }
-    const precDown = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'z'], ['b', 'z']), baseline: pbaseline, gates: GATES })
-    if (precDown.diagnosis.includes('precision_down')) {
-      assert.match(render(precDown), /Precision down/)
-    }
-  })
-
-  test('console header shows the label line only when a label is set', () => {
-    const runId = '2026-01-01T00:00:00Z_fixed1'
-    const raw = fixtureRaw(['a'], ['b'])
-    // no label → no label line
-    const noLabel = buildReport({ config: CONFIG, perQuestionRaw: raw, baseline: null, gates: GATES })
-    const c1 = renderConsoleWithBaseline({ run_id: runId, ...noLabel }, runId, { chunkCount: 1 }, null)
-    assert.ok(!/\n\s*label:/.test(c1))
-    // label set → label line present
-    const withLabel = buildReport({ config: { ...CONFIG, label: 'tuned chunker' }, perQuestionRaw: raw, baseline: null, gates: GATES })
-    const c2 = renderConsoleWithBaseline({ run_id: runId, ...withLabel }, runId, { chunkCount: 1 }, null)
-    assert.match(c2, /label:\s+tuned chunker/)
   })
 
   test('makeRunId is deterministic when now + rand are fixed', () => {
@@ -282,85 +239,6 @@ describe('eval tests', () => {
     const early = makeRunId(new Date('2026-07-30T07:11:55.001Z'), 'zzzzzz')
     const late = makeRunId(new Date('2026-07-30T07:11:55.005Z'), 'aaaaaa')
     assert.ok(early < late) // string sort respects the ms component
-  })
-
-  test('worstQuestions: no baseline → lowest absolute MRR, noBaseline flag', () => {
-    const r = buildReport({
-      config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']), // q-001 mrr .333, q-002 mrr 1.0
-      baseline: null,
-      gates: GATES
-    })
-    const wq = worstQuestions({ ...r, baseline_run_id: null }, null)
-    assert.equal(wq.noBaseline, true)
-    assert.equal(wq.items[0].id, 'q-001') // lowest mrr first
-  })
-
-  test('worstQuestions: always lists weakest by absolute MRR, even with no regression', () => {
-    const base = buildReport({
-      config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']), // q-001 weak (mrr .333), q-002 strong (1.0)
-      baseline: null,
-      gates: GATES
-    })
-    const baseline = { run_id: 'base_wq', ...base }
-    // identical retrieval → nothing regressed, but q-001 is still the weakest
-    const r = buildReport({
-      config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']),
-      baseline,
-      gates: GATES
-    })
-    const wq = worstQuestions(r, baseline)
-    assert.equal(wq.noBaseline, false)
-    assert.ok(wq.items.length > 0) // NOT empty — weakest still shown
-    assert.equal(wq.items[0].id, 'q-001') // weakest by absolute MRR
-    assert.equal(wq.items[0].regressed, false) // unchanged vs baseline
-    assert.match(wq.items[0].detail, /= baseline/) // annotated as no change
-  })
-
-  test('worstQuestions: annotates a real regression with the change + regressed flag', () => {
-    const base = buildReport({
-      config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']), // both rank 1, mrr 1.0
-      baseline: null,
-      gates: GATES
-    })
-    const baseline = { run_id: 'base_wq2', ...base }
-    // q-001 regresses: a → rank 3 (mrr .333); q-002 unchanged
-    const r = buildReport({
-      config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']),
-      baseline,
-      gates: GATES
-    })
-    const wq = worstQuestions(r, baseline)
-    const q1 = wq.items.find(i => i.id === 'q-001')
-    assert.ok(q1) // present because it's now the weakest
-    assert.equal(q1.regressed, true)
-    assert.match(q1.detail, /1\.00 ▼ 0\.33/) // baseline → now, with down arrow
-  })
-
-  test('worstQuestions: annotates a question absent from the baseline', () => {
-    // Baseline has only q-002; this run adds q-001 → "not in baseline".
-    const base = buildReport({
-      config: CONFIG,
-      perQuestionRaw: [{ id: 'q-002', question: 'second', relevant_doc_ids: ['b'], retrieved_ids: ['b'] }],
-      baseline: null,
-      gates: GATES
-    })
-    const baseline = { run_id: 'base_nb', ...base }
-    const r = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['x', 'y', 'a'], ['b']), baseline, gates: GATES })
-    const wq = worstQuestions(r, baseline)
-    const q1 = wq.items.find(i => i.id === 'q-001')
-    assert.ok(q1)
-    assert.match(q1.detail, /not in baseline/)
-  })
-
-  test('console handles an empty golden set', () => {
-    const r = buildReport({ config: { ...CONFIG, golden_set_size: 0 }, perQuestionRaw: [], baseline: null, gates: GATES })
-    const out = renderConsoleWithBaseline({ run_id: 'r', ...r }, 'r', { chunkCount: 1 }, null)
-    assert.match(out, /golden set is empty/)
   })
 
 })

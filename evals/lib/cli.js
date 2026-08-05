@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig } from './config.js'
 import { loadIndex, makeDefaultRetriever } from './retriever.js'
-import { preflight, validateGolden, buildReport, makeRunId, renderConsoleWithBaseline } from './runner.js'
+import { preflight, validateGolden, buildReport, makeRunId } from './runner.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
@@ -73,11 +73,10 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
   const run_id = makeRunId()
   const full = { run_id, ...report }
 
-  const indexInfo = { chunkCount: index.count }
   const { path: resultsFile, total } = await appendRun(cfg, full)
 
-  logger.log(renderConsoleWithBaseline(full, run_id, indexInfo, baseline))
-  logger.error(`\n(appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file)`)
+  const status = report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
+  logger.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
 
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }
