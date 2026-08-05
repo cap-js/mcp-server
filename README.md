@@ -1,5 +1,7 @@
 # Welcome to @cap-js/mcp-server
 
+[![MCP Toplist](https://mcptoplist.com/badge/io.github.cap-js%2Fmcp-server.svg)](https://mcptoplist.com/server/io.github.cap-js%2Fmcp-server)
+
 [![REUSE status](https://api.reuse.software/badge/github.com/cap-js/mcp-server)](https://api.reuse.software/info/github.com/cap-js/mcp-server)
 
 
