@@ -99,7 +99,7 @@ const PQ_SCRIPT = `
 
   // Lazy chart: mirrors the server-side lineChartSvg geometry.
   function chartSvg(key, vals){
-    var W=520,H=210,m={top:20,right:16,bottom:34,left:38},iw=W-m.left-m.right,ih=H-m.top-m.bottom;
+    var W=520,H=240,m={top:20,right:16,bottom:64,left:38},iw=W-m.left-m.right,ih=H-m.top-m.bottom;
     var n=vals.length, gate=GATES[key];
     function x(i){ return m.left+(n<=1?iw/2:(i/(n-1))*iw); }
     function y(v){ return m.top+(1-v)*ih; }
@@ -115,7 +115,8 @@ const PQ_SCRIPT = `
     vals.forEach(function(v,i){ var below=gate!=null&&v<gate;
       out+='<circle class="dot'+(below?' below':'')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3"><title>'+RUNS[i]+': '+v.toFixed(3)+'</title></circle>'; });
     vals.forEach(function(v,i){ if(n>1&&i!==0&&i!==n-1) return;
-      out+='<text class="axis" x="'+x(i).toFixed(1)+'" y="'+(H-m.bottom+14)+'" text-anchor="middle">'+RUNS[i]+'</text>'; });
+      var tx=x(i).toFixed(1), ty=(H-m.bottom+8).toFixed(1);
+      out+='<text class="axis" x="'+tx+'" y="'+ty+'" text-anchor="end" transform="rotate(-45,'+tx+','+ty+')">'+RUNS[i]+'</text>'; });
     out+='</svg>';
     var avg=vals.reduce(function(s,v){return s+v;},0)/(n||1);
     var gated = gate!=null;
@@ -180,7 +181,7 @@ const PQ_SCRIPT = `
 function lineChartSvg({ label, points, gate, avg }) {
   const W = 680
   const H = 260
-  const m = { top: 24, right: 20, bottom: 46, left: 44 }
+  const m = { top: 24, right: 20, bottom: 90, left: 44 }
   const iw = W - m.left - m.right
   const ih = H - m.top - m.bottom
   const n = points.length
@@ -217,12 +218,15 @@ function lineChartSvg({ label, points, gate, avg }) {
     })
     .join('')
 
-  // x ticks: first, last, and every ~(n/6)th to avoid crowding
+  // x ticks: first, last, and every ~(n/6)th to avoid crowding. Rotated -45° so
+  // labels don't overlap even with long run labels.
   const step = Math.max(1, Math.ceil(n / 6))
   const xticks = points
     .map((p, i) => {
       if (n > 1 && i !== 0 && i !== n - 1 && i % step !== 0) return ''
-      return `<text class="axis xtick" x="${x(i).toFixed(1)}" y="${H - m.bottom + 16}" text-anchor="middle">${p.runShort}</text>`
+      const tx = x(i).toFixed(1)
+      const ty = (H - m.bottom + 8).toFixed(1)
+      return `<text class="axis xtick" x="${tx}" y="${ty}" text-anchor="end" transform="rotate(-45,${tx},${ty})">${p.runShort}</text>`
     })
     .join('')
 
