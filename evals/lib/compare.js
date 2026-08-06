@@ -114,9 +114,10 @@ const PQ_SCRIPT = `
     out+='<path class="series" d="'+d+'" fill="none"/>';
     vals.forEach(function(v,i){ var below=gate!=null&&v<gate;
       out+='<circle class="dot'+(below?' below':'')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3"><title>'+RUNS[i]+': '+v.toFixed(3)+'</title></circle>'; });
-    vals.forEach(function(v,i){ if(n>1&&i!==0&&i!==n-1) return;
-      var tx=x(i).toFixed(1), ty=(H-m.bottom+8).toFixed(1);
-      out+='<text class="axis" x="'+tx+'" y="'+ty+'" text-anchor="end" transform="rotate(-45,'+tx+','+ty+')">'+RUNS[i]+'</text>'; });
+    var dly=(H-m.bottom+12).toFixed(1);
+    vals.forEach(function(v,i){
+      var tx=x(i).toFixed(1);
+      out+='<text class="axis" x="'+tx+'" y="'+dly+'" text-anchor="end" transform="rotate(-45,'+tx+','+dly+')">'+RUNS[i]+'</text>'; });
     out+='</svg>';
     var avg=vals.reduce(function(s,v){return s+v;},0)/(n||1);
     var gated = gate!=null;
@@ -218,15 +219,13 @@ function lineChartSvg({ label, points, gate, avg }) {
     })
     .join('')
 
-  // x ticks: first, last, and every ~(n/6)th to avoid crowding. Rotated -45° so
-  // labels don't overlap even with long run labels.
-  const step = Math.max(1, Math.ceil(n / 6))
+  // One label per dot, placed directly under each circle and rotated -45°.
+  // Uses the short label for space; the full label is in the dot's tooltip.
+  const dotLabelY = (H - m.bottom + 12).toFixed(1)
   const xticks = points
     .map((p, i) => {
-      if (n > 1 && i !== 0 && i !== n - 1 && i % step !== 0) return ''
       const tx = x(i).toFixed(1)
-      const ty = (H - m.bottom + 8).toFixed(1)
-      return `<text class="axis xtick" x="${tx}" y="${ty}" text-anchor="end" transform="rotate(-45,${tx},${ty})">${p.runShort}</text>`
+      return `<text class="axis xtick" x="${tx}" y="${dotLabelY}" text-anchor="end" transform="rotate(-45,${tx},${dotLabelY})">${p.runShort}</text>`
     })
     .join('')
 
