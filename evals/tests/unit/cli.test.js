@@ -92,6 +92,30 @@ describe('cli tests', () => {
     assert.equal(rows[0].config.label, 'tuned chunker')
   })
 
+  test('model is recorded in the report config and sets CDS_MCP_MODEL', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const prevModel = process.env.CDS_MCP_MODEL
+    let capturedModel
+    // Inject a retriever factory that captures CDS_MCP_MODEL at call time
+    const capturingRetriever = async () => {
+      capturedModel = process.env.CDS_MCP_MODEL
+      return async () => CHUNK_IDS
+    }
+    await run({
+      overrides: baseOverrides({ model: 'perplexity-ai/pplx-embed-v1-0.6b' }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: capturingRetriever }
+    })
+    // env was set before the retriever was invoked
+    assert.equal(capturedModel, 'perplexity-ai/pplx-embed-v1-0.6b')
+    // model is stored in the report for provenance
+    const rows = await readResults()
+    assert.equal(rows[0].config.model, 'perplexity-ai/pplx-embed-v1-0.6b')
+    // restore env
+    if (prevModel === undefined) delete process.env.CDS_MCP_MODEL
+    else process.env.CDS_MCP_MODEL = prevModel
+  })
+
   test('run() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }

@@ -36,6 +36,16 @@ describe('config tests', () => {
     assert.equal(cfg.capire_version, '2026.9.9')
   })
 
+  test('model defaults to Xenova/all-MiniLM-L6-v2 and is overridable', async () => {
+    clearEnv()
+    // config.json ships the default model; check it loads and env overrides it
+    assert.ok((await loadConfig()).model) // present and non-empty
+    process.env.EVAL_MODEL = 'perplexity-ai/pplx-embed-v1-0.6b'
+    assert.equal((await loadConfig()).model, 'perplexity-ai/pplx-embed-v1-0.6b')
+    const cfg = await loadConfig({ overrides: { model: 'org/other-model' } })
+    assert.equal(cfg.model, 'org/other-model') // override wins
+  })
+
   test('label is set via EVAL_LABEL / override (empty by default in code)', async () => {
     clearEnv()
     // Code default is '' (config.json may set its own value, so don't assume '').
