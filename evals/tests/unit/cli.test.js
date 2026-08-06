@@ -87,9 +87,9 @@ describe('cli tests', () => {
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
-    assert.equal(res.report.config.label, 'tuned chunker')
+    assert.ok(res.report.config.label.includes('tuned chunker'))
     const rows = await readResults()
-    assert.equal(rows[0].config.label, 'tuned chunker')
+    assert.ok(rows[0].config.label.includes('tuned chunker'))
   })
 
   test('model is recorded in the report config and sets CDS_MCP_MODEL', async () => {
@@ -108,9 +108,10 @@ describe('cli tests', () => {
     })
     // env was set before the retriever was invoked
     assert.equal(capturedModel, 'perplexity-ai/pplx-embed-v1-0.6b')
-    // model is stored in the report for provenance
+    // model is stored in report and always included in the label
     const rows = await readResults()
     assert.equal(rows[0].config.model, 'perplexity-ai/pplx-embed-v1-0.6b')
+    assert.ok(rows[0].config.label.includes('perplexity-ai/pplx-embed-v1-0.6b'))
     // restore env
     if (prevModel === undefined) delete process.env.CDS_MCP_MODEL
     else process.env.CDS_MCP_MODEL = prevModel

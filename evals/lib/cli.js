@@ -74,7 +74,7 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
-    label: cfg.label
+    label: cfg.label ? `${cfg.label} / ${cfg.model}` : cfg.model
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
