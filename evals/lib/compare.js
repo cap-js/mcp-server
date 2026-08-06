@@ -305,7 +305,8 @@ function renderLeaderboard(runs) {
   const gated = METRIC_KEYS.filter(k => runs[runs.length - 1].aggregate[k].gate !== null)
   if (!gated.length) return ''
 
-  // Order columns by total rank score (lower = better) across gated metrics.
+  // Order columns by total rank score (lower = better) across gated metrics only.
+  // Show ALL metrics in the table; ungated ones have no gate threshold but still rank.
   const totalScore = r => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
   const cols = [...runs].sort((a, b) => totalScore(a) - totalScore(b))
 
@@ -316,16 +317,18 @@ function renderLeaderboard(runs) {
     `<th class="${medalClass(i + 1)}" title="${escHtml(runDisplay(r))}">${medal(i + 1)} ${escHtml(shortLabel(r))}</th>`
   ).join('')
 
-  const rows = gated.map(key => {
+  const rows = METRIC_KEYS.map(key => {
+    const isGated = runs[runs.length - 1].aggregate[key].gate !== null
     const cells = cols.map(r => {
       const rk = ranks.get(r.run_id)[key]
       return `<td class="${medalClass(rk)}">${r.aggregate[key].value.toFixed(2)}</td>`
     }).join('')
-    return `<tr><td>${METRIC_LABEL[key]}@K</td>${cells}</tr>`
+    const label = `${METRIC_LABEL[key]}@K${isGated ? '' : ' <span class="tag muted">reported</span>'}`
+    return `<tr><td>${label}</td>${cells}</tr>`
   }).join('')
 
   return `<section class="leaderboard-wrap">
-  <h2 class="section-h">Leaderboard <span class="section-hint">(gated metrics · 🥇 = best per metric · columns sorted by total rank)</span></h2>
+  <h2 class="section-h">Leaderboard <span class="section-hint">(🥇 = best per metric · columns sorted by total rank on gated metrics)</span></h2>
   <div class="lb-scroll">
   <table class="lb-table">
     <thead><tr><th>metric</th>${headerCells}</tr></thead>
