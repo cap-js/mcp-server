@@ -73,4 +73,40 @@ describe('retriever tests', () => {
     const retrieve = await makeDefaultRetriever(5, { searchDocs, corpusPath })
     assert.deepEqual(await retrieve('q'), [])
   })
+
+  test('switching corpusPath (model change) uses the new model corpus for id resolution', async () => {
+    // A continuation chunk that appears in both corpora but under different predecessor
+    // pages — so its resolved id depends on which corpus (model) is loaded.
+    const sharedContinuation = 'some continuation chunk with no source annotation'
+
+    // Model A: page-a is the predecessor of the continuation
+    const corpusA = { chunks: [
+      'A > Page > Source: https://x/page-a#s\nbody',
+      sharedContinuation // → https://x/page-a#generated-anker-1 in model A
+    ] }
+    // Model B: page-b is the predecessor
+    const corpusB = { chunks: [
+      'B > Page > Source: https://x/page-b#s\nbody',
+      sharedContinuation // → https://x/page-b#generated-anker-1 in model B
+    ] }
+    const pathA = path.join(tmpDir, 'corpus-a.json')
+    const pathB = path.join(tmpDir, 'corpus-b.json')
+    await fs.writeFile(pathA, JSON.stringify(corpusA))
+    await fs.writeFile(pathB, JSON.stringify(corpusB))
+
+    // search_docs returns the real section then the shared continuation
+    const out = `${corpusA.chunks[0]}\n---\n${sharedContinuation}`
+    const searchDocs = { handler: async () => out }
+
+    const retrieveA = await makeDefaultRetriever(5, { searchDocs, corpusPath: pathA })
+    const retrieveB = await makeDefaultRetriever(5, { searchDocs, corpusPath: pathB })
+
+    const idsA = await retrieveA('q')
+    const idsB = await retrieveB('q')
+
+    // Model A resolves the continuation to page-a's generated-anker id
+    assert.deepEqual(idsA, ['https://x/page-a#s', 'https://x/page-a#generated-anker-1'])
+    // Model B resolves the same text to page-b's generated-anker id (different corpus)
+    assert.deepEqual(idsB, ['https://x/page-a#s', 'https://x/page-b#generated-anker-1'])
+  })
 })
