@@ -213,7 +213,7 @@ function lineChartSvg({ label, points, gate, avg }) {
       const cx = x(i).toFixed(1)
       const cy = y(p.value).toFixed(1)
       const below = gate !== null && gate !== undefined && p.value < gate
-      return `<circle class="dot${below ? ' below' : ''}" cx="${cx}" cy="${cy}" r="4"><title>${p.runShort}\n${label}: ${p.value.toFixed(3)}${below ? '  (below gate)' : ''}</title></circle>`
+      return `<circle class="dot${below ? ' below' : ''}" cx="${cx}" cy="${cy}" r="4"><title>${p.runFull || p.runShort}\n${label}: ${p.value.toFixed(3)}${below ? '  (below gate)' : ''}</title></circle>`
     })
     .join('')
 
@@ -278,20 +278,73 @@ function runDisplay(r) {
   return (r.config && r.config.label) || shortRunId(r)
 }
 
+// Truncated label for chart axes (28 chars max + ellipsis). Full label in tooltips.
+function shortLabel(r) {
+  const full = runDisplay(r)
+  return full.length > 28 ? full.slice(0, 27) + '…' : full
+}
+
+// Rank each run for each metric (1 = best). Returns Map<run_id, Map<metric_key, rank>>.
+function buildRanks(runs) {
+  const ranks = new Map(runs.map(r => [r.run_id, {}]))
+  for (const key of METRIC_KEYS) {
+    const sorted = [...runs].sort((a, b) => b.aggregate[key].value - a.aggregate[key].value)
+    sorted.forEach((r, i) => { ranks.get(r.run_id)[key] = i + 1 })
+  }
+  return ranks
+}
+
+// Leaderboard table: gated metrics as rows, runs as columns sorted by each metric's rank.
+// Gold / silver / bronze cells make the winner instantly obvious.
+function renderLeaderboard(runs) {
+  if (runs.length < 2) return ''
+  const ranks = buildRanks(runs)
+  const gated = METRIC_KEYS.filter(k => runs[runs.length - 1].aggregate[k].gate !== null)
+  if (!gated.length) return ''
+
+  // Order columns by total rank score (lower = better) across gated metrics.
+  const totalScore = r => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
+  const cols = [...runs].sort((a, b) => totalScore(a) - totalScore(b))
+
+  const medalClass = rank => rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : ''
+  const medal = rank => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
+
+  const headerCells = cols.map((r, i) =>
+    `<th class="${medalClass(i + 1)}" title="${escHtml(runDisplay(r))}">${medal(i + 1)} ${escHtml(shortLabel(r))}</th>`
+  ).join('')
+
+  const rows = gated.map(key => {
+    const cells = cols.map(r => {
+      const rk = ranks.get(r.run_id)[key]
+      return `<td class="${medalClass(rk)}">${r.aggregate[key].value.toFixed(2)}</td>`
+    }).join('')
+    return `<tr><td>${METRIC_LABEL[key]}@K</td>${cells}</tr>`
+  }).join('')
+
+  return `<section class="leaderboard-wrap">
+  <h2 class="section-h">Leaderboard <span class="section-hint">(gated metrics · 🥇 = best per metric · columns sorted by total rank)</span></h2>
+  <div class="lb-scroll">
+  <table class="lb-table">
+    <thead><tr><th>metric</th>${headerCells}</tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  </div>
+</section>`
+}
+
 // A click-to-expand card for one run: summary row + aggregate table +
 // per-question table (all 5 metrics). Native <details> — no JS.
 // `textById` (optional Map) resolves retrieved ids to chunk text for expansion.
-function renderRunDetails(r, textById) {
-  const arrow = d => (d === null || d === undefined ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '═')
-
+// `runRanks` (optional Map<run_id, {metric:rank}>) shows rank vs other runs.
+function renderRunDetails(r, textById, runRanks) {
   const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
   const res = r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'
 
   const aggRows = METRIC_KEYS.map(k => {
     const a = r.aggregate[k]
-    const delta = a.delta === null || a.delta === undefined ? '—' : `${arrow(a.delta)} ${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
-    const base = a.baseline === null || a.baseline === undefined ? '—' : a.baseline.toFixed(2)
-    return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${delta}</td><td>${base}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
+    const rk = runRanks ? runRanks.get(r.run_id)[k] : null
+    const rankCell = rk !== null ? `<span class="${rk === 1 ? 'rank-1' : rk === 2 ? 'rank-2' : rk === 3 ? 'rank-3' : ''}">#${rk}</span>` : '—'
+    return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${rankCell}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
   }).join('')
 
   const pqHead = METRIC_KEYS.map(k => `<th>${METRIC_LABEL[k]}</th>`).join('')
@@ -346,9 +399,9 @@ function renderRunDetails(r, textById) {
   return `<details class="run-detail">
   <summary>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
-    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}${r.baseline_run_id ? ` · baseline <span class="mono">${r.baseline_run_id}</span>` : ' · no baseline'}</div>
+    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · model ${escHtml(r.config.model || '—')} · K=${r.config.k}</div>
     <table class="rd-table">
-      <thead><tr><th>metric</th><th>value</th><th>Δ vs base</th><th>baseline</th><th>gate</th><th></th></tr></thead>
+      <thead><tr><th>metric</th><th>value</th><th>rank</th><th>gate</th><th></th></tr></thead>
       <tbody>${aggRows}</tbody>
     </table>
     <div class="rd-sub">Diagnosis: <code>${r.diagnosis}</code></div>
@@ -359,11 +412,14 @@ function renderRunDetails(r, textById) {
 }
 
 function renderHtml(runs, textById) {
+  const ranks = buildRanks(runs)
+
   // Build per-metric point series.
   const charts = METRIC_KEYS.map(key => {
     const points = runs.map(r => ({
       value: r.aggregate[key].value,
-      runShort: runDisplay(r),
+      runShort: shortLabel(r),
+      runFull: runDisplay(r),
       runId: r.run_id
     }))
     // gate: take the most recent run's gate for this metric (null = reported only)
@@ -373,12 +429,10 @@ function renderHtml(runs, textById) {
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
-  const runDetails = [...runs].reverse().map(r => renderRunDetails(r, textById)).join('\n')
+  const runDetails = [...runs].reverse().map(r => renderRunDetails(r, textById, ranks)).join('\n')
 
   const perQuestion = renderPerQuestionSection(runs)
-
-  const first = runs.length ? runs[0].run_id : '—'
-  const last = runs.length ? runs[runs.length - 1].run_id : '—'
+  const leaderboard = renderLeaderboard(runs)
 
   return `<!doctype html>
 <html lang="en">
@@ -482,13 +536,23 @@ function renderHtml(runs, textById) {
   .chunk[open] > summary::before { content:"▾"; }
   .chunk-text { margin:4px 0 6px 14px; padding:8px 10px; background:var(--page); border:1px solid var(--grid);
     border-radius:6px; font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
+  .leaderboard-wrap { padding:0 28px 20px; }
+  .lb-scroll { overflow-x:auto; }
+  .lb-table { border-collapse:collapse; font-size:13px; }
+  .lb-table th, .lb-table td { padding:7px 14px; border-bottom:1px solid var(--grid); text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .lb-table th:first-child, .lb-table td:first-child { text-align:left; font-weight:600; padding-right:20px; }
+  .lb-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+  .rank-1 { background:rgba(255,200,0,0.18); font-weight:700; }
+  .rank-2 { background:rgba(180,180,180,0.15); font-weight:600; }
+  .rank-3 { background:rgba(180,110,50,0.13); }
 </style>
 </head>
 <body>
 <header>
   <h1>CAP MCP RAG — Metric trends across runs</h1>
-  <div class="meta">${runs.length} run${runs.length === 1 ? '' : 's'} · ${first} → ${last} · dashed red = gate threshold · red dot = below gate</div>
+  <div class="meta">${runs.length} run${runs.length === 1 ? '' : 's'} · dashed red = gate threshold · red dot = below gate</div>
 </header>
+${leaderboard}
 <section class="grid-wrap">
 ${charts}
 </section>

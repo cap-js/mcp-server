@@ -202,15 +202,19 @@ describe('compare tests', () => {
     assert.ok(!html.includes('<details class="chunk">'))
   })
 
-  test('runs are ordered chronologically by run_id in the table', async () => {
-    // write out of order; expect sorted output
+  test('runs are ordered chronologically by run_id in the run-list section', async () => {
+    // write out of order; expect sorted output in the run-list (not the leaderboard)
     await writeRun(null, fakeReport('2026-07-30T12:00:00Z_zzz'))
     await writeRun(null, fakeReport('2026-07-30T09:00:00Z_aaa'))
     await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
-    const iEarly = html.indexOf('2026-07-30T09:00:00Z_aaa')
-    const iLate = html.indexOf('2026-07-30T12:00:00Z_zzz')
-    assert.ok(iEarly < iLate, 'earlier run should appear before later run')
+    // The run-list renders newest first, so zzz (later) appears before aaa in that section.
+    const runListStart = html.indexOf('class="run-list"')
+    assert.ok(runListStart !== -1)
+    const runList = html.slice(runListStart)
+    const iLate = runList.indexOf('2026-07-30T12:00:00Z_zzz')
+    const iEarly = runList.indexOf('2026-07-30T09:00:00Z_aaa')
+    assert.ok(iLate < iEarly, 'run-list: later (newest) run should appear before earlier run')
   })
 
   test('skips corrupt/blank lines in result.jsonl', async () => {
