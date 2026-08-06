@@ -460,7 +460,7 @@ function renderHtml(runs, textById) {
   header { padding:24px 28px 8px; }
   h1 { font-size:18px; margin:0 0 4px; }
   .meta { color:var(--ink2); font-size:13px; }
-  .grid-wrap { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; padding:16px 28px 28px; }
+  .grid-wrap { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; padding:16px 28px 28px; }
   .chart { margin:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 12px 6px; }
   .chart figcaption { font-size:13px; font-weight:600; margin:2px 4px 6px; }
   .chart-avg { float:right; font-size:11px; font-weight:600; color:var(--ink2); font-variant-numeric:tabular-nums; }
