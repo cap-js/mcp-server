@@ -2,12 +2,24 @@
 // line (which already carries the #section anchor). Pure string parsing,
 // re-index-stable — only result RANK comes from embeddings.
 //   "Getting Started > Initial Setup > Source: https://cap.cloud.sap/docs/get-started/#initial-setup"
+// Chunks without a Source: URL fall back to a synthetic capire:// URL derived
+// from the breadcrumb text, so they remain retrievable.
 
-// The bare Source: URL of a chunk, or null when its first line has none.
+function slugify(text) {
+  return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
+
+// The Source: URL from a chunk's first line, or a synthetic capire:// URL
+// derived from the breadcrumb when no Source: is present.
 export function parseId(text) {
   const first = (text || '').split('\n')[0] || ''
   const m = first.match(/Source:\s*(\S+)/i)
-  return m ? m[1] : null
+  if (m) return m[1]
+  // Fallback: synthesize a stable id from the breadcrumb text before Source:
+  // (or the whole first line if there is no Source: marker).
+  const crumb = first.split(/Source:/i)[0].trim() || first.trim()
+  const slug = slugify(crumb)
+  return slug ? `capire://generated/${slug}` : null
 }
 
 // Yield [id, text] per chunk in order. A URL-less continuation chunk inherits
