@@ -271,4 +271,74 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     assert.ok(!html.includes('Per-question metric trends'))
   })
+
+  test('leaderboard shows all 5 metrics (gated and reported)', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8 }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5, mrr: 0.4 }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // leaderboard present with 5 metric rows (one per METRIC_KEY)
+    assert.ok(html.includes('class="lb-table"'))
+    assert.ok(html.includes('Recall@K'))
+    assert.ok(html.includes('MRR@K'))
+    assert.ok(html.includes('Precision@K'))
+    assert.ok(html.includes('Hit-Rate@K'))
+    assert.ok(html.includes('nDCG@K'))
+    // gated = no "reported" tag; ungated precision/ndcg have the tag
+    assert.ok(html.includes('Precision@K'))
+    const lbSection = html.slice(html.indexOf('class="lb-table"'), html.indexOf('</table>', html.indexOf('class="lb-table"')))
+    const rows = (lbSection.match(/<tr>/g) || []).length - 1 // exclude header
+    assert.equal(rows, 5)
+  })
+
+  test('leaderboard ranks best run first (gold medal column)', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8, hit: 0.9 }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.3, mrr: 0.2, hit: 0.3 }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // best run (aaa with higher scores) should appear as 🥇 column
+    assert.ok(html.includes('🥇'))
+    // the best run's label should appear before the worse run in the leaderboard header
+    const lbStart = html.indexOf('class="lb-table"')
+    const lbHeader = html.slice(lbStart, html.indexOf('</thead>', lbStart))
+    const iGold = lbHeader.indexOf('🥇')
+    const iSilver = lbHeader.indexOf('🥈')
+    assert.ok(iGold < iSilver)
+  })
+
+  test('run-detail aggregate table shows rank column instead of delta/baseline', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9 }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5 }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // rank column header present, old delta/baseline headers absent
+    assert.ok(html.includes('>rank<'))
+    assert.ok(!html.includes('Δ vs base'))
+    assert.ok(!html.includes('>baseline<'))
+    // rank values (#1, #2) present
+    assert.ok(html.includes('>#1<') || html.includes('>#2<'))
+  })
+
+  test('x-axis labels: one per dot (no skipping), short with ellipsis', async () => {
+    const longLabel = 'a'.repeat(40) + ' / model-name-here'
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { label: longLabel }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_bbb'))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // each chart has 2 xtick labels (one per run, no skipping)
+    const tickCount = (html.match(/class="axis xtick"/g) || []).length
+    assert.equal(tickCount, 5 * 2) // 5 charts × 2 runs
+    // long label is truncated with ellipsis in the xtick text
+    assert.ok(html.includes('…'))
+    // the xtick element itself uses the short (truncated) form, not the full label
+    const tickMatch = html.match(/class="axis xtick"[^>]*>([^<]+)<\/text>/)
+    assert.ok(tickMatch && tickMatch[1].length <= 29) // ≤28 chars + ellipsis
+  })
+
+  test('grid uses 2 columns', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa'))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('repeat(2,1fr)'))
+  })
 })
