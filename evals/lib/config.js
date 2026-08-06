@@ -75,6 +75,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     k: envNum('EVAL_K', file.k ?? 5),
     runs: envNum('EVAL_RUNS', file.runs ?? 1),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
+    model: envStr('EVAL_MODEL', file.model || 'Xenova/all-MiniLM-L6-v2'),
     // Optional human-readable tag to tell runs apart in reports; '' = unset.
     label: envStr('EVAL_LABEL', file.label || ''),
     // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
@@ -105,6 +106,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.runs !== undefined) cfg.runs = overrides.runs
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
+    if (overrides.model !== undefined) cfg.model = overrides.model
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)

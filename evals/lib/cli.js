@@ -22,6 +22,10 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const cfg = await loadConfig({ configPath, overrides })
 
+  // Set CDS_MCP_MODEL before any dynamic import of tools.js, which loads
+  // calculateEmbeddings.js at module-load time and reads the env then.
+  if (cfg.model) process.env.CDS_MCP_MODEL = cfg.model
+
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
     logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
@@ -66,6 +70,7 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const config = {
     capire_version: cfg.capire_version,
+    model: cfg.model,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,

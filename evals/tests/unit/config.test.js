@@ -5,7 +5,7 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
   'EVAL_CONFIG', 'EVAL_K', 'EVAL_RUNS', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
-  'EVAL_CAPIRE_VERSION', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
+  'EVAL_CAPIRE_VERSION', 'EVAL_MODEL', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
   'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
 function clearEnv() {
