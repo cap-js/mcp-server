@@ -4,8 +4,8 @@ import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
 // Snapshot & restore EVAL_* env between tests so overrides don't leak.
 const EVAL_ENV = [
-  'EVAL_CONFIG', 'EVAL_K', 'EVAL_RUNS', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
-  'EVAL_CAPIRE_VERSION', 'EVAL_MODEL', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
+  'EVAL_CONFIG', 'EVAL_K', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
+  'EVAL_CAPIRE_VERSION', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
   'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
 ]
 function clearEnv() {
@@ -34,16 +34,6 @@ describe('config tests', () => {
     const cfg = await loadConfig()
     assert.equal(cfg.k, 10)
     assert.equal(cfg.capire_version, '2026.9.9')
-  })
-
-  test('model defaults to Xenova/all-MiniLM-L6-v2 and is overridable', async () => {
-    clearEnv()
-    // config.json ships the default model; check it loads and env overrides it
-    assert.ok((await loadConfig()).model) // present and non-empty
-    process.env.EVAL_MODEL = 'perplexity-ai/pplx-embed-v1-0.6b'
-    assert.equal((await loadConfig()).model, 'perplexity-ai/pplx-embed-v1-0.6b')
-    const cfg = await loadConfig({ overrides: { model: 'org/other-model' } })
-    assert.equal(cfg.model, 'org/other-model') // override wins
   })
 
   test('label is set via EVAL_LABEL / override (empty by default in code)', async () => {
@@ -95,19 +85,6 @@ describe('config tests', () => {
     assert.equal((await loadConfig()).output.compareFormat, 'html')
     process.env.EVAL_COMPARE_FORMAT = 'md'
     assert.equal((await loadConfig()).output.compareFormat, 'md')
-  })
-
-  test('runs defaults to 1 and is overridable via EVAL_RUNS', async () => {
-    clearEnv()
-    assert.equal((await loadConfig()).runs, 1)
-    process.env.EVAL_RUNS = '5'
-    assert.equal((await loadConfig()).runs, 5)
-  })
-
-  test('rejects invalid runs', async () => {
-    clearEnv()
-    process.env.EVAL_RUNS = '0'
-    await assert.rejects(() => loadConfig(), /runs must be a positive integer/)
   })
 
   test('rejects invalid compareFormat', async () => {

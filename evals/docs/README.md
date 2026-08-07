@@ -44,16 +44,14 @@ evals/
 From the repo root (`@cap-js/mcp-server`):
 
 ```sh
-npm run evals            # run the eval config.runs× (default 1) → appends to result.jsonl, then compares
-EVAL_RUNS=10 npm run evals   # run it 10 times in one go
+npm run evals            # run the eval → appends to result.jsonl, then compares
 npm run evals:compare    # (re)build the comparison report from result.jsonl
 npm run evals:test       # unit + determinism + config tests
 ```
 
-`npm run evals` runs the eval `config.runs` times (each run appended to
+`npm run evals` runs the eval once (each run appended to
 `runs/result.jsonl`) and **always builds the comparison report afterwards**
-(`runs/compare.html`, or `compare.md` when `compareFormat: md`). Use `EVAL_RUNS` to
-run it many times in one invocation. Each run appends one line (its JSON report) to
+(`runs/compare.html`, or `compare.md` when `compareFormat: md`). Each run appends one line (its JSON report) to
 **`runs/result.jsonl`**, which is capped
 to the most recent `output.keepRuns` runs. Every run is compared against the **oldest
 run on file** (the baseline) — the first run has no baseline and becomes the reference.
@@ -100,9 +98,7 @@ so you can edit any of them in one place:
 | config.json key | Env override | Default | Meaning |
 |---|---|---|---|
 | `k` | `EVAL_K` | `5` | Cutoff K for all @K metrics. |
-| `runs` | `EVAL_RUNS` | `1` | How many times `npm run evals` runs the eval (each appended). |
 | `capire_version` | `EVAL_CAPIRE_VERSION` | `2026.5.0` | capire docs version, recorded in the report `config` + console header (provenance only). |
-| `model` | `EVAL_MODEL` | `Xenova/all-MiniLM-L6-v2` | HuggingFace embedding model (also sets `CDS_MCP_MODEL` for the MCP server). Each model is downloaded into its own `models/<org>--<name>/` subdir. |
 | `label` | `EVAL_LABEL` | _(unset)_ | Optional human-readable tag for the run, shown in the console header and comparison reports to tell runs apart (e.g. `EVAL_LABEL="tuned chunker"`). Display-only. |
 | `baselineRunId` | `EVAL_BASELINE_RUN_ID` | _(unset)_ | Pin the baseline to a specific `run_id` (a tagged known-good run). Unset → baseline is the oldest run on file (which slides as runs are pruned). |
 | `paths.goldenSet` | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
@@ -120,11 +116,8 @@ so you can edit any of them in one place:
 # Run with a human-readable label (shows in compare.html leaderboard)
 EVAL_LABEL="my-experiment" npm run evals
 
-# Run multiple times and compare
-EVAL_RUNS=5 npm run evals
-
-# Switch embedding model (re-embeds corpus on first run if dims mismatch)
-EVAL_MODEL=perplexity-ai/pplx-embed-context-v1-0.6b npm run evals
+# Switch embedding model via CDS_MCP_MODEL (set before the eval reads it at module-load)
+CDS_MCP_MODEL=perplexity-ai/pplx-embed-context-v1-0.6b npm run evals
 
 # Point at a different corpus directory
 EVAL_RUNS_DIR=runs-xenova npm run evals

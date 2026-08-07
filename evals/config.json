@@ -1,8 +1,6 @@
 {
   "k": 5,
-  "runs": 1,
   "capire_version": "2026.5.0",
-  "model": "Xenova/all-MiniLM-L6-v2",
   "paths": {
     "goldenSet": "data/golden-set.json",
     "runsDir": "runs"

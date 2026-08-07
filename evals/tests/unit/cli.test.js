@@ -92,31 +92,6 @@ describe('cli tests', () => {
     assert.ok(rows[0].config.label.includes('tuned chunker'))
   })
 
-  test('model is recorded in the report config and sets CDS_MCP_MODEL', async () => {
-    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    const prevModel = process.env.CDS_MCP_MODEL
-    let capturedModel
-    // Inject a retriever factory that captures CDS_MCP_MODEL at call time
-    const capturingRetriever = async () => {
-      capturedModel = process.env.CDS_MCP_MODEL
-      return async () => CHUNK_IDS
-    }
-    await run({
-      overrides: baseOverrides({ model: 'perplexity-ai/pplx-embed-v1-0.6b' }),
-      logger: silentLogger,
-      deps: { loadIndex: fakeLoadIndex(), makeRetriever: capturingRetriever }
-    })
-    // env was set before the retriever was invoked
-    assert.equal(capturedModel, 'perplexity-ai/pplx-embed-v1-0.6b')
-    // model is stored in report and always included in the label
-    const rows = await readResults()
-    assert.equal(rows[0].config.model, 'perplexity-ai/pplx-embed-v1-0.6b')
-    assert.ok(rows[0].config.label.includes('perplexity-ai/pplx-embed-v1-0.6b'))
-    // restore env
-    if (prevModel === undefined) delete process.env.CDS_MCP_MODEL
-    else process.env.CDS_MCP_MODEL = prevModel
-  })
-
   test('run() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
@@ -271,42 +246,27 @@ describe('cli tests', () => {
     assert.deepEqual(entries.sort(), ['runs.jsonl'])
   })
 
-  test('runAll runs the eval config.runs times, then writes compare', async () => {
+  test('runAll runs the eval once and writes compare', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const res = await runAll({
-      overrides: baseOverrides({ runs: 3 }),
+      overrides: baseOverrides(),
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
     assert.equal(res.code, 0)
-    assert.equal(res.runs, 3)
     const rows = await readResults()
-    assert.equal(rows.length, 3) // three runs appended
-    // compare always runs afterwards → compare.html present
-    await fs.access(path.join(runsDir, 'compare.html'))
-  })
-
-  test('runAll defaults to a single run + compare', async () => {
-    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    const res = await runAll({
-      overrides: baseOverrides(), // runs defaults to 1
-      logger: silentLogger,
-      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
-    })
-    assert.equal(res.runs, 1)
-    assert.equal((await readResults()).length, 1)
+    assert.equal(rows.length, 1)
     await fs.access(path.join(runsDir, 'compare.html'))
   })
 
   test('runAll stops on a hard error (missing golden set) and still compares', async () => {
     // No golden set written → run() returns exit 3 (hard error).
     const res = await runAll({
-      overrides: baseOverrides({ runs: 3 }),
+      overrides: baseOverrides(),
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
-    assert.equal(res.code, 3) // hard-error code surfaces
-    // no runs were written (each attempt aborts before append)
+    assert.equal(res.code, 3)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })
 })

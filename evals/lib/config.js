@@ -73,9 +73,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   const cfg = {
     configPath: cfgPath,
     k: envNum('EVAL_K', file.k ?? 5),
-    runs: envNum('EVAL_RUNS', file.runs ?? 1),
     capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
-    model: envStr('EVAL_MODEL', file.model || 'Xenova/all-MiniLM-L6-v2'),
     // Optional human-readable tag to tell runs apart in reports; '' = unset.
     label: envStr('EVAL_LABEL', file.label || ''),
     // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
@@ -104,9 +102,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   // Programmatic overrides (used by tests / embedders) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
-    if (overrides.runs !== undefined) cfg.runs = overrides.runs
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
-    if (overrides.model !== undefined) cfg.model = overrides.model
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
@@ -119,7 +115,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
-  if (!Number.isInteger(cfg.runs) || cfg.runs <= 0) throw new Error(`config: runs must be a positive integer (got ${cfg.runs})`)
   // keepRuns: -1 (keep all) or a positive integer; 0 would wipe the just-appended run.
   const keep = cfg.output.keepRuns
   if (keep !== -1 && (!Number.isInteger(keep) || keep <= 0)) {

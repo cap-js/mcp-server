@@ -22,10 +22,6 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const cfg = await loadConfig({ configPath, overrides })
 
-  // Set CDS_MCP_MODEL before any dynamic import of tools.js, which loads
-  // calculateEmbeddings.js at module-load time and reads the env then.
-  if (cfg.model) process.env.CDS_MCP_MODEL = cfg.model
-
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
     logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
@@ -70,11 +66,10 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 
   const config = {
     capire_version: cfg.capire_version,
-    model: cfg.model,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
-    label: cfg.label ? `${cfg.label} / ${cfg.model}` : cfg.model
+    label: cfg.label
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
@@ -89,21 +84,9 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
 }
 
-// Entry point for `npm run evals`: run the eval `config.runs` times (each
-// appended), then always build the comparison report. Returns the worst exit
-// code across runs so a failure still surfaces.
+// Entry point for `npm run evals`: run the eval once, then build the comparison report.
 export async function runAll({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const cfg = await loadConfig({ configPath, overrides })
-  const n = cfg.runs
-  let worst = 0
-  for (let i = 0; i < n; i++) {
-    if (n > 1) logger.error(`\n--- run ${i + 1} of ${n} ---`)
-    const { code } = await run({ configPath, overrides, logger, deps })
-    worst = Math.max(worst, code)
-    // Stop on a hard error (code ≥ 2); a gated failure (1) is a real result, so
-    // keep going and record all N runs.
-    if (code >= 2) break
-  }
+  const { code } = await run({ configPath, overrides, logger, deps })
 
   // Always compare afterwards; best-effort, doesn't override the eval exit code.
   try {
@@ -113,5 +96,5 @@ export async function runAll({ configPath, overrides, logger = console, deps = {
     logger.error(`(compare step failed: ${err.message})`)
   }
 
-  return { code: worst, runs: n }
+  return { code }
 }

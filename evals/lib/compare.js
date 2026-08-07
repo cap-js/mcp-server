@@ -405,7 +405,7 @@ function renderRunDetails(r, textById, runRanks) {
   return `<details class="run-detail">
   <summary>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
-    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · model ${escHtml(r.config.model || '—')} · K=${r.config.k}</div>
+    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
     <table class="rd-table">
       <thead><tr><th>metric</th><th>value</th><th>rank</th><th>gate</th><th></th></tr></thead>
       <tbody>${aggRows}</tbody>
