@@ -114,32 +114,55 @@ so you can edit any of them in one place:
 
 `EVAL_GATES` is a comma list: `EVAL_GATES='recall_at_k=0.9,mrr=0.7,ndcg_at_k=null'`.
 
-Examples:
+### Useful commands
 
 ```sh
-# Override the capire version label + K
-EVAL_CAPIRE_VERSION="2026.5.0" EVAL_K=10 npm run evals
+# Run with a human-readable label (shows in compare.html leaderboard)
+EVAL_LABEL="my-experiment" npm run evals
 
-# Tighten a gate for a stricter CI check
-EVAL_GATES='mrr=0.8' npm run evals
+# Run multiple times and compare
+EVAL_RUNS=5 npm run evals
 
-# Run against an alternate golden set, keep every run
-EVAL_GOLDEN_SET=data/golden-set-large.json EVAL_KEEP_RUNS=-1 npm run evals
+# Switch embedding model (re-embeds corpus on first run if dims mismatch)
+EVAL_MODEL=perplexity-ai/pplx-embed-context-v1-0.6b npm run evals
+
+# Point at a different corpus directory
+EVAL_RUNS_DIR=runs-xenova npm run evals
+EVAL_RUNS_DIR=runs-pplx  npm run evals
+
+# Build compare.html from any result.jsonl
+node evals/bin/compare.js --runs runs-xenova/result.jsonl
+node evals/bin/compare.js --runs runs-xenova/result.jsonl --out runs-xenova/compare.html
+
+# Tighten or relax gates without editing config.json
+EVAL_GATES='recall_at_k=0.9,mrr=0.7' npm run evals
+EVAL_GATES='recall_at_k=null,mrr=null,hit_rate_at_k=null' npm run evals  # report-only
+
+# Keep every run (no pruning)
+EVAL_KEEP_RUNS=-1 npm run evals
+
+# Pin the baseline to a specific known-good run
+EVAL_BASELINE_RUN_ID=2026-07-30T10:00:00.000Z_abc123 npm run evals
+
+# Change chunk cutoff K (clear runs/ first — K and baseline are coupled)
+EVAL_K=10 npm run evals
+
+# Run against a different golden set
+EVAL_GOLDEN_SET=data/golden-set-large.json npm run evals
+
+# Markdown compare instead of HTML
+EVAL_COMPARE_FORMAT=md npm run evals:compare
 ```
 
-> **K and the baseline are coupled.** Metrics are computed at `k`, and the baseline is
-> the oldest run on file (captured at whatever `k` it ran with). Comparing a run at a
-> different `k` against it produces misleading deltas — start a fresh `result.jsonl`
-> (clear `runs/`) when you change `k` so the oldest run uses the new `k`.
+> **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the
+> baseline is the oldest run on file, so mixing different-K runs produces misleading
+> deltas.
 
-> **The default gates are aspirational, and the current retriever does not fully meet
-> them.** The golden set labels the *canonical* reference/guide page each question should
-> surface, not whatever the retriever happens to return. Against that, `search_docs`
-> currently scores ~Recall 0.65 / MRR 0.60 / Hit-Rate 0.80 — Recall sits below its `0.80`
-> gate — so a fresh `npm run evals` **fails on Recall by design**. That red result is a
-> real, measured quality gap (the retriever is release-notes-biased and misses canonical
-> pages), not a broken harness. Lower the gates only if you consciously choose a lower
-> floor; raising retrieval quality is the intended way to turn this green.
+> **The default gates are aspirational.** The golden set labels canonical reference pages;
+> the retriever is release-notes-biased and currently scores ~Recall 0.65 / MRR 0.60 /
+> Hit-Rate 0.80, so `npm run evals` **fails on Recall by design**. This is a real quality
+> gap, not a broken harness. Raise retrieval quality (or lower the gates consciously) to
+> turn it green.
 
 ## Outputs
 
