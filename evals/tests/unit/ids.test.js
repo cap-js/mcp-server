@@ -35,6 +35,15 @@ describe('ids tests', () => {
     assert.equal(parseId('X > Source: https://x/y#z\nbody'), 'https://x/y#z')
   })
 
+  test('parseId finds Source: URL in the body when not on the first line', () => {
+    // LLM-generated or longer chunks may have the Source: URL anywhere
+    const chunk = 'CAP Security > Data Privacy\nsome long description\n> Source: https://cap.cloud.sap/docs/guides/security/#data-privacy\nmore body'
+    assert.equal(parseId(chunk), 'https://cap.cloud.sap/docs/guides/security/#data-privacy')
+    // Markdown heading style
+    const chunk2 = 'Heading\nbody\n# Source: /docs/guides/deploy#section\nmore'
+    assert.equal(parseId(chunk2), '/docs/guides/deploy#section')
+  })
+
   test('buildIdMap returns distinct ids + a Set, collapsing same-url chunks', () => {
     const chunks = [
       'Alpha > Source: https://x/a#alpha\nbody 1',

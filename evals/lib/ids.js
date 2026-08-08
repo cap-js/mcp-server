@@ -1,6 +1,6 @@
-// Doc identity for eval ground truth: the `Source:` URL from a chunk's first
-// line (which already carries the #section anchor). Pure string parsing,
-// re-index-stable — only result RANK comes from embeddings.
+// Doc identity for eval ground truth: the `Source:` URL from a chunk (first
+// line preferred, but also searched in the body for longer chunks). Pure string
+// parsing, re-index-stable — only result RANK comes from embeddings.
 //   "Getting Started > Initial Setup > Source: https://cap.cloud.sap/docs/get-started/#initial-setup"
 // Chunks without a Source: URL fall back to a synthetic capire:// URL derived
 // from the breadcrumb text, so they remain retrievable.
@@ -9,15 +9,21 @@ function slugify(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 }
 
-// The Source: URL from a chunk's first line, or a synthetic capire:// URL
-// derived from the breadcrumb when no Source: is present.
+// The Source: URL from a chunk — first line is checked first, then the body
+// for longer chunks where the URL may appear later (e.g. LLM-generated chunks).
+// Falls back to a synthetic capire:// URL derived from the breadcrumb text.
 export function parseId(text) {
-  const first = (text || '').split('\n')[0] || ''
-  const m = first.match(/Source:\s*(\S+)/i)
-  if (m) return m[1]
-  // Fallback: synthesize a stable id from the breadcrumb text before Source:
-  // (or the whole first line if there is no Source: marker).
-  const crumb = first.split(/Source:/i)[0].trim() || first.trim()
+  const lines = (text || '').split('\n')
+  // Prefer first-line Source: (fast path for normal chunks)
+  const firstMatch = lines[0].match(/Source:\s*(\S+)/i)
+  if (firstMatch) return firstMatch[1]
+  // Search the rest of the body for a Source: URL (handles longer chunks)
+  for (let i = 1; i < lines.length; i++) {
+    const m = lines[i].match(/Source:\s*(\S+)/i)
+    if (m) return m[1]
+  }
+  // Fallback: synthesize a stable id from the breadcrumb text on the first line.
+  const crumb = lines[0].split(/Source:/i)[0].trim() || lines[0].trim()
   const slug = slugify(crumb)
   return slug ? `capire://generated/${slug}` : null
 }
