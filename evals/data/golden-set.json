@@ -84,6 +84,14 @@
         "https://cap.cloud.sap/docs/node.js/authentication#xsuaa",
         "https://cap.cloud.sap/docs/guides/security/remote-authentication#ias-app-2-app"
       ]
+    },
+    {
+      "id": "capire-11",
+      "question": "How do I configure destinations for connectivity between services in a multitenant CAP application deployment?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/services/consuming-services#using-destinations",
+        "https://cap.cloud.sap/docs/guides/multitenancy/#valuesyaml"
+      ]
     }
   ]
 }
