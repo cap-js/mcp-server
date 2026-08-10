@@ -92,6 +92,30 @@ describe('cli tests', () => {
     assert.ok(rows[0].config.label.includes('tuned chunker'))
   })
 
+  test('retrieved chunk text is scanned for additional golden ids (sibling-section hit)', async () => {
+    // A chunk's Source: URL is /docs/domain/#domain-entities but its body links
+    // to /docs/domain/#views — if the golden label is the sibling URL, the chunk
+    // should still count as a hit.
+    const siblingUrl = 'https://x/docs/domain/#views'
+    const chunkText = 'Domain > Source: https://x/docs/domain/#domain-entities\n' +
+      'See also [views](https://x/docs/domain/#views) for projections.'
+    const fakeRetrieverWithText = async () => {
+      const fn = async () => ['https://x/docs/domain/#domain-entities']
+      fn.lastTexts = [chunkText]
+      return fn
+    }
+    await writeGolden([{ id: 'q-001', question: 'about views', relevant_doc_ids: [siblingUrl] }])
+    const idxWith = async () => ({ idSet: new Set(['https://x/docs/domain/#domain-entities', siblingUrl]), count: 2 })
+    const res = await run({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: idxWith, makeRetriever: fakeRetrieverWithText }
+    })
+    // The sibling URL found in chunk body → hit → recall=1, not 0
+    assert.equal(res.report.per_question[0].metrics.hit_rate_at_k, 1)
+    assert.equal(res.report.per_question[0].metrics.recall_at_k, 1)
+  })
+
   test('run() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }

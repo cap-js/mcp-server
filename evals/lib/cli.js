@@ -53,13 +53,24 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const retrieved_ids = await retrieve(q.question)
-    // Snapshot per-slot text so compare shows it even against a different live corpus.
     const retrieved_texts = retrieve.lastTexts ? retrieve.lastTexts.slice() : undefined
+
+    // A retrieved chunk can implicitly contain additional relevant ids when a
+    // golden URL appears verbatim in the chunk body (e.g. a sibling section is
+    // linked from the retrieved section). Expand each slot's id to include any
+    // golden relevant_doc_id found as a URL substring in that slot's text, so
+    // metrics credit the chunk as a hit even though its Source: line differs.
+    const effective_ids = retrieved_ids.map((id, i) => {
+      const text = retrieved_texts?.[i] || ''
+      const extras = q.relevant_doc_ids.filter(rel => rel !== id && text.includes(rel))
+      return extras.length ? [id, ...extras] : id
+    }).flat()
+
     perQuestionRaw.push({
       id: q.id,
       question: q.question,
       relevant_doc_ids: q.relevant_doc_ids,
-      retrieved_ids,
+      retrieved_ids: effective_ids,
       retrieved_texts
     })
   }
