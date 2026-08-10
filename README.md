@@ -24,6 +24,7 @@ The server helps AI models answer questions such as:
   - [Usage in VS Code](#usage-in-vs-code)
   - [Usage in Claude Code](#usage-in-claude-code)
   - [Usage in opencode](#usage-in-opencode)
+  - [Usage in Codex](#usage-in-codex)
   - [CLI Usage](#cli-usage)
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
@@ -100,6 +101,13 @@ Example for [opencode](https://github.com/sst/opencode):
     }
   }
 }
+```
+
+### Usage in Codex
+
+Example for [OpenAI Codex](https://openai.com/codex):
+```sh
+codex mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
 ### Rules
