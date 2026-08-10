@@ -87,10 +87,10 @@
     },
     {
       "id": "capire-11",
-      "question": "How do I configure destinations for connectivity between services in a multitenant CAP application deployment?",
+      "question": "How does cds watch react when I save a domain model and what is the inner development loop in CAP?",
       "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/services/consuming-services#using-destinations",
-        "https://cap.cloud.sap/docs/guides/multitenancy/#valuesyaml"
+        "https://cap.cloud.sap/docs/get-started/bookshop#databases",
+        "https://cap.cloud.sap/docs/get-started/bookshop#inner-loop"
       ]
     }
   ]
