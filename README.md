@@ -23,7 +23,7 @@ The server helps AI models answer questions such as:
 - [Setup](#setup)
   - [Usage in VS Code](#usage-in-vs-code)
   - [Usage in Claude Code](#usage-in-claude-code)
-  - [Usage in Codex](#usage-in-codex)
+  - [Usage in OpenAI Codex](#usage-in-openai-codex)
   - [Usage in opencode](#usage-in-opencode)
   - [CLI Usage](#cli-usage)
 - [Available Tools](#available-tools)
@@ -88,7 +88,7 @@ Register the server with [Claude Code](https://claude.com/claude-code):
 claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
-### Usage in Codex
+### Usage in OpenAI Codex
 
 Register the server with [OpenAI Codex](https://openai.com/codex):
 
