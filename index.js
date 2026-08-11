@@ -21,6 +21,8 @@ Options:
 
 Environment variables:
   CDS_MCP_OFFLINE=true       Same as --offline
+  CDS_MCP_MODEL=<org/name>   HuggingFace model to use for embeddings
+                             (default: perplexity-ai/pplx-embed-context-v1-0.6b)
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
