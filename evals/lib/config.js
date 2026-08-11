@@ -15,52 +15,24 @@ export const METRIC_LABEL = {
   ndcg_at_k: 'nDCG'
 }
 
-function envNum(name, fallback) {
-  const v = process.env[name]
-  if (v === undefined || v === '') return fallback
-  const n = Number(v)
-  if (!Number.isFinite(n)) throw new Error(`Env ${name}="${v}" is not a number`)
-  return n
-}
-
 function envStr(name, fallback) {
   const v = process.env[name]
   return v === undefined || v === '' ? fallback : v
 }
 
-// Parse a per-metric gate override like "recall_at_k=0.85,mrr=0.7,ndcg_at_k=null"
-function parseGateOverrides(str) {
-  const out = {}
-  for (const pair of str.split(',')) {
-    const [k, v] = pair.split('=').map(s => s && s.trim())
-    if (!k) continue
-    if (!METRIC_KEYS.includes(k)) throw new Error(`EVAL_GATES: unknown metric "${k}"`)
-    if (v === 'null') {
-      out[k] = null
-    } else if (!v) {
-      throw new Error(`EVAL_GATES: missing value for "${k}" (expected a number or "null")`)
-    } else {
-      const num = Number(v)
-      if (Number.isNaN(num)) throw new Error(`EVAL_GATES: invalid value for "${k}": "${v}" (expected a number or "null")`)
-      out[k] = num
-    }
-  }
-  return out
-}
-
 // Load and resolve the effective configuration.
-// Precedence: env vars > config.json > built-in defaults.
+// Everything lives in config.json. Two env vars are honoured for day-to-day
+// runs — EVAL_LABEL (tag a run) and EVAL_RUNS_DIR (point at another corpus'
+// results) — plus programmatic overrides used by tests and bin/compare.js.
 export async function loadConfig({ configPath, overrides } = {}) {
-  const cfgPath = configPath
-    ? path.resolve(configPath)
-    : envStr('EVAL_CONFIG', path.join(EVALS_DIR, 'config.json'))
+  const cfgPath = configPath ? path.resolve(configPath) : path.join(EVALS_DIR, 'config.json')
 
   let file = {}
   try {
     file = JSON.parse(await fs.readFile(cfgPath, 'utf8'))
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
-    // No config.json → pure defaults + env.
+    // No config.json → pure defaults.
   }
 
   const paths = file.paths || {}
@@ -72,39 +44,36 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
   const cfg = {
     configPath: cfgPath,
-    k: envNum('EVAL_K', file.k ?? 5),
-    capire_version: envStr('EVAL_CAPIRE_VERSION', file.capire_version || 'unknown'),
+    k: file.k ?? 5,
+    capire_version: file.capire_version || 'unknown',
     // Optional human-readable tag to tell runs apart in reports; '' = unset.
     label: envStr('EVAL_LABEL', file.label || ''),
     // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
-    baselineRunId: envStr('EVAL_BASELINE_RUN_ID', file.baselineRunId || null),
+    baselineRunId: file.baselineRunId || null,
     paths: {
-      goldenSet: resolve(envStr('EVAL_GOLDEN_SET', paths.goldenSet || 'data/golden-set.json')),
+      goldenSet: resolve(paths.goldenSet || 'data/golden-set.json'),
       runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs'))
     },
     gates: {},
     output: {
-      keepRuns: envNum('EVAL_KEEP_RUNS', output.keepRuns ?? 20),
-      resultsName: envStr('EVAL_RESULTS_NAME', output.resultsName || 'result.jsonl'),
-      compareFormat: envStr('EVAL_COMPARE_FORMAT', output.compareFormat || 'html')
+      keepRuns: output.keepRuns ?? 20,
+      resultsName: output.resultsName || 'result.jsonl',
+      compareFormat: output.compareFormat || 'html'
     }
   }
 
-  // Gates: start from file, apply EVAL_GATES override string, ensure all keys present.
+  // Gates: file value if present, else default (0 for gated metrics, null otherwise).
   for (const key of METRIC_KEYS) {
     cfg.gates[key] = key in gatesFile ? gatesFile[key] : GATED_KEYS.includes(key) ? 0 : null
   }
-  if (process.env.EVAL_GATES) {
-    Object.assign(cfg.gates, parseGateOverrides(process.env.EVAL_GATES))
-  }
-  if (overrides?.gates) Object.assign(cfg.gates, overrides.gates)
 
-  // Programmatic overrides (used by tests / embedders) win last.
+  // Programmatic overrides (used by tests / bin/compare.js) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
+    if (overrides.gates) Object.assign(cfg.gates, overrides.gates)
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
   }
@@ -123,8 +92,6 @@ function validateConfig(cfg) {
   if (!['html', 'md'].includes(cfg.output.compareFormat)) {
     throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
   }
-  // Validate every gate that's set, not just the gated-by-default ones —
-  // EVAL_GATES / overrides can set any metric.
   for (const key of METRIC_KEYS) {
     const g = cfg.gates[key]
     if (g !== null && (typeof g !== 'number' || Number.isNaN(g) || g < 0 || g > 1)) {

@@ -1,8 +1,8 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig } from './config.js'
-import { loadIndex, makeDefaultRetriever } from './retriever.js'
-import { preflight, validateGolden, buildReport, makeRunId } from './runner.js'
+import { loadIndex, makeSearchDocsRunner } from './search-docs.js'
+import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
@@ -16,9 +16,9 @@ async function readJsonOrNull(p) {
 
 // `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function run({ configPath, overrides, logger = console, deps = {} } = {}) {
+export async function evaluate({ configPath, overrides, logger = console, deps = {} } = {}) {
   const loadIndexFn = deps.loadIndex || loadIndex
-  const makeRetrieverFn = deps.makeRetriever || makeDefaultRetriever
+  const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
   const cfg = await loadConfig({ configPath, overrides })
 
@@ -96,8 +96,8 @@ export async function run({ configPath, overrides, logger = console, deps = {} }
 }
 
 // Entry point for `npm run evals`: run the eval once, then build the comparison report.
-export async function runAll({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const { code } = await run({ configPath, overrides, logger, deps })
+export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
+  const { code } = await evaluate({ configPath, overrides, logger, deps })
 
   // Always compare afterwards; best-effort, doesn't override the eval exit code.
   try {

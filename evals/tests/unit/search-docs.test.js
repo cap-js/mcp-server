@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { loadIndex, loadChunkText, makeDefaultRetriever } from '../../lib/retriever.js'
+import { loadIndex, loadChunkText, makeSearchDocsRunner } from '../../lib/search-docs.js'
 
 // A fixture corpus: two real sections + a breadcrumb-only chunk (no Source: URL).
 // With the capire:// fallback, the breadcrumb-only chunk gets its own stable id.
@@ -17,7 +17,7 @@ const CORPUS = {
   ]
 }
 
-describe('retriever tests', () => {
+describe('search-docs tests', () => {
   let tmpDir, corpusPath
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-retriever-'))
@@ -49,14 +49,14 @@ describe('retriever tests', () => {
     await assert.rejects(() => loadIndex(path.join(tmpDir, 'nope.json')), /ENOENT|Corrupt/)
   })
 
-  test('makeDefaultRetriever resolves search_docs output to corpus-consistent ids', async () => {
+  test('makeSearchDocsRunner resolves search_docs output to corpus-consistent ids', async () => {
     const searchDocs = {
       handler: async ({ maxResults }) => {
         assert.equal(maxResults, 5)
         return `${CORPUS.chunks[0]}\n---\n${CORPUS.chunks[1]}`
       }
     }
-    const retrieve = await makeDefaultRetriever(5, { searchDocs, corpusPath })
+    const retrieve = await makeSearchDocsRunner(5, { searchDocs, corpusPath })
     assert.deepEqual(await retrieve('q'), ['https://x/setup#a', 'https://x/cdl#b'])
     assert.deepEqual(retrieve.lastTexts, [CORPUS.chunks[0], CORPUS.chunks[1]])
   })
@@ -64,7 +64,7 @@ describe('retriever tests', () => {
   test('retriever resolves a breadcrumb-only chunk to its capire:// corpus id', async () => {
     // search_docs returns the breadcrumb-only chunk after a real section.
     const searchDocs = { handler: async () => `${CORPUS.chunks[0]}\n---\nmore cdl detail` }
-    const retrieve = await makeDefaultRetriever(5, { searchDocs, corpusPath })
+    const retrieve = await makeSearchDocsRunner(5, { searchDocs, corpusPath })
     // 'more cdl detail' text-matches CORPUS.chunks[2] → its capire:// corpus id.
     const ids = await retrieve('q')
     assert.equal(ids[0], 'https://x/setup#a')
@@ -73,7 +73,7 @@ describe('retriever tests', () => {
 
   test('retriever returns [] when search_docs returns nothing', async () => {
     const searchDocs = { handler: async () => '' }
-    const retrieve = await makeDefaultRetriever(5, { searchDocs, corpusPath })
+    const retrieve = await makeSearchDocsRunner(5, { searchDocs, corpusPath })
     assert.deepEqual(await retrieve('q'), [])
   })
 
@@ -103,8 +103,8 @@ describe('retriever tests', () => {
     const sdA = { handler: async () => `${corpusA.chunks[0]}\n---\n${contA}` }
     const sdB = { handler: async () => `${corpusB.chunks[0]}\n---\n${contB}` }
 
-    const retrieveA = await makeDefaultRetriever(5, { searchDocs: sdA, corpusPath: pathA })
-    const retrieveB = await makeDefaultRetriever(5, { searchDocs: sdB, corpusPath: pathB })
+    const retrieveA = await makeSearchDocsRunner(5, { searchDocs: sdA, corpusPath: pathA })
+    const retrieveB = await makeSearchDocsRunner(5, { searchDocs: sdB, corpusPath: pathB })
 
     const idsA = await retrieveA('q')
     const idsB = await retrieveB('q')

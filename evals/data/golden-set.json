@@ -15,7 +15,7 @@
       "id": "capire-2",
       "question": "How to model relationships between entities in cds files?",
       "relevant_doc_ids": [
-        "/docs/guides/domain/#associations",
+        "/docs/guides/domain#associations",
         "/docs/cds/cdl#associations"
       ]
     },

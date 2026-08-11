@@ -6,7 +6,7 @@ import {
   preflight,
   validateGolden,
   makeRunId
-} from '../../lib/runner.js'
+} from '../../lib/report.js'
 
 const GATES = {
   recall_at_k: 0.8,

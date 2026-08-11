@@ -2,7 +2,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
-import { loadChunkText } from './retriever.js'
+import { loadChunkText } from './search-docs.js'
 import { round } from './metrics.js'
 
 // Markdown can't be searched/lazy-loaded, so its per-question tables are capped

@@ -15,17 +15,17 @@ and the determinism guarantees.
 evals/
   config.json          # single source of all config (committed) — see "Configuration"
   bin/                 # thin CLI entry files invoked by the npm scripts
-    eval.js            #   `npm run evals`         → runAll()
+    eval.js            #   `npm run evals`         → evaluateAndCompare()
     compare.js         #   `npm run evals:compare` → compare()
   lib/                 # implementation (imported by bin/ and the tests)
     config.js          #   config loader (config.json + EVAL_* env overrides)
-    cli.js             #   run(): orchestration — load → preflight → retrieve → score → append
+    evaluate.js        #   evaluate(): orchestration — load → preflight → retrieve → score → append
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
-    runner.js          #   pure core: buildReport, diagnose, worstQuestions, console render
+    report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
     ids.js             #   parse doc id (the Source: URL) from a chunk's first line
-    retriever.js       #   index loader + default retriever (real search_docs path); pluggable
+    search-docs.js     #   index loader + adapter for the search_docs tool under test; pluggable
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
   docs/
@@ -61,7 +61,7 @@ weakest questions; `evals:compare` charts all runs. There is no per-run folder a
 ### Compare runs (`evals:compare`)
 
 Reads every run in `runs/result.jsonl`, ordered chronologically by run_id, and writes a
-comparison report whose format is set by `output.compareFormat` (`EVAL_COMPARE_FORMAT`):
+comparison report whose format is set by `output.compareFormat` in `config.json`:
 
 - **`html`** (default) → `runs/compare.html`: one line chart per metric (Recall@K,
   Precision@K, MRR, Hit-Rate@K, nDCG@K) plotting its aggregate value across all runs (gate
@@ -74,8 +74,7 @@ comparison report whose format is set by `output.compareFormat` (`EVAL_COMPARE_F
   per-run drill-down section each with aggregate + per-question tables.
 
 ```sh
-npm run evals:compare                        # html (default)
-EVAL_COMPARE_FORMAT=md npm run evals:compare  # markdown
+npm run evals:compare   # format from config.json (html default; set output.compareFormat: "md" for markdown)
 ```
 
 It reads only `result.jsonl` — running it never triggers an eval.
@@ -88,27 +87,25 @@ determinism). So the cache (`embeddings/code-chunks.*` and the ONNX model under
 
 ## Configuration
 
-All behaviour is driven by [`config.json`](../config.json); every value is overridable
-by an `EVAL_*` environment variable (env wins over file), and both are overridable
-programmatically via `run({ overrides })` in `lib/cli.js` (overrides win last).
+All behaviour lives in [`config.json`](../config.json) — edit it in one place. Two
+env vars are honoured for day-to-day runs, and everything is also overridable
+programmatically via `evaluate({ overrides })` in `lib/evaluate.js` (overrides win last).
 
-`config.json` holds the full set of knobs — every field is present with its default,
-so you can edit any of them in one place:
+| `config.json` key | Default | Meaning |
+|---|---|---|
+| `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
+| `capire_version` | `2026.5.0` | capire docs version, recorded in the report for provenance. |
+| `label` | _(unset)_ | Human-readable tag shown in reports to tell runs apart. Also settable via `EVAL_LABEL`. Display-only. |
+| `baselineRunId` | _(unset)_ | Pin the baseline to a specific `run_id`. Unset → baseline is the oldest run on file. |
+| `paths.goldenSet` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
+| `paths.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
+| `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
+| `output.keepRuns` | `20` (file ships `100`) | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
+| `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
+| `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
-| config.json key | Env override | Default | Meaning |
-|---|---|---|---|
-| `k` | `EVAL_K` | `5` | Cutoff K for all @K metrics. |
-| `capire_version` | `EVAL_CAPIRE_VERSION` | `2026.5.0` | capire docs version, recorded in the report `config` + console header (provenance only). |
-| `label` | `EVAL_LABEL` | _(unset)_ | Optional human-readable tag for the run, shown in the console header and comparison reports to tell runs apart (e.g. `EVAL_LABEL="tuned chunker"`). Display-only. |
-| `baselineRunId` | `EVAL_BASELINE_RUN_ID` | _(unset)_ | Pin the baseline to a specific `run_id` (a tagged known-good run). Unset → baseline is the oldest run on file (which slides as runs are pruned). |
-| `paths.goldenSet` | `EVAL_GOLDEN_SET` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
-| `paths.runsDir` | `EVAL_RUNS_DIR` | `runs` | Directory for run output. |
-| `gates.<metric>` | `EVAL_GATES` | see file | Per-metric gate threshold (number) or `null` (reported only). |
-| `output.keepRuns` | `EVAL_KEEP_RUNS` | `20` (code default; `config.json` ships `100`) | Max runs to keep in `result.jsonl` — `-1` = all, otherwise a positive integer. |
-| `output.resultsName` | `EVAL_RESULTS_NAME` | `result.jsonl` | Name of the append-only results file. |
-| `output.compareFormat` | `EVAL_COMPARE_FORMAT` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
-
-`EVAL_GATES` is a comma list: `EVAL_GATES='recall_at_k=0.9,mrr=0.7,ndcg_at_k=null'`.
+Only `EVAL_LABEL` and `EVAL_RUNS_DIR` are read from the environment (they're what
+multi-corpus experiments vary run-to-run). Everything else is edited in `config.json`.
 
 ### Useful commands
 
@@ -116,36 +113,15 @@ so you can edit any of them in one place:
 # Run with a human-readable label (shows in compare.html leaderboard)
 EVAL_LABEL="my-experiment" npm run evals
 
-# Switch embedding model via CDS_MCP_MODEL (set before the eval reads it at module-load)
-CDS_MCP_MODEL=perplexity-ai/pplx-embed-context-v1-0.6b npm run evals
-
-# Point at a different corpus directory
+# Point at a different corpus' results directory
 EVAL_RUNS_DIR=runs-xenova npm run evals
 EVAL_RUNS_DIR=runs-pplx  npm run evals
 
 # Build compare.html from any result.jsonl
 node evals/bin/compare.js --runs runs-xenova/result.jsonl
 node evals/bin/compare.js --runs runs-xenova/result.jsonl --out runs-xenova/compare.html
-
-# Tighten or relax gates without editing config.json
-EVAL_GATES='recall_at_k=0.9,mrr=0.7' npm run evals
-EVAL_GATES='recall_at_k=null,mrr=null,hit_rate_at_k=null' npm run evals  # report-only
-
-# Keep every run (no pruning)
-EVAL_KEEP_RUNS=-1 npm run evals
-
-# Pin the baseline to a specific known-good run
-EVAL_BASELINE_RUN_ID=2026-07-30T10:00:00.000Z_abc123 npm run evals
-
-# Change chunk cutoff K (clear runs/ first — K and baseline are coupled)
-EVAL_K=10 npm run evals
-
-# Run against a different golden set
-EVAL_GOLDEN_SET=data/golden-set-large.json npm run evals
-
-# Markdown compare instead of HTML
-EVAL_COMPARE_FORMAT=md npm run evals:compare
 ```
+
 
 > **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the
 > baseline is the oldest run on file, so mixing different-K runs produces misleading

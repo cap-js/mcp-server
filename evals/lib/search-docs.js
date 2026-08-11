@@ -31,7 +31,7 @@ export async function loadChunkText(corpusPath) {
 // internals. `deps` ({ searchDocs, corpusPath }) is a test seam. Splits the
 // '\n---\n'-joined output into per-slot ids (no dedup) resolved corpus-consistent;
 // `retrieve.lastTexts` holds each slot's raw text (aligned with ids) for snapshots.
-export async function makeDefaultRetriever(k, deps = {}) {
+export async function makeSearchDocsRunner(k, deps = {}) {
   const searchDocs = deps.searchDocs || (await import('../../lib/tools.js')).default.search_docs
   const corpus = await readCorpus(deps.corpusPath)
   const retrieve = async function (question) {

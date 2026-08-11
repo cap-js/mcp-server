@@ -2,12 +2,8 @@ import { test, describe, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
-// Snapshot & restore EVAL_* env between tests so overrides don't leak.
-const EVAL_ENV = [
-  'EVAL_CONFIG', 'EVAL_K', 'EVAL_GOLDEN_SET', 'EVAL_RUNS_DIR',
-  'EVAL_CAPIRE_VERSION', 'EVAL_LABEL', 'EVAL_BASELINE_RUN_ID', 'EVAL_GATES',
-  'EVAL_KEEP_RUNS', 'EVAL_RESULTS_NAME', 'EVAL_COMPARE_FORMAT'
-]
+// Snapshot & restore the two honoured env vars between tests so overrides don't leak.
+const EVAL_ENV = ['EVAL_LABEL', 'EVAL_RUNS_DIR']
 function clearEnv() {
   for (const k of EVAL_ENV) delete process.env[k]
 }
@@ -27,15 +23,6 @@ describe('config tests', () => {
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
 
-  test('env vars override config.json', async () => {
-    clearEnv()
-    process.env.EVAL_K = '10'
-    process.env.EVAL_CAPIRE_VERSION = '2026.9.9'
-    const cfg = await loadConfig()
-    assert.equal(cfg.k, 10)
-    assert.equal(cfg.capire_version, '2026.9.9')
-  })
-
   test('label is set via EVAL_LABEL / override (empty by default in code)', async () => {
     clearEnv()
     // Code default is '' (config.json may set its own value, so don't assume '').
@@ -46,112 +33,68 @@ describe('config tests', () => {
     assert.equal(cfg.label, 'baseline v1') // override wins over env
   })
 
-  test('EVAL_GATES string overrides individual gates', async () => {
+  test('EVAL_RUNS_DIR points at another corpus\' results (absolute respected)', async () => {
     clearEnv()
-    process.env.EVAL_GATES = 'recall_at_k=0.9,mrr=0.7,ndcg_at_k=0.6'
-    const cfg = await loadConfig()
-    assert.equal(cfg.gates.recall_at_k, 0.9)
-    assert.equal(cfg.gates.mrr, 0.7)
-    assert.equal(cfg.gates.ndcg_at_k, 0.6) // was null, now gated
-    assert.equal(cfg.gates.hit_rate_at_k, 0.8) // untouched from file
-  })
-
-  test('EVAL_GATES supports null to un-gate', async () => {
-    clearEnv()
-    process.env.EVAL_GATES = 'mrr=null'
-    const cfg = await loadConfig()
-    assert.equal(cfg.gates.mrr, null)
+    process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'
+    assert.equal((await loadConfig()).paths.runsDir, '/tmp/eval-runs-abs')
   })
 
   test('programmatic overrides win last', async () => {
     clearEnv()
-    process.env.EVAL_K = '7'
-    const cfg = await loadConfig({ overrides: { k: 3, gates: { recall_at_k: 0.99 } } })
-    assert.equal(cfg.k, 3) // override beats env
+    const cfg = await loadConfig({ overrides: { k: 3, gates: { recall_at_k: 0.99 }, output: { keepRuns: 3, compareFormat: 'md' } } })
+    assert.equal(cfg.k, 3)
     assert.equal(cfg.gates.recall_at_k, 0.99)
-  })
-
-  test('output hygiene knobs are configurable', async () => {
-    clearEnv()
-    process.env.EVAL_KEEP_RUNS = '3'
-    process.env.EVAL_RESULTS_NAME = 'runs.jsonl'
-    const cfg = await loadConfig()
     assert.equal(cfg.output.keepRuns, 3)
-    assert.equal(cfg.output.resultsName, 'runs.jsonl')
+    assert.equal(cfg.output.compareFormat, 'md')
   })
 
-  test('compareFormat defaults to html and is overridable to md', async () => {
+  test('compareFormat defaults to html', async () => {
     clearEnv()
     assert.equal((await loadConfig()).output.compareFormat, 'html')
-    process.env.EVAL_COMPARE_FORMAT = 'md'
-    assert.equal((await loadConfig()).output.compareFormat, 'md')
   })
 
   test('rejects invalid compareFormat', async () => {
     clearEnv()
-    process.env.EVAL_COMPARE_FORMAT = 'pdf'
-    await assert.rejects(() => loadConfig(), /compareFormat must be "html" or "md"/)
+    await assert.rejects(
+      () => loadConfig({ overrides: { output: { compareFormat: 'pdf' } } }),
+      /compareFormat must be "html" or "md"/
+    )
   })
 
   test('rejects invalid k', async () => {
     clearEnv()
-    process.env.EVAL_K = '0'
-    await assert.rejects(() => loadConfig(), /k must be a positive integer/)
+    await assert.rejects(() => loadConfig({ overrides: { k: 0 } }), /k must be a positive integer/)
   })
 
   test('rejects out-of-range gate', async () => {
     clearEnv()
-    process.env.EVAL_GATES = 'recall_at_k=1.5'
-    await assert.rejects(() => loadConfig(), /must be null or a number in \[0,1\]/)
-  })
-
-  test('rejects unknown gate metric', async () => {
-    clearEnv()
-    process.env.EVAL_GATES = 'bogus_metric=0.5'
-    await assert.rejects(() => loadConfig(), /unknown metric/)
-  })
-
-  test('rejects a non-numeric gate value (no silent NaN)', async () => {
-    clearEnv()
-    process.env.EVAL_GATES = 'mrr=abc'
-    await assert.rejects(() => loadConfig(), /invalid value for "mrr"/)
-  })
-
-  test('rejects an empty gate value (no silent 0)', async () => {
-    clearEnv()
-    process.env.EVAL_GATES = 'mrr='
-    await assert.rejects(() => loadConfig(), /missing value for "mrr"/)
-  })
-
-  test('rejects keepRuns = 0 (would wipe the just-appended run)', async () => {
-    clearEnv()
-    process.env.EVAL_KEEP_RUNS = '0'
-    await assert.rejects(() => loadConfig(), /keepRuns must be -1 .* or a positive integer/)
-  })
-
-  test('rejects fractional keepRuns', async () => {
-    clearEnv()
-    process.env.EVAL_KEEP_RUNS = '1.5'
-    await assert.rejects(() => loadConfig(), /keepRuns must be -1/)
-  })
-
-  test('accepts keepRuns = -1 (keep all)', async () => {
-    clearEnv()
-    process.env.EVAL_KEEP_RUNS = '-1'
-    const cfg = await loadConfig()
-    assert.equal(cfg.output.keepRuns, -1)
+    await assert.rejects(
+      () => loadConfig({ overrides: { gates: { recall_at_k: 1.5 } } }),
+      /must be null or a number in \[0,1\]/
+    )
   })
 
   test('validates gates on non-default metrics too (precision_at_k)', async () => {
     clearEnv()
-    process.env.EVAL_GATES = 'precision_at_k=1.5'
-    await assert.rejects(() => loadConfig(), /gate precision_at_k must be null or a number in \[0,1\]/)
+    await assert.rejects(
+      () => loadConfig({ overrides: { gates: { precision_at_k: 1.5 } } }),
+      /gate precision_at_k must be null or a number in \[0,1\]/
+    )
   })
 
-  test('absolute EVAL_RUNS_DIR is respected', async () => {
+  test('rejects keepRuns = 0 (would wipe the just-appended run)', async () => {
     clearEnv()
-    process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'
-    const cfg = await loadConfig()
-    assert.equal(cfg.paths.runsDir, '/tmp/eval-runs-abs')
+    await assert.rejects(() => loadConfig({ overrides: { output: { keepRuns: 0 } } }), /keepRuns must be -1 .* or a positive integer/)
+  })
+
+  test('rejects fractional keepRuns', async () => {
+    clearEnv()
+    await assert.rejects(() => loadConfig({ overrides: { output: { keepRuns: 1.5 } } }), /keepRuns must be -1/)
+  })
+
+  test('accepts keepRuns = -1 (keep all)', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { output: { keepRuns: -1 } } })
+    assert.equal(cfg.output.keepRuns, -1)
   })
 })
