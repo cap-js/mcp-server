@@ -5,15 +5,16 @@ import path from 'path'
 import os from 'os'
 import { loadIndex, loadChunkText, makeSearchDocsRunner } from '../../lib/search-docs.js'
 
-// A fixture corpus: two real sections + a breadcrumb-only chunk (no Source: URL).
-// With the capire:// fallback, the breadcrumb-only chunk gets its own stable id.
+// A fixture corpus: two real sections + a chunk with no first-line Source: URL.
+// A URL-less chunk has no id and is dropped (not scored) — the eval scores the
+// tool's real output against correctly-formatted input, it does not invent ids.
 const CORPUS = {
   dim: 3,
   count: 3,
   chunks: [
     'Getting Started > Setup > Source: https://x/setup#a\nsetup body',
     'CDS > CDL > Source: https://x/cdl#b\ncdl body',
-    'more cdl detail' // breadcrumb-only → capire://generated/more-cdl-detail
+    'more cdl detail' // no Source: URL → dropped
   ]
 }
 
@@ -28,19 +29,17 @@ describe('search-docs tests', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  test('loadIndex parses distinct ids + count from the corpus', async () => {
+  test('loadIndex parses distinct ids + count from the corpus (URL-less dropped)', async () => {
     const idx = await loadIndex(corpusPath)
-    assert.equal(idx.count, 3)
-    assert.equal(idx.ids[0], 'https://x/setup#a')
-    assert.equal(idx.ids[1], 'https://x/cdl#b')
-    assert.ok(idx.ids[2].startsWith('capire://generated/'))
-    assert.ok(idx.idSet.has('capire://generated/more-cdl-detail'))
+    assert.deepEqual(idx.ids, ['https://x/setup#a', 'https://x/cdl#b'])
+    assert.equal(idx.count, 2)
+    assert.ok(idx.idSet.has('https://x/setup#a'))
   })
 
   test('loadChunkText maps every id back to its chunk text', async () => {
     const map = await loadChunkText(corpusPath)
     assert.equal(map.get('https://x/setup#a'), CORPUS.chunks[0])
-    assert.equal(map.get('capire://generated/more-cdl-detail'), CORPUS.chunks[2])
+    assert.equal(map.get('https://x/cdl#b'), CORPUS.chunks[1])
   })
 
   test('loadIndex throws on a corrupt/missing corpus', async () => {
@@ -61,14 +60,10 @@ describe('search-docs tests', () => {
     assert.deepEqual(retrieve.lastTexts, [CORPUS.chunks[0], CORPUS.chunks[1]])
   })
 
-  test('retriever resolves a breadcrumb-only chunk to its capire:// corpus id', async () => {
-    // search_docs returns the breadcrumb-only chunk after a real section.
+  test('a retrieved chunk with no Source: URL is dropped from the id list', async () => {
     const searchDocs = { handler: async () => `${CORPUS.chunks[0]}\n---\nmore cdl detail` }
     const retrieve = await makeSearchDocsRunner(5, { searchDocs, corpusPath })
-    // 'more cdl detail' text-matches CORPUS.chunks[2] → its capire:// corpus id.
-    const ids = await retrieve('q')
-    assert.equal(ids[0], 'https://x/setup#a')
-    assert.equal(ids[1], 'capire://generated/more-cdl-detail')
+    assert.deepEqual(await retrieve('q'), ['https://x/setup#a'])
   })
 
   test('retriever returns [] when search_docs returns nothing', async () => {
@@ -78,42 +73,21 @@ describe('search-docs tests', () => {
   })
 
   test('switching corpusPath (model change) uses the new model corpus for id resolution', async () => {
-    // Two corpora with different chunks for the same breadcrumb-only text — the
-    // resolved id depends on the corpus because the same text maps to different
-    // ids when the surrounding context in the corpus is different (different
-    // predecessor URL chunk). Here we use two distinct continuation texts so each
-    // corpus uniquely owns one.
-    const contA = 'unique continuation text for model A only'
-    const contB = 'unique continuation text for model B only'
-
-    const corpusA = { chunks: [
-      'A > Page > Source: https://x/page-a#s\nbody',
-      contA // → capire://generated/unique-continuation-text-for-model-a-only
-    ] }
-    const corpusB = { chunks: [
-      'B > Page > Source: https://x/page-b#s\nbody',
-      contB // → capire://generated/unique-continuation-text-for-model-b-only
-    ] }
+    // Two corpora with different Source URLs; each retriever resolves against its own.
+    const corpusA = { chunks: ['A > Page > Source: https://x/page-a#s\nbody'] }
+    const corpusB = { chunks: ['B > Page > Source: https://x/page-b#s\nbody'] }
     const pathA = path.join(tmpDir, 'corpus-a.json')
     const pathB = path.join(tmpDir, 'corpus-b.json')
     await fs.writeFile(pathA, JSON.stringify(corpusA))
     await fs.writeFile(pathB, JSON.stringify(corpusB))
 
-    // Model A retrieves contA; model B retrieves contB.
-    const sdA = { handler: async () => `${corpusA.chunks[0]}\n---\n${contA}` }
-    const sdB = { handler: async () => `${corpusB.chunks[0]}\n---\n${contB}` }
+    const sdA = { handler: async () => corpusA.chunks[0] }
+    const sdB = { handler: async () => corpusB.chunks[0] }
 
     const retrieveA = await makeSearchDocsRunner(5, { searchDocs: sdA, corpusPath: pathA })
     const retrieveB = await makeSearchDocsRunner(5, { searchDocs: sdB, corpusPath: pathB })
 
-    const idsA = await retrieveA('q')
-    const idsB = await retrieveB('q')
-
-    // Each retriever resolved against its own corpus — different ids.
-    assert.equal(idsA[0], 'https://x/page-a#s')
-    assert.ok(idsA[1].includes('model-a'))
-    assert.equal(idsB[0], 'https://x/page-b#s')
-    assert.ok(idsB[1].includes('model-b'))
-    assert.notEqual(idsA[1], idsB[1])
+    assert.deepEqual(await retrieveA('q'), ['https://x/page-a#s'])
+    assert.deepEqual(await retrieveB('q'), ['https://x/page-b#s'])
   })
 })

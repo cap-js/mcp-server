@@ -1,8 +1,9 @@
 import path from 'path'
 import fs from 'fs/promises'
-import { loadConfig } from './config.js'
+import { loadConfig, EVALS_DIR } from './config.js'
 import { loadIndex, makeSearchDocsRunner } from './search-docs.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
+import { resolveChunkIds } from './ids.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
@@ -39,7 +40,13 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
     logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
-  const index = await loadIndexFn()
+  // Source tree built once from llms-full.txt by build-source-tree.js. Lets a
+  // multi-section chunk be credited for every section it covers (incl. headings
+  // whose Source line was split off), and lets a breadcrumb-keyed LLM-summary
+  // corpus resolve to doc URLs. Absent → in-body Source lines only.
+  const sourceIndex = await readJsonOrNull(path.join(EVALS_DIR, 'data', 'source-tree.json'))
+
+  const index = await loadIndexFn(undefined, sourceIndex)
 
   // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
   // and these labels no longer match; they'll score as misses until refreshed.
@@ -49,21 +56,20 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
     for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
   }
 
-  const retrieve = await makeRetrieverFn(cfg.k)
+  const retrieve = await makeRetrieverFn(cfg.k, { sourceIndex })
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const retrieved_ids = await retrieve(q.question)
     const retrieved_texts = retrieve.lastTexts ? retrieve.lastTexts.slice() : undefined
 
-    // A retrieved chunk can implicitly contain additional relevant ids when a
-    // golden URL appears verbatim in the chunk body (e.g. a sibling section is
-    // linked from the retrieved section). Expand each slot's id to include any
-    // golden relevant_doc_id found as a URL substring in that slot's text, so
-    // metrics credit the chunk as a hit even though its Source: line differs.
+    // Expand each retrieved slot to every doc section that chunk actually covers,
+    // resolved structurally from the chunk's own Source: lines + the source tree —
+    // NOT by substring-matching golden URLs against the body. A chunk spanning
+    // several sections is credited for each, so a golden deep-anchor scores as a
+    // hit even when it isn't the chunk's first-line Source:.
     const effective_ids = retrieved_ids.map((id, i) => {
-      const text = retrieved_texts?.[i] || ''
-      const extras = q.relevant_doc_ids.filter(rel => rel !== id && text.includes(rel))
-      return extras.length ? [id, ...extras] : id
+      const covered = resolveChunkIds(retrieved_texts?.[i] || '', sourceIndex)
+      return covered.length ? covered : id
     }).flat()
 
     perQuestionRaw.push({

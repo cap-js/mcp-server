@@ -92,26 +92,32 @@ describe('evaluate tests', () => {
     assert.ok(rows[0].config.label.includes('tuned chunker'))
   })
 
-  test('retrieved chunk text is scanned for additional golden ids (sibling-section hit)', async () => {
-    // A chunk's Source: URL is /docs/domain/#domain-entities but its body links
-    // to /docs/domain/#views — if the golden label is the sibling URL, the chunk
-    // should still count as a hit.
-    const siblingUrl = 'https://x/docs/domain/#views'
-    const chunkText = 'Domain > Source: https://x/docs/domain/#domain-entities\n' +
-      'See also [views](https://x/docs/domain/#views) for projections.'
+  test('a multi-section chunk is credited for every section it covers (its own Source lines)', async () => {
+    // A chunk spans two headings, each with its own `> Source:` line in the body.
+    // The golden label is the SECOND section — the chunk should still count as a
+    // hit because it structurally covers that section (not by substring-matching
+    // the golden URL against body text).
+    const secondUrl = 'https://x/docs/get-started/#nodejs-and-cds-dk'
+    const chunkText = [
+      'Getting Started > Initial Setup > Source: https://x/docs/get-started/#initial-setup',
+      'setup body',
+      '### Node.js and _cds-dk_',
+      `> Source: ${secondUrl}`,
+      'node body'
+    ].join('\n')
     const fakeRetrieverWithText = async () => {
-      const fn = async () => ['https://x/docs/domain/#domain-entities']
+      const fn = async () => ['https://x/docs/get-started/#initial-setup']
       fn.lastTexts = [chunkText]
       return fn
     }
-    await writeGolden([{ id: 'q-001', question: 'about views', relevant_doc_ids: [siblingUrl] }])
-    const idxWith = async () => ({ idSet: new Set(['https://x/docs/domain/#domain-entities', siblingUrl]), count: 2 })
+    await writeGolden([{ id: 'q-001', question: 'installing cds-dk', relevant_doc_ids: [secondUrl] }])
+    const idxWith = async () => ({ idSet: new Set(['https://x/docs/get-started/#initial-setup', secondUrl]), count: 2 })
     const res = await evaluate({
       overrides: baseOverrides(),
       logger: silentLogger,
       deps: { loadIndex: idxWith, makeRetriever: fakeRetrieverWithText }
     })
-    // The sibling URL found in chunk body → hit → recall=1, not 0
+    // The second section's own Source line → covered → hit → recall=1, not 0.
     assert.equal(res.report.per_question[0].metrics.hit_rate_at_k, 1)
     assert.equal(res.report.per_question[0].metrics.recall_at_k, 1)
   })

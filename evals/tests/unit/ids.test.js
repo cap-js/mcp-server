@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseId, buildIdMap, buildTextMap, resolveIds } from '../../lib/ids.js'
+import { parseId, resolveChunkIds, buildIdMap, buildTextMap, resolveIds } from '../../lib/ids.js'
 
 describe('ids tests', () => {
   test('parseId is the Source: URL from the first line (with its #section anchor)', () => {
@@ -22,26 +22,75 @@ describe('ids tests', () => {
     assert.equal(a, 'https://x/p#s')
   })
 
-  test('parseId falls back to a synthetic capire:// URL when there is no Source:', () => {
-    // A breadcrumb-only first line → stable synthetic URL from the slug
-    assert.equal(parseId('Getting Started > Initial Setup\nsome text'), 'capire://generated/getting-started-initial-setup')
-    assert.equal(parseId('Node.js and cds-dk\nsome text'), 'capire://generated/node-js-and-cds-dk')
-    // No text at all → null (nothing to derive from)
+  test('parseId finds the chunk\'s own Source: line even when it is not line 1', () => {
+    // Real corpus chunks put the Source: a couple of lines below the heading:
+    //   "## Initial Setup\n\n> Source: /docs/get-started/#initial-setup"
+    const chunk = '## Initial Setup\n\n> Source: /docs/get-started/#initial-setup\nbody'
+    assert.equal(parseId(chunk), '/docs/get-started/#initial-setup')
+  })
+
+  test('parseId returns null when there is no Source: line at all (no synthetic id)', () => {
+    // Malformed chunks are not scored — the eval does not invent ids for them.
+    assert.equal(parseId('Getting Started > Initial Setup\nsome text'), null)
     assert.equal(parseId(''), null)
-    assert.equal(parseId('>>> ### ---'), null) // only punctuation slugifies to empty
   })
 
-  test('parseId still returns the Source: URL when present', () => {
-    assert.equal(parseId('X > Source: https://x/y#z\nbody'), 'https://x/y#z')
+  test('resolveChunkIds: single-section chunk → just its first-line Source', () => {
+    const text = 'Domain > Primary Keys\n> Source: /docs/guides/domain#primary-keys\nbody'
+    assert.deepEqual(resolveChunkIds(text), ['/docs/guides/domain#primary-keys'])
   })
 
-  test('parseId finds Source: URL in the body when not on the first line', () => {
-    // LLM-generated or longer chunks may have the Source: URL anywhere
-    const chunk = 'CAP Security > Data Privacy\nsome long description\n> Source: https://cap.cloud.sap/docs/guides/security/#data-privacy\nmore body'
-    assert.equal(parseId(chunk), 'https://cap.cloud.sap/docs/guides/security/#data-privacy')
-    // Markdown heading style
-    const chunk2 = 'Heading\nbody\n# Source: /docs/guides/deploy#section\nmore'
-    assert.equal(parseId(chunk2), '/docs/guides/deploy#section')
+  test('resolveChunkIds: multi-section chunk collects every in-body Source line', () => {
+    const text = [
+      '# Getting Started',
+      '> Source: /docs/get-started/',
+      'intro',
+      '## Initial Setup',
+      '> Source: /docs/get-started/#initial-setup',
+      'setup body',
+      '### Node.js and _cds-dk_',
+      '> Source: /docs/get-started/#nodejs-and-cds-dk',
+      'node body'
+    ].join('\n')
+    assert.deepEqual(resolveChunkIds(text), [
+      '/docs/get-started/',
+      '/docs/get-started/#initial-setup',
+      '/docs/get-started/#nodejs-and-cds-dk'
+    ])
+  })
+
+  test('resolveChunkIds: a heading whose Source line was split off is resolved via the tree', () => {
+    // The chunk ends right after the heading — its Source line got cut at the
+    // chunk boundary. The page-scoped source tree recovers it.
+    const text = [
+      '## Initial Setup',
+      '> Source: /docs/get-started/#initial-setup',
+      'setup body',
+      '### Node.js and _cds-dk_' // no Source line follows
+    ].join('\n')
+    const sourceIndex = {
+      byHeadingInPage: {
+        '/docs/get-started/': { 'node.js and _cds-dk_': '/docs/get-started/#nodejs-and-cds-dk' }
+      }
+    }
+    assert.deepEqual(resolveChunkIds(text, sourceIndex), [
+      '/docs/get-started/#initial-setup',
+      '/docs/get-started/#nodejs-and-cds-dk'
+    ])
+  })
+
+  test('resolveChunkIds: without a tree, a split-off heading is simply not credited', () => {
+    const text = '## Initial Setup\n> Source: /docs/get-started/#initial-setup\nbody\n### Node.js and _cds-dk_'
+    assert.deepEqual(resolveChunkIds(text, null), ['/docs/get-started/#initial-setup'])
+  })
+
+  test('resolveChunkIds: no first-line Source → empty', () => {
+    assert.deepEqual(resolveChunkIds('breadcrumb only\nbody'), [])
+  })
+
+  test('resolveChunkIds dedups repeated sections', () => {
+    const text = '## A\n> Source: /docs/p#a\nbody\n## A again\n> Source: /docs/p#a\nmore'
+    assert.deepEqual(resolveChunkIds(text), ['/docs/p#a'])
   })
 
   test('buildIdMap returns distinct ids + a Set, collapsing same-url chunks', () => {
@@ -57,32 +106,14 @@ describe('ids tests', () => {
     assert.ok(idSet.has('https://x/b#beta'))
   })
 
-  test('buildIdMap gives breadcrumb-only chunks their own capire:// id', () => {
-    // A chunk with a breadcrumb but no Source: URL gets a stable synthetic id
-    // derived from the breadcrumb text, not inherited from the predecessor.
+  test('buildIdMap drops chunks with no first-line Source: URL', () => {
     const chunks = [
       'Setup > Source: https://x/setup#brew\ninstall homebrew',
-      'more brew install steps', // breadcrumb-only → own capire:// id
-      'and even more steps',     // another breadcrumb-only chunk
+      'more brew install steps', // no Source → dropped
       'Next > Source: https://x/next#go\ndifferent page'
     ]
     const { ids } = buildIdMap(chunks)
-    assert.equal(ids.length, 4)
-    assert.equal(ids[0], 'https://x/setup#brew')
-    assert.ok(ids[1].startsWith('capire://generated/'))
-    assert.ok(ids[2].startsWith('capire://generated/'))
-    assert.equal(ids[3], 'https://x/next#go')
-    // the two breadcrumb-only chunks have distinct ids (different text → different slug)
-    assert.notEqual(ids[1], ids[2])
-  })
-
-  test('buildIdMap gives URL-less leading chunks a synthetic capire:// id', () => {
-    // With the fallback, breadcrumb-only chunks are no longer dropped.
-    const chunks = ['orphan continuation with no predecessor', 'Good > Source: https://x/g#good\nbody']
-    const { ids } = buildIdMap(chunks)
-    assert.equal(ids.length, 2)
-    assert.ok(ids[0].startsWith('capire://generated/'))
-    assert.equal(ids[1], 'https://x/g#good')
+    assert.deepEqual(ids, ['https://x/setup#brew', 'https://x/next#go'])
   })
 
   test('buildIdMap keeps distinct sections of the same page as distinct ids', () => {
@@ -95,49 +126,30 @@ describe('ids tests', () => {
     assert.ok(ids.every(id => id.startsWith('https://x/auth#')))
   })
 
-  test('buildTextMap maps every id (incl. capire:// generated) back to its chunk text', () => {
+  test('buildTextMap maps every id back to its chunk text', () => {
     const chunks = [
       'Setup > Source: https://x/setup#brew\ninstall homebrew',
-      'more brew install steps'  // breadcrumb-only → capire://generated/more-brew-install-steps
+      'Next > Source: https://x/next#go\nbody'
     ]
     const map = buildTextMap(chunks)
     assert.equal(map.get('https://x/setup#brew'), chunks[0])
-    assert.equal(map.get('capire://generated/more-brew-install-steps'), chunks[1])
+    assert.equal(map.get('https://x/next#go'), chunks[1])
   })
 
-  test('resolveIds keeps every retrieved slot (URL-less chunk not dropped)', () => {
-    // Breadcrumb-only chunks now get a capire:// id, so no slot is dropped.
+  test('resolveIds drops URL-less slots, keeps aligned text for the rest', () => {
     const retrieved = [
       'A > Source: https://x/a#s\nbody',
       'B > Source: https://x/b#s\nbody',
-      'Timestamps', // breadcrumb-only → capire://generated/timestamps
+      'breadcrumb only', // no Source → dropped
       'C > Source: https://x/c#s\nbody'
     ]
     const { ids, texts } = resolveIds(retrieved, [])
-    assert.equal(ids.length, 4) // slot preserved
-    assert.equal(ids[0], 'https://x/a#s')
-    assert.equal(ids[1], 'https://x/b#s')
-    assert.ok(ids[2].startsWith('capire://generated/'))
-    assert.equal(ids[3], 'https://x/c#s')
-    assert.deepEqual(texts, retrieved) // per-slot text aligned with ids
-  })
-
-  test('resolveIds matches a URL-less chunk to its capire:// corpus id by text', () => {
-    // Corpus: page P has a real section then a breadcrumb-only chunk ("Timestamps").
-    const corpus = [
-      'P > Real > Source: https://x/p#real\nreal section body',
-      'Timestamps' // → corpus id capire://generated/timestamps
-    ]
-    // Retrieved elsewhere, the same breadcrumb-only text appears after a DIFFERENT page.
-    const retrieved = ['Q > Source: https://x/q#s\nother', 'Timestamps']
-    const { ids } = resolveIds(retrieved, corpus)
-    // The chunk resolves to its CORPUS id (capire://generated/timestamps), not local.
-    assert.equal(ids[0], 'https://x/q#s')
-    assert.ok(ids[1].startsWith('capire://generated/timestamps'))
+    assert.deepEqual(ids, ['https://x/a#s', 'https://x/b#s', 'https://x/c#s'])
+    // texts aligned with the kept ids
+    assert.deepEqual(texts, [retrieved[0], retrieved[1], retrieved[3]])
   })
 
   test('resolveIds keeps distinct per-slot text for two slots sharing an id', () => {
-    // A page split into two chunks emits the same first-line/id but different bodies.
     const retrieved = [
       'Domain > Primary Keys > Source: https://x/d#pk\nbody one',
       'Domain > Primary Keys > Source: https://x/d#pk\nbody two'
