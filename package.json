@@ -27,7 +27,7 @@
     "lint": "npx eslint .",
     "evals": "node evals/bin/eval.js",
     "evals:compare": "node evals/bin/compare.js",
-    "evals:build-source-tree": "node evals/bin/build-source-tree.js",
+    "evals:build-source-map": "node evals/lib/buildSourceMap.js",
     "evals:test": "node --test --test-concurrency=1 evals/tests/unit/*.test.js"
   },
   "dependencies": {

@@ -25,11 +25,11 @@ export function validateGolden(questions) {
 }
 
 // Pre-flight: every relevant_doc_id must exist in the current index.
-export function preflight(goldenQuestions, idSet) {
+export function preflight(goldenQuestions, sourceMap) {
   const stale = []
   for (const q of goldenQuestions) {
     for (const id of q.relevant_doc_ids) {
-      if (!idSet.has(id)) stale.push({ question: q.id, doc_id: id })
+      if (!sourceMap.some(m => m.source === id)) stale.push({ question: q.id, doc_id: id })
     }
   }
   return stale

@@ -1,9 +1,8 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, EVALS_DIR } from './config.js'
-import { loadIndex, makeSearchDocsRunner } from './search-docs.js'
+import { makeSearchDocsRunner } from './search-docs.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
-import { resolveChunkIds } from './ids.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 
 async function readJsonOrNull(p) {
@@ -18,7 +17,6 @@ async function readJsonOrNull(p) {
 // `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
 export async function evaluate({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const loadIndexFn = deps.loadIndex || loadIndex
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
   const cfg = await loadConfig({ configPath, overrides })
@@ -40,44 +38,25 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
     logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
-  // Source tree built once from llms-full.txt by build-source-tree.js. Lets a
-  // multi-section chunk be credited for every section it covers (incl. headings
-  // whose Source line was split off), and lets a breadcrumb-keyed LLM-summary
-  // corpus resolve to doc URLs. Absent → in-body Source lines only.
-  const sourceIndex = await readJsonOrNull(path.join(EVALS_DIR, 'data', 'source-tree.json'))
-
-  const index = await loadIndexFn(undefined, sourceIndex)
+  const sourceMap = await readJsonOrNull(path.join(EVALS_DIR, 'data', 'sourceMap.json'))
 
   // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
   // and these labels no longer match; they'll score as misses until refreshed.
-  const stale = preflight(golden.questions, index.idSet)
+  const stale = preflight(golden.questions, sourceMap)
   if (stale.length > 0) {
     logger.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
     for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
   }
 
-  const retrieve = await makeRetrieverFn(cfg.k, { sourceIndex })
+  const retrieve = await makeRetrieverFn(cfg.k, sourceMap)
   const perQuestionRaw = []
   for (const q of golden.questions) {
-    const retrieved_ids = await retrieve(q.question)
-    const retrieved_texts = retrieve.lastTexts ? retrieve.lastTexts.slice() : undefined
-
-    // Expand each retrieved slot to every doc section that chunk actually covers,
-    // resolved structurally from the chunk's own Source: lines + the source tree —
-    // NOT by substring-matching golden URLs against the body. A chunk spanning
-    // several sections is credited for each, so a golden deep-anchor scores as a
-    // hit even when it isn't the chunk's first-line Source:.
-    const effective_ids = retrieved_ids.map((id, i) => {
-      const covered = resolveChunkIds(retrieved_texts?.[i] || '', sourceIndex)
-      return covered.length ? covered : id
-    }).flat()
-
+    const resolvedChunk = await retrieve(q.question)
     perQuestionRaw.push({
       id: q.id,
       question: q.question,
       relevant_doc_ids: q.relevant_doc_ids,
-      retrieved_ids: effective_ids,
-      retrieved_texts
+      retrievedIds: resolvedChunk
     })
   }
 
