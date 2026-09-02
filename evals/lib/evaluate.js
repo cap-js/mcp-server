@@ -77,17 +77,17 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
   const status = report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
   logger.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
 
-  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile }
+  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
 }
 
 // Entry point for `npm run evals`: run the eval once, then build the comparison report.
 export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const { code } = await evaluate({ configPath, overrides, logger, deps })
+  const { code, perQuestionRaw } = await evaluate({ configPath, overrides, logger, deps })
 
   // Always compare afterwards; best-effort, doesn't override the eval exit code.
   try {
     const { compare } = await import('./compare.js')
-    await compare({ configPath, overrides, logger })
+    await compare({ configPath, overrides, logger, perQuestionRaw })
   } catch (err) {
     logger.error(`(compare step failed: ${err.message})`)
   }

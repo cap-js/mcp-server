@@ -41,15 +41,15 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
 
   const per_question = perQuestionRaw
     .map(q => {
-      const m = metricsFor(q.relevant_doc_ids, q.retrieved_ids, k)
+      const m = metricsFor(q.relevant_doc_ids, q.retrievedIds, k)
       return {
         id: q.id,
         question: q.question,
         relevant_doc_ids: q.relevant_doc_ids,
-        retrieved_ids: q.retrieved_ids.slice(0, k),
+        retrieved_ids: q.retrievedIds.slice(0, k),
         // Per-slot text snapshot (when provided), so compare needn't re-read the corpus.
         ...(q.retrieved_texts ? { retrieved_texts: q.retrieved_texts.slice(0, k) } : {}),
-        relevant_hits_at_rank: relevantHitsAtRank(q.relevant_doc_ids, q.retrieved_ids, k),
+        relevant_hits_at_rank: relevantHitsAtRank(q.relevant_doc_ids, q.retrievedIds, k),
         metrics: {
           recall_at_k: round(m.recall_at_k, 3),
           precision_at_k: round(m.precision_at_k, 3),

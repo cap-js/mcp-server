@@ -2,7 +2,6 @@ import path from 'path'
 import fs from 'fs/promises'
 import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
-import { loadChunkText } from './search-docs.js'
 import { round } from './metrics.js'
 
 // Markdown can't be searched/lazy-loaded, so its per-question tables are capped
@@ -668,7 +667,7 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({ configPath, overrides, outPath, logger = console, deps = {} } = {}) {
+export async function compare({ configPath, overrides, outPath, logger = console, perQuestionRaw, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const runs = await collectRuns(cfg)
 
@@ -682,15 +681,7 @@ export async function compare({ configPath, overrides, outPath, logger = console
   if (fmt === 'md') {
     content = renderMarkdownCompare(runs)
   } else {
-    // Resolve retrieved ids to chunk text for the expandable view (best-effort:
-    // the corpus may be absent, in which case ids just aren't expandable).
-    let textById = null
-    try {
-      textById = await (deps.loadChunkText || loadChunkText)()
-    } catch {
-      /* corpus unavailable — render ids without expandable content */
-    }
-    content = renderHtml(runs, textById)
+    content = renderHtml(runs, perQuestionRaw)
   }
   const out = outPath ? path.resolve(outPath) : path.join(cfg.paths.runsDir, `compare.${fmt}`)
   await fs.writeFile(out, content)

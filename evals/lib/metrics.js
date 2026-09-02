@@ -27,7 +27,11 @@ export function recallAtK(relevant, retrieved, k) {
   if (rel.size === 0) return 0
   const top = topK(retrieved, k)
   const found = new Set()
-  for (const id of top) if (rel.has(id)) found.add(id)
+  for (const t of top) {
+    for (const id of t.ids) {
+      if (rel.has(id)) found.add(id)
+    }
+  }
   return found.size / rel.size
 }
 
@@ -37,7 +41,9 @@ export function precisionAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   const top = topK(retrieved, k)
   let hits = 0
-  for (const id of top) if (rel.has(id)) hits++
+  for (const t of top) { 
+    for (const id of t.ids) if (rel.has(id)) hits++
+  }
   return hits / k
 }
 
@@ -45,7 +51,7 @@ export function mrr(relevant, retrieved, k) {
   const rel = new Set(relevant)
   const top = topK(retrieved, k)
   for (let i = 0; i < top.length; i++) {
-    if (rel.has(top[i])) return 1 / (i + 1)
+    for (const id of top[i].ids) if (rel.has(id)) return 1 / (i + 1)
   }
   return 0
 }
@@ -53,7 +59,9 @@ export function mrr(relevant, retrieved, k) {
 export function hitRateAtK(relevant, retrieved, k) {
   const rel = new Set(relevant)
   const top = topK(retrieved, k)
-  for (const id of top) if (rel.has(id)) return 1
+  for (const t of top) {
+    for (const id of t.ids) if (rel.has(id)) return 1
+  }
   return 0
 }
 
@@ -67,9 +75,11 @@ export function ndcgAtK(relevant, retrieved, k) {
   let dcg = 0
   const credited = new Set()
   for (let i = 0; i < top.length; i++) {
-    if (rel.has(top[i]) && !credited.has(top[i])) {
-      credited.add(top[i])
-      dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
+    for (const id of top[i].ids) {
+      if (rel.has(id) && !credited.has(id)) {
+        credited.add(id)
+        dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
+      }
     }
   }
   const idealHits = Math.min(rel.size, k)

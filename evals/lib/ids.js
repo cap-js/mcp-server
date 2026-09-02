@@ -21,7 +21,12 @@ function getSourceByBreadCrump(headings, finds, sourceMap) {
   throw Error('No source found')
 }
 
-function* chunkEntries(chunks, sourceMap = null) {
+let duration = 0
+let question = 0
+export function resolveIds(chunks, sourceMap) {
+  question++
+  const start = performance.now()
+  const resolvedChunks = []
   for (const text of chunks) {
     const ids = []
     const lines = (text || '').split('\n')
@@ -75,14 +80,9 @@ function* chunkEntries(chunks, sourceMap = null) {
       i++
     }
     if (!ids.length) throw Error('No IDs found')
-    yield [ids, text]
+    resolvedChunks.push({ ids, text })
   }
-}
-
-export function resolveIds(chunks, sourceMap = null) {
-  const resolvedChunk = []
-  for (const [ids, text] of chunkEntries(chunks, sourceMap)) {
-    resolvedChunk.push({ ids, text })
-  }
-  return resolvedChunk
+  duration = duration + performance.now() - start
+  if (question === 100) console.log(duration)
+  return resolvedChunks
 }
