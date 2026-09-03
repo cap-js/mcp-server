@@ -1,8 +1,9 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
+import { transformBlocks } from './transformBlocks.js'
 const HERE = path.dirname(fileURLToPath(import.meta.url))
-const OUT = path.join(HERE, '..', 'data', 'sourceMap.json')
+const OUT = path.join(HERE, '..', '..','data', 'sourceMap.json')
 // Default location of the docs export; override with argv[2].
 const DEFAULT_SRC = 'llms-full.txt'
 
@@ -23,9 +24,26 @@ function buildSourceMap(text, config) {
     const heading = isHeadingLine(lines, i);
     if (heading) {
       const source = heading.source.split('> Source: ')?.[1]
-      roots.push({ source, title: heading.title, depth: heading.depth });
+      const title = transformBlocks({ text: heading.title, type: 'heading' })
+      roots.push({ source, title, nonTransformedTitle: heading.title, depth: heading.depth });
     }
   }
+  const getBreadCrumb = (key, outputKey) => {
+    for (let i = 0; i < roots.length; i++) {
+      const path = [roots[i][key]]
+      let currDepth = roots[i].depth
+      for (let j = i - 1; j >= 0; j--) {
+        if (roots[j].depth < currDepth) {
+          path.unshift(roots[j][key])
+          currDepth = roots[j].depth
+        }
+        if (roots[j].depth <= 1) break
+      }
+      roots[i][outputKey] = path.join(' > ')
+    }
+  }
+  getBreadCrumb('title', 'breadcrumb')
+  getBreadCrumb('nonTransformedTitle', 'nonTransformedBreadcrumb')
   return roots;
 }
 

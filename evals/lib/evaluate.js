@@ -51,7 +51,7 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
   const retrieve = await makeRetrieverFn(cfg.k, sourceMap)
   const perQuestionRaw = []
   for (const q of golden.questions) {
-    const resolvedChunk = await retrieve(q.question)
+    const resolvedChunk = await retrieve(q)
     perQuestionRaw.push({
       id: q.id,
       question: q.question,

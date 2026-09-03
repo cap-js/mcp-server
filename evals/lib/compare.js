@@ -338,8 +338,7 @@ function renderLeaderboard(runs) {
 }
 
 // A click-to-expand card for one run: summary row + aggregate table +
-// per-question table (all 5 metrics). Native <details> — no JS.
-// `textById` (optional Map) resolves retrieved ids to chunk text for expansion.
+// per-question table (all 5 metrics, sortable, each row expands to show retrieval).
 // `runRanks` (optional Map<run_id, {metric:rank}>) shows rank vs other runs.
 function renderRunDetails(r, textById, runRanks) {
   const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
@@ -352,53 +351,78 @@ function renderRunDetails(r, textById, runRanks) {
     return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${rankCell}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
   }).join('')
 
-  const pqHead = METRIC_KEYS.map(k => `<th>${METRIC_LABEL[k]}</th>`).join('')
+  // col index: 0=id,1=question,2..6=metrics,7=hit-ranks — sortable on metrics (2..6)
+  const pqHead = METRIC_KEYS.map((k, i) => `<th class="sortable" data-col="${i + 2}">${METRIC_LABEL[k]}</th>`).join('')
   const pqRows = (r.per_question || [])
     .map(q => {
+      const relevant = new Set(q.relevant_doc_ids || [])
       const cells = METRIC_KEYS.map(k => `<td>${(q.metrics[k] ?? 0).toFixed(3)}</td>`).join('')
       const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
       const question = escHtml(q.question)
-      return `<tr><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>`
+      const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
+      const retList = (q.retrieved_ids || []).map((chunk, i) => {
+        const chunkIds = chunk.ids || []
+        const hit = chunkIds.some(id => relevant.has(id))
+        const label = chunkIds.join(', ')
+        const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
+        const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
+        if (text) {
+          return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
+        }
+        return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
+      }).join('')
+      return `<tr class="rd-pq-row"><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
+<tr class="rd-pq-detail" style="display:none"><td colspan="8"><div class="q-retr-body">
+  <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
+  <ul class="id-list">${relList}</ul>
+  <div class="rd-sub2">retrieved top-${r.config.k} <span class="muted">(rank order; ✅ = relevant, ✗ = not)</span></div>
+  <ul class="id-list">${retList || '<li class="muted">(none)</li>'}</ul>
+</div></td></tr>`
     })
     .join('')
 
+  const tblId = `rd-pq-${r.run_id.replace(/[^a-z0-9]/gi, '')}`
   const pqSection = (r.per_question || []).length
-    ? `<div class="rd-sub">Per-question metrics</div>
-       <table class="rd-table">
+    ? `<div class="rd-sub">Per-question metrics <span class="muted">(click row to expand retrieval · click metric header to sort)</span></div>
+       <table id="${tblId}" class="rd-table">
          <thead><tr><th>id</th><th>question</th>${pqHead}<th>hit ranks</th></tr></thead>
          <tbody>${pqRows}</tbody>
-       </table>`
+       </table>
+       <script>(function(){
+  var tbl=document.getElementById('${tblId}');
+  if(!tbl)return;
+  var tbody=tbl.querySelector('tbody');
+  var sortCol=null,sortDir=1;
+  tbl.querySelectorAll('thead th.sortable').forEach(function(th){
+    th.addEventListener('click',function(){
+      var col=parseInt(th.dataset.col);
+      if(sortCol===col)sortDir=-sortDir; else{sortCol=col;sortDir=1;}
+      tbl.querySelectorAll('thead th').forEach(function(h){h.classList.remove('asc','desc');});
+      th.classList.add(sortDir===1?'asc':'desc');
+      var rows=Array.from(tbody.querySelectorAll('tr.rd-pq-row'));
+      rows.sort(function(a,b){
+        var av=parseFloat(a.cells[col].textContent)||0;
+        var bv=parseFloat(b.cells[col].textContent)||0;
+        return(av-bv)*sortDir;
+      });
+      rows.forEach(function(row){
+        var det=row.nextElementSibling;
+        tbody.appendChild(row);
+        if(det&&det.classList.contains('rd-pq-detail'))tbody.appendChild(det);
+      });
+    });
+  });
+  tbody.querySelectorAll('tr.rd-pq-row').forEach(function(row){
+    row.addEventListener('click',function(){
+      var det=row.nextElementSibling;
+      if(!det||!det.classList.contains('rd-pq-detail'))return;
+      var open=det.style.display!=='none';
+      det.style.display=open?'none':'table-row';
+      row.classList.toggle('open',!open);
+    });
+  });
+})();<\/script>`
     : '<div class="rd-sub muted">No per-question data recorded for this run.</div>'
-
-  // per-question retrieval detail: what search_docs returned, ranked, hits marked
-  const retrievalSection = (r.per_question || []).length
-    ? `<div class="rd-sub">Retrieved results per question <span class="muted">(rank order; ✅ = relevant, ✗ = not)</span></div>
-       ${(r.per_question).map(q => {
-        const relevant = new Set(q.relevant_doc_ids || [])
-        const question = escHtml(q.question)
-        const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
-        const retList = (q.retrieved_ids || []).map((chunk, i) => {
-          const chunkIds = chunk.ids || []
-          const hit = chunkIds.some(id => relevant.has(id))
-          const label = chunkIds.join(', ')
-          const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
-          const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
-          if (text) {
-            return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
-          }
-          return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
-        }).join('')
-        return `<details class="q-retr">
-  <summary><span class="mono">${q.id}</span> <span class="q-cell">${question}</span></summary>
-  <div class="q-retr-body">
-    <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
-    <ul class="id-list">${relList}</ul>
-    <div class="rd-sub2">retrieved top-${r.config.k}</div>
-    <ul class="id-list">${retList || '<li class="muted">(none)</li>'}</ul>
-  </div>
-</details>`
-      }).join('')}`
-    : ''
 
   const label = r.config && r.config.label
   return `<details class="run-detail">
@@ -411,7 +435,6 @@ function renderRunDetails(r, textById, runRanks) {
     </table>
     <div class="rd-sub">Diagnosis: <code>${r.diagnosis}</code></div>
     ${pqSection}
-    ${retrievalSection}
   </div>
 </details>`
 }
@@ -525,6 +548,14 @@ function renderHtml(runs, textById) {
   .rd-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); font-weight:600; }
   .mono { font-family: ui-monospace, monospace; }
   .rd-sub2 { font-size:11px; color:var(--muted); font-weight:600; margin:6px 0 2px; }
+  .rd-pq-row { cursor:pointer; }
+  .rd-pq-row:hover { background:var(--page); }
+  .rd-pq-row.open { background:var(--page); font-weight:600; }
+  .rd-pq-detail > td { background:var(--surface); padding:6px 8px 12px 14px; }
+  .rd-table thead th.sortable { cursor:pointer; user-select:none; }
+  .rd-table thead th.sortable:hover { color:var(--ink); }
+  .rd-table thead th.asc::after { content:" ▲"; color:var(--muted); }
+  .rd-table thead th.desc::after { content:" ▼"; color:var(--muted); }
   .q-retr { border-top:1px solid var(--grid); }
   .q-retr > summary { cursor:pointer; padding:5px 2px; font-size:12px; list-style:none; }
   .q-retr > summary::-webkit-details-marker { display:none; }

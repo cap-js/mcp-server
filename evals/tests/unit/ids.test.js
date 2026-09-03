@@ -70,10 +70,10 @@ describe('ids tests', () => {
   test('breadcrumb-only heading resolved via getSourceByBreadCrump', () => {
     // Two entries share title "Setup" at depth 2 — disambiguation via breadcrumb.
     const sm = [
-      { source: '/docs/a/', title: 'A', depth: 1 },
-      { source: '/docs/a/#setup', title: 'Setup', depth: 2 },
-      { source: '/docs/b/', title: 'B', depth: 1 },
-      { source: '/docs/b/#setup', title: 'Setup', depth: 2 }
+      { source: '/docs/a/', title: 'A', depth: 1, breadcrumb: 'A' },
+      { source: '/docs/a/#setup', title: 'Setup', depth: 2, breadcrumb: 'A > Setup' },
+      { source: '/docs/b/', title: 'B', depth: 1, breadcrumb: 'B' },
+      { source: '/docs/b/#setup', title: 'Setup', depth: 2, breadcrumb: 'B > Setup' }
     ]
     // Chunk is under "B", so breadcrumb should resolve to /docs/b/#setup.
     const text = 'B\n## Setup\nbody'

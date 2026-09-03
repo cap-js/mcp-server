@@ -321,4 +321,89 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     assert.ok(html.includes('repeat(2,1fr)'))
   })
+
+  // ---- per-question table UX: sortable headers + expandable retrieval rows ----
+
+  test('per-question metric headers are sortable (data-col 2–6, class sortable)', async () => {
+    const q = pq('cap-001', 'Q?', { recall: 1, mrr: 0.5 })
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // all 5 metric columns (indices 2–6) must have class="sortable" and data-col
+    for (let col = 2; col <= 6; col++) {
+      assert.ok(html.includes(`class="sortable" data-col="${col}"`), `data-col="${col}" missing`)
+    }
+    // id and question columns (0, 1) must NOT be sortable
+    assert.ok(!html.includes('data-col="0"'))
+    assert.ok(!html.includes('data-col="1"'))
+  })
+
+  test('per-question rows are clickable (rd-pq-row) with matching detail rows (rd-pq-detail)', async () => {
+    const q1 = pq('cap-001', 'First question?')
+    const q2 = pq('cap-002', 'Second question?')
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q1, q2] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const rowCount = (html.match(/class="rd-pq-row"/g) || []).length
+    const detailCount = (html.match(/class="rd-pq-detail"/g) || []).length
+    assert.equal(rowCount, 2)
+    assert.equal(detailCount, 2)
+    // detail rows start hidden
+    assert.ok(html.includes('class="rd-pq-detail" style="display:none"'))
+  })
+
+  test('retrieval content lives inside rd-pq-detail, not a separate section', async () => {
+    const q = {
+      id: 'cap-001', question: 'Q?', relevant_doc_ids: ['https://x/a#hit'],
+      retrieved_ids: [{ ids: ['https://x/a#hit'], text: 'chunk body text' }],
+      relevant_hits_at_rank: [1],
+      metrics: { recall_at_k: 1, precision_at_k: 1, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
+    }
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // chunk text must appear inside the detail row, not at top level
+    const detailIdx = html.indexOf('class="rd-pq-detail"')
+    assert.ok(detailIdx !== -1)
+    assert.ok(html.indexOf('chunk body text') > detailIdx)
+    // old separate "Retrieved results per question" heading must not appear
+    assert.ok(!html.includes('Retrieved results per question'))
+  })
+
+  test('per-question table has unique id rd-pq-{sanitized_run_id}', async () => {
+    const q = pq('cap-001', 'Q?')
+    const run_id = '2026-07-30T10:00:00Z_abc'
+    await writeRun(null, fakeReport(run_id, { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
+    assert.ok(html.includes(`id="rd-pq-${sanitized}"`))
+  })
+
+  test('inline script is emitted for run with per-question data', async () => {
+    const q = pq('cap-001', 'Q?')
+    const run_id = '2026-07-30T10:00:00Z_abc'
+    await writeRun(null, fakeReport(run_id, { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
+    // script block references the correct table id
+    assert.ok(html.includes(`getElementById('rd-pq-${sanitized}')`))
+    // sort and toggle wiring present
+    assert.ok(html.includes('rd-pq-row'))
+    assert.ok(html.includes('rd-pq-detail'))
+  })
+
+  test('no pq table or script emitted when run has no per-question data', async () => {
+    const run_id = '2026-07-30T10:00:00Z_a'
+    await writeRun(null, fakeReport(run_id)) // perQuestion: []
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
+    // no per-question table id and no script referencing it
+    assert.ok(!html.includes(`id="rd-pq-${sanitized}"`))
+    assert.ok(!html.includes(`getElementById('rd-pq-${sanitized}')`))
+    // fallback message shown instead
+    assert.ok(html.includes('No per-question data recorded'))
+  })
 })
