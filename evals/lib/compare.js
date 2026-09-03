@@ -253,7 +253,7 @@ function renderPerQuestionSection(runs) {
 
   const headCells = METRIC_KEYS.map(k => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join('')
 
-  const blob = { runShorts, runIds: runs.map(r => r.run_id), gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
+  const blob = { runShorts, gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
 
   return `<h2 class="section-h">Per-question metric trends
     <span class="section-hint">${data.length} questions · sorted by MRR drop then lowest MRR · click a row for its charts</span>
@@ -437,7 +437,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
 
   const label = r.config && r.config.label
   return `<details class="run-detail">
-  <summary><input type="checkbox" class="run-sel" data-run-id="${r.run_id}" onclick="event.stopPropagation()">${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
+  <summary>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
     <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
     <table class="rd-table">
@@ -602,24 +602,6 @@ function renderHtml(runs, textById) {
   .rank-1 { background:rgba(255,200,0,0.18); font-weight:700; }
   .rank-2 { background:rgba(180,180,180,0.15); font-weight:600; }
   .rank-3 { background:rgba(180,110,50,0.13); }
-  .run-sel { cursor:pointer; width:14px; height:14px; margin-right:8px; flex-shrink:0; accent-color:var(--series); }
-  #compare-bar { position:sticky; bottom:0; z-index:10; background:var(--series); color:#fff; padding:10px 20px; display:none; align-items:center; gap:12px; font-size:13px; }
-  #compare-bar-label { flex:1; font-weight:600; }
-  #compare-btn { background:#fff; color:var(--series); border:none; border-radius:6px; padding:5px 14px; font-size:12px; font-weight:700; cursor:pointer; }
-  #compare-close { background:none; border:1px solid rgba(255,255,255,0.5); color:#fff; border-radius:6px; padding:5px 10px; font-size:12px; cursor:pointer; }
-  #compare-panel { padding:0 28px 32px; }
-  #compare-panel h2 { font-size:14px; margin:16px 0 8px; }
-  .diff-empty { color:var(--muted); font-size:13px; padding:8px 0; }
-  .diff-table { border-collapse:collapse; width:100%; font-size:12px; }
-  .diff-table th, .diff-table td { text-align:right; padding:5px 9px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
-  .diff-table th:first-child, .diff-table td:first-child, .diff-table th:nth-child(2), .diff-table td:nth-child(2) { text-align:left; }
-  .diff-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); font-weight:600; cursor:pointer; user-select:none; }
-  .diff-table thead th.asc::after { content:" ▲"; color:var(--muted); }
-  .diff-table thead th.desc::after { content:" ▼"; color:var(--muted); }
-  .diff-table td.q-cell { color:var(--ink2); max-width:420px; white-space:normal; }
-  .diff-up { color:#1a8a3a; font-weight:600; }
-  .diff-dn { color:#c02020; font-weight:600; }
-  .diff-eq { color:var(--muted); }
 </style>
 </head>
 <body>
@@ -632,93 +614,10 @@ ${leaderboard}
 ${charts}
 </section>
 ${perQuestion}
-<h2 class="section-h">Inspect each run <span class="section-hint">(newest first — click to expand aggregate + per-question metrics · check 2 runs to diff)</span></h2>
+<h2 class="section-h">Inspect each run <span class="section-hint">(newest first — click to expand aggregate + per-question metrics)</span></h2>
 <div class="run-list">
 ${runDetails}
 </div>
-<div id="compare-bar">
-  <span id="compare-bar-label"></span>
-  <button id="compare-btn">Show focused diff</button>
-  <button id="compare-close">✕ Clear</button>
-</div>
-<section id="compare-panel" style="display:none">
-  <h2 class="section-h">Focused diff <span class="section-hint" id="compare-hint"></span></h2>
-  <div id="compare-content"></div>
-</section>
-<script>
-(function(){
-  var sel=[], bar=document.getElementById('compare-bar'), panel=document.getElementById('compare-panel');
-  var barLabel=document.getElementById('compare-bar-label');
-  function runLabel(id){ var el=document.querySelector('.run-sel[data-run-id="'+id+'"]'); return el?el.closest('.run-detail').querySelector('.run-label, .mono').textContent:''; }
-  document.querySelectorAll('.run-sel').forEach(function(cb){
-    cb.addEventListener('change',function(){
-      var id=cb.dataset.runId;
-      if(cb.checked){ if(sel.length>=2){cb.checked=false;return;} sel.push(id); }
-      else sel=sel.filter(function(x){return x!==id;});
-      bar.style.display=sel.length===2?'flex':'none';
-      if(sel.length===2) barLabel.textContent='Compare: '+runLabel(sel[0])+' vs '+runLabel(sel[1]);
-      if(sel.length<2) panel.style.display='none';
-    });
-  });
-  document.getElementById('compare-btn').addEventListener('click',function(){
-    var pqEl=document.getElementById('pq-data');
-    if(!pqEl){document.getElementById('compare-content').innerHTML='<div class="diff-empty">No per-question data available.</div>';panel.style.display='block';return;}
-    var blob=JSON.parse(pqEl.textContent);
-    var KEYS=blob.metricKeys, LBL=blob.metricLabels, IDS=blob.runIds||[];
-    var idxA=IDS.indexOf(sel[0]), idxB=IDS.indexOf(sel[1]);
-    if(idxA<0||idxB<0){document.getElementById('compare-content').innerHTML='<div class="diff-empty">Selected runs not found in per-question data.</div>';panel.style.display='block';return;}
-    var rows=blob.data.map(function(q){
-      var da={},db={};
-      KEYS.forEach(function(k){da[k]=(q.series[k]||[])[idxA]??null;db[k]=(q.series[k]||[])[idxB]??null;});
-      var maxDelta=Math.max.apply(null,KEYS.map(function(k){return da[k]!=null&&db[k]!=null?Math.abs(db[k]-da[k]):0;}));
-      return {id:q.id,question:q.question,da:da,db:db,maxDelta:maxDelta};
-    }).filter(function(r){return r.maxDelta>0.001;});
-    rows.sort(function(a,b){
-      var wa=Math.min.apply(null,KEYS.map(function(k){return a.da[k]!=null&&a.db[k]!=null?a.db[k]-a.da[k]:0;}));
-      var wb=Math.min.apply(null,KEYS.map(function(k){return b.da[k]!=null&&b.db[k]!=null?b.db[k]-b.da[k]:0;}));
-      return wa-wb; // worst regression first
-    });
-    document.getElementById('compare-hint').textContent=rows.length+' question'+(rows.length===1?'':'s')+' differ · regressions first';
-    var lA=runLabel(sel[0]),lB=runLabel(sel[1]);
-    if(!rows.length){document.getElementById('compare-content').innerHTML='<div class="diff-empty">No differences found between the two runs.</div>';panel.style.display='block';return;}
-    var head='<tr><th>id</th><th class="q-cell">question</th>'+KEYS.map(function(k){return '<th data-dk="'+k+'">'+LBL[k]+'</th>';}).join('')+'</tr>';
-    var body=rows.map(function(r){
-      var cells=KEYS.map(function(k){
-        var a=r.da[k],b=r.db[k];
-        if(a==null||b==null) return '<td class="diff-eq">—</td>';
-        var d=b-a,cls=d>0.001?'diff-up':d<-0.001?'diff-dn':'diff-eq';
-        var sign=d>0?'+':'';
-        return '<td class="'+cls+'">'+b.toFixed(3)+' <small>('+sign+d.toFixed(3)+')</small></td>';
-      }).join('');
-      return '<tr><td class="mono">'+r.id+'</td><td class="q-cell">'+r.question.replace(/</g,'&lt;')+'</td>'+cells+'</tr>';
-    }).join('');
-    var tbl='<table class="diff-table"><thead>'+head+'</thead><tbody>'+body+'</tbody></table>';
-    document.getElementById('compare-content').innerHTML=tbl;
-    // sortable columns
-    var sortCol=null,sortDir=1;
-    document.querySelectorAll('.diff-table thead th[data-dk]').forEach(function(th){
-      th.style.cursor='pointer';
-      th.addEventListener('click',function(){
-        var k=th.dataset.dk;
-        if(sortCol===k)sortDir=-sortDir; else{sortCol=k;sortDir=1;}
-        document.querySelectorAll('.diff-table thead th').forEach(function(h){h.classList.remove('asc','desc');});
-        th.classList.add(sortDir>0?'asc':'desc');
-        rows.sort(function(a,b){var av=a.db[k]-a.da[k]||0,bv=b.db[k]-b.da[k]||0;return(av-bv)*sortDir;});
-        document.querySelector('.diff-table tbody').innerHTML=rows.map(function(r){
-          var cells=KEYS.map(function(k){var a=r.da[k],b=r.db[k];if(a==null||b==null)return'<td class="diff-eq">—</td>';var d=b-a,cls=d>0.001?'diff-up':d<-0.001?'diff-dn':'diff-eq';var sign=d>0?'+':'';return'<td class="'+cls+'">'+b.toFixed(3)+' <small>('+sign+d.toFixed(3)+')</small></td>';}).join('');
-          return'<tr><td class="mono">'+r.id+'</td><td class="q-cell">'+r.question.replace(/</g,'&lt;')+'</td>'+cells+'</tr>';
-        }).join('');
-      });
-    });
-    panel.style.display='block';
-    panel.scrollIntoView({behavior:'smooth',block:'start'});
-  });
-  document.getElementById('compare-close').addEventListener('click',function(){
-    sel=[];panel.style.display='none';bar.style.display='none';
-    document.querySelectorAll('.run-sel').forEach(function(c){c.checked=false;});
-  });
-})();
-</script>
 </body>
 </html>
 `
