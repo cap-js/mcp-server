@@ -7,25 +7,26 @@ const SM = [
   { source: '/docs/get-started/#initial-setup', title: 'Initial Setup', depth: 2 },
   { source: '/docs/get-started/#nodejs-and-cds-dk', title: 'Node.js and _cds-dk_', depth: 3 }
 ]
+const Q = { id: 'q1', question: 'test?' }
 
 describe('ids tests', () => {
   test('single chunk with Source: line → one id, text preserved', () => {
     const text = '# Getting Started\n\nSource: /docs/get-started/\nbody'
-    const r = resolveIds([text], SM)
+    const r = resolveIds([text], Q, SM)
     assert.equal(r.length, 1)
     assert.deepEqual(r[0].ids, ['/docs/get-started/'])
     assert.equal(r[0].text, text)
   })
 
   test('Source: line is matched at position i+2 (one blank line between heading and source)', () => {
-    const text = 'Breadcrumb\nbody line\nSource: /docs/a\nmore'
-    const r = resolveIds([text], [])
+    const text = '# Section A\n\nSource: /docs/a\nmore'
+    const r = resolveIds([text], Q, [])
     assert.deepEqual(r[0].ids, ['/docs/a'])
   })
 
   test('heading lookup via sourceMap when no inline Source: line', () => {
     const text = 'Getting Started\n## Initial Setup\nbody'
-    const r = resolveIds([text], SM)
+    const r = resolveIds([text], Q, SM)
     assert.deepEqual(r[0].ids, ['/docs/get-started/#initial-setup'])
   })
 
@@ -40,7 +41,7 @@ describe('ids tests', () => {
       'Source: /docs/get-started/#initial-setup',
       'setup body'
     ].join('\n')
-    const r = resolveIds([text], SM)
+    const r = resolveIds([text], Q, SM)
     assert.ok(r[0].ids.includes('/docs/get-started/'))
     assert.ok(r[0].ids.includes('/docs/get-started/#initial-setup'))
   })
@@ -49,22 +50,26 @@ describe('ids tests', () => {
     const sm = [{ source: '/a', title: 'A', depth: 1 }, { source: '/b', title: 'B', depth: 1 }]
     const c1 = '# A\n\nSource: /a\nbody'
     const c2 = '# B\n\nSource: /b\nbody'
-    const r = resolveIds([c1, c2], sm)
+    const r = resolveIds([c1, c2], Q, sm)
     assert.equal(r.length, 2)
     assert.deepEqual(r[0].ids, ['/a'])
     assert.deepEqual(r[1].ids, ['/b'])
   })
 
-  test('empty chunk (no breadcrumb) → throws', () => {
-    assert.throws(() => resolveIds([''], []), /No breadcrumb/)
+  test('empty chunk (no breadcrumb) → returns placeholder id', () => {
+    const r = resolveIds([''], Q, [])
+    assert.equal(r.length, 1)
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
   })
 
-  test('chunk with breadcrumb but no ids → throws', () => {
-    assert.throws(() => resolveIds(['Heading A\nbody\nmore body\nstill no source'], []), /No IDs found/)
+  test('chunk with breadcrumb but no source match → returns placeholder id', () => {
+    const r = resolveIds(['Heading A\nbody\nmore body\nstill no source'], Q, [])
+    assert.equal(r.length, 1)
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
   })
 
   test('empty chunks array → returns empty array', () => {
-    assert.deepEqual(resolveIds([], []), [])
+    assert.deepEqual(resolveIds([], Q, []), [])
   })
 
   test('breadcrumb-only heading resolved via getSourceByBreadCrump', () => {
@@ -77,7 +82,7 @@ describe('ids tests', () => {
     ]
     // Chunk is under "B", so breadcrumb should resolve to /docs/b/#setup.
     const text = 'B\n## Setup\nbody'
-    const r = resolveIds([text], sm)
+    const r = resolveIds([text], Q, sm)
     assert.deepEqual(r[0].ids, ['/docs/b/#setup'])
   })
 })
