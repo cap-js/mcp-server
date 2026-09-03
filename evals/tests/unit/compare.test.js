@@ -406,4 +406,17 @@ describe('compare tests', () => {
     // fallback message shown instead
     assert.ok(html.includes('No per-question data recorded'))
   })
+
+  test('per-question metric cells show delta vs baseline when baseline_run_id is set', async () => {
+    const baseQ = pq('cap-001', 'How do I define X?', { mrr: 0.5 })
+    const base = fakeReport('2026-07-30T10:00:00Z_base', { perQuestion: [baseQ] })
+    const currQ = pq('cap-001', 'How do I define X?', { mrr: 1 }) // improved by +0.500
+    const curr = { ...fakeReport('2026-07-30T11:00:00Z_curr', { perQuestion: [currQ] }), baseline_run_id: '2026-07-30T10:00:00Z_base' }
+    await writeRun(null, base)
+    await writeRun(null, curr)
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    // curr run's rd-pq table should show ▲ delta for MRR improvement
+    assert.ok(html.includes('▲+0.500'), 'MRR improvement delta should appear in per-question row')
+  })
 })

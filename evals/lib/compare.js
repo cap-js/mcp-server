@@ -340,7 +340,8 @@ function renderLeaderboard(runs) {
 // A click-to-expand card for one run: summary row + aggregate table +
 // per-question table (all 5 metrics, sortable, each row expands to show retrieval).
 // `runRanks` (optional Map<run_id, {metric:rank}>) shows rank vs other runs.
-function renderRunDetails(r, textById, runRanks) {
+// `baselinePqMap` (optional Map<id, metrics>) provides per-question baseline for delta.
+function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
   const res = r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'
 
@@ -356,7 +357,17 @@ function renderRunDetails(r, textById, runRanks) {
   const pqRows = (r.per_question || [])
     .map(q => {
       const relevant = new Set(q.relevant_doc_ids || [])
-      const cells = METRIC_KEYS.map(k => `<td>${(q.metrics[k] ?? 0).toFixed(3)}</td>`).join('')
+      const baseM = baselinePqMap ? baselinePqMap.get(q.id) : null
+      const cells = METRIC_KEYS.map(k => {
+        const v = q.metrics[k] ?? 0
+        let delta = ''
+        if (baseM != null && baseM[k] != null) {
+          const d = round(v - baseM[k], 3)
+          if (d > 0) delta = `<span class="d"> ▲+${d.toFixed(3)}</span>`
+          else if (d < 0) delta = `<span class="d"> ▼−${Math.abs(d).toFixed(3)}</span>`
+        }
+        return `<td>${v.toFixed(3)}${delta}</td>`
+      }).join('')
       const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
       const question = escHtml(q.question)
       const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
@@ -457,7 +468,17 @@ function renderHtml(runs, textById) {
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
-  const runDetails = [...runs].reverse().map(r => renderRunDetails(r, textById, ranks)).join('\n')
+  const runsById = new Map(runs.map(r => [r.run_id, r]))
+  const runDetails = [...runs].reverse().map(r => {
+    let baselinePqMap = null
+    if (r.baseline_run_id) {
+      const base = runsById.get(r.baseline_run_id)
+      if (base && base.per_question && base.per_question.length) {
+        baselinePqMap = new Map(base.per_question.map(q => [q.id, q.metrics]))
+      }
+    }
+    return renderRunDetails(r, textById, ranks, baselinePqMap)
+  }).join('\n')
 
   const perQuestion = renderPerQuestionSection(runs)
   const leaderboard = renderLeaderboard(runs)
