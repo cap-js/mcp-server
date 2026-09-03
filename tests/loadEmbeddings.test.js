@@ -148,4 +148,55 @@ describe('loadEmbeddings tests', () => {
 
     await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
+
+  test('loads parallel metadata[] matched by index', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const meta = {
+      dim: 3,
+      count: 2,
+      chunks: ['Hello world', 'Test content'],
+      metadata: [
+        { source: 'a.md', breadcrumb: 'Root > A' },
+        { source: 'b.md' }
+      ]
+    }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4, 5, 6]).buffer))
+
+    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+    assert.strictEqual(result[0].content, 'Hello world')
+    assert.deepStrictEqual(result[0].meta, { source: 'a.md', breadcrumb: 'Root > A' })
+    assert.strictEqual(result[1].content, 'Test content')
+    assert.deepStrictEqual(result[1].meta, { source: 'b.md' })
+  })
+
+  test('files without metadata[] load unchanged (backward compat)', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    // Legacy on-disk shape: no `metadata` field at all.
+    const meta = { dim: 2, count: 2, chunks: ['a', 'b'] }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4]).buffer))
+
+    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+    assert.strictEqual(result[0].content, 'a')
+    assert.strictEqual('meta' in result[0], false)
+    assert.strictEqual('meta' in result[1], false)
+  })
+
+  test('metadata[] with wrong length is treated as corrupted', async () => {
+    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+
+    const meta = {
+      dim: 2,
+      count: 2,
+      chunks: ['a', 'b'],
+      metadata: [{ source: 'a.md' }] // length mismatch
+    }
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4]).buffer))
+
+    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  })
 })
