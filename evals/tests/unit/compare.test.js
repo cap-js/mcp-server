@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
+import vm from 'node:vm'
 import { compare } from '../../lib/compare.js'
 
 const silentLogger = { log() {}, error() {} }
@@ -441,5 +442,117 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     assert.ok(html.includes(`class="baseline-radio" data-run-id="${run_id}"`))
     assert.ok(html.includes('name="pq-baseline"'))
+  })
+
+  test('interactive baseline radio: selecting baseline run updates rd-pq metric cells with delta', async () => {
+    // Two runs: base (mrr=0.5), curr (mrr=1.0). No static baseline_run_id set.
+    // Selecting base as baseline via radio should cause curr table cells to show ▲+0.500.
+    const baseRun = fakeReport('2026-07-30T10:00:00Z_base', { perQuestion: [pq('cap-001', 'Q?', { mrr: 0.5 })] })
+    const currRun = fakeReport('2026-07-30T11:00:00Z_curr', { perQuestion: [pq('cap-001', 'Q?', { mrr: 1.0 })] })
+    await writeRun(null, baseRun)
+    await writeRun(null, currRun)
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+
+    // Build minimal DOM-like objects to exercise the inline scripts and wiring script.
+    // We simulate: each run-detail inline script sets tbl._rebase, then the wiring script
+    // fires a radio 'change' event for the base run.
+    const cells = {}  // tblId -> [cell innerHTML by index]
+    const tables = {}  // run_id -> fake table
+    const radioListeners = {}
+
+    // Build fake table rows from the data-metrics attrs in the HTML.
+    for (const [, runId, tableBody] of html.matchAll(/<table[^>]+data-run-id="([^"]+)"[^>]*>([\s\S]*?)<\/table>/g)) {
+      const rows = []
+      for (const [, qid, metricsRaw] of tableBody.matchAll(/class="rd-pq-row" data-qid="([^"]+)" data-metrics='([^']+)'/g)) {
+        const metrics = JSON.parse(metricsRaw)
+        // fake HTMLTableRowElement-like object with cells array
+        const fakeCells = [{innerHTML:qid},{innerHTML:'Q?'}]
+        // 5 metric cells (indices 2-6), 1 ranks cell (7)
+        for (let i = 0; i < 5; i++) fakeCells.push({ innerHTML: '' })
+        fakeCells.push({ innerHTML: '' })
+        rows.push({ dataset: { qid, metrics: metricsRaw }, cells: fakeCells })
+      }
+      const fakeTbody = {
+        querySelectorAll(sel) { return sel.includes('rd-pq-row') ? rows : [] }
+      }
+      tables[runId] = {
+        _rebase: null,
+        querySelector(sel) { return sel.includes('tbody') ? fakeTbody : null },
+        querySelectorAll(sel) { return sel.includes('rd-pq-row') ? rows : [] }
+      }
+    }
+
+    // Collect inline scripts (the per-run IIFE blocks that set tbl._rebase).
+    const inlineScripts = [...html.matchAll(/<script>\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g)]
+      .map(m => m[0].replace(/<\/?script>/g, ''))
+
+    // Execute each inline script in a vm context that has getElementById pointing to the fake tables.
+    for (const script of inlineScripts) {
+      const tblIdMatch = script.match(/getElementById\('([^']+)'\)/)
+      if (!tblIdMatch) continue
+      const tblId = tblIdMatch[1]
+      // Map tblId back to run_id via the HTML
+      const runIdMatch = html.match(new RegExp(`id="${tblId}"[^>]*data-run-id="([^"]+)"`))
+      if (!runIdMatch) continue
+      const runId = runIdMatch[1]
+      const tbl = tables[runId]
+      const ctx = vm.createContext({
+        document: {
+          getElementById(id) { return id === tblId ? tbl : null },
+          querySelector() { return null },
+          querySelectorAll() { return [] }
+        },
+        window: {}
+      })
+      try { vm.runInContext(script, ctx) } catch (e) { /* ignore minor errors */ }
+      // Copy _rebase that the script set on the fake tbl object
+      // The script sets tbl._rebase on the object returned by getElementById
+      // which IS our tbl object.
+    }
+
+    // Execute the wiring script (last <script> block in the page — the baseline radio listener).
+    const lastScriptIdx = html.lastIndexOf('<script>')
+    const lastScriptEnd = html.indexOf('</script>', lastScriptIdx)
+    const wiringScript = html.slice(lastScriptIdx + '<script>'.length, lastScriptEnd).trim()
+    assert.ok(wiringScript.includes('baseline-radio'), 'wiring script not found (last <script> block should contain baseline-radio)')
+
+    let radioChangeCallback = null
+    const wiringCtx = vm.createContext({
+      window: {},
+      document: {
+        querySelector(sel) {
+          // .rd-table[data-run-id="2026-07-30T10:00:00Z_base"]
+          const m = sel.match(/data-run-id="([^"]+)"/)
+          return m ? tables[m[1]] : null
+        },
+        querySelectorAll(sel) {
+          if (sel.includes('baseline-radio')) {
+            return [{
+              value: '2026-07-30T10:00:00Z_base',
+              addEventListener(evt, fn) { radioChangeCallback = fn }
+            }]
+          }
+          if (sel.includes('rd-table')) return Object.values(tables)
+          return []
+        }
+      }
+    })
+    vm.runInContext(wiringScript, wiringCtx)
+    assert.ok(radioChangeCallback, 'radio change listener not registered by wiring script')
+
+    // Fire the radio change (selecting base run as baseline)
+    radioChangeCallback()
+
+    // Now check: curr table's rows should have been rebased.
+    const currTable = tables['2026-07-30T11:00:00Z_curr']
+    assert.ok(currTable._rebase, 'curr table._rebase must be set by inline script')
+    // The MRR column (index 3 = i+2 for KEYS[1]=mrr) should show delta
+    const mrrCol = 3 // recall=2, mrr=3
+    const currRow = currTable.querySelector('tbody').querySelectorAll('tr.rd-pq-row')[0]
+    assert.ok(
+      currRow.cells[mrrCol].innerHTML.includes('▲+0.500'),
+      `Expected MRR cell to show ▲+0.500 but got: ${currRow.cells[mrrCol].innerHTML}`
+    )
   })
 })

@@ -421,7 +421,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
         }
         return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
       }).join('')
-      return `<tr class="rd-pq-row" data-qid="${q.id}" data-metrics="${escHtml(JSON.stringify(q.metrics))}"><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
+      return `<tr class="rd-pq-row" data-qid="${q.id}" data-metrics='${JSON.stringify(q.metrics)}'><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
 <tr class="rd-pq-detail" style="display:none"><td colspan="8"><div class="q-retr-body">
   <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
   <ul class="id-list">${relList}</ul>
