@@ -6,7 +6,6 @@ import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { unlinkSync, writeFileSync } from 'fs'
-import { setTimeout as wait } from 'timers/promises'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
@@ -53,14 +52,13 @@ test.describe('integration', () => {
     await transport.close()
   })
 
-  // --- Test: model adapts to CDS file change (CDS_MCP_REFRESH_MS low)
-  test('model adapts to CDS file change (CDS_MCP_REFRESH_MS low)', async () => {
-    // Step 1: Start MCP server with low refresh interval
+  // --- Test: model adapts to a CDS file change on the next request
+  test('model adapts to a CDS file change on the next request', async () => {
+    // Step 1: Start MCP server
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
-      cwd: sampleProjectPath,
-      env: { ...process.env, CDS_MCP_REFRESH_MS: '20' }
+      cwd: sampleProjectPath
     })
 
     const client = new Client({
@@ -98,7 +96,6 @@ test.describe('integration', () => {
 
     let foundService = false
     let foundEntity = false
-    await wait(300)
     // Check for TestService
     const serviceResult = await client.callTool({
       name: 'search_model',
