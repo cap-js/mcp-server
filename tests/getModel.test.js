@@ -1,6 +1,5 @@
 import assert from 'node:assert'
-import fs from 'node:fs'
-import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
@@ -115,28 +114,34 @@ test('refreshes on request and retries a failed refresh', async () => {
   assert(!refreshedModel.definitions.RefreshService)
 })
 
-test('keeps a successful compilation when timestamp collection remains unavailable', async () => {
-  const project = await createProject('SnapshotService', 'SnapshotBooks')
-  const unreadableDirectory = path.join(project, 'unrelated')
-  await mkdir(unreadableDirectory)
-  const originalReaddir = fs.promises.readdir
+test('rejects a CDS source reached through an escaping symlink', async () => {
+  const project = await createProject('SymlinkService', 'SymlinkBooks')
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-outside-'))
+  projects.push(outside)
+  const outsideModel = path.join(outside, 'outside.cds')
+  await writeFile(outsideModel, 'entity Outside { key ID: Integer; }')
+  await symlink(outsideModel, path.join(project, 'srv', 'linked.cds'))
 
-  fs.promises.readdir = async (directory, ...args) => {
-    if (path.resolve(directory) === unreadableDirectory) throw new Error('directory temporarily unavailable')
-    return originalReaddir.call(fs.promises, directory, ...args)
-  }
+  await assert.rejects(getModel(project), /CDS model source is outside the configured workspace roots/)
+})
 
-  let model
-  try {
-    model = await getModel(project)
-    assert(model.definitions.SnapshotService)
-  } finally {
-    fs.promises.readdir = originalReaddir
-  }
+test('rejects transitive CDS sources outside the workspace roots', async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-workspace-'))
+  projects.push(workspace)
+  const project = path.join(workspace, 'project')
+  const outside = path.join(workspace, 'outside')
+  await Promise.all([mkdir(path.join(project, 'srv'), { recursive: true }), mkdir(outside)])
+  await writeFile(path.join(outside, 'model.cds'), 'entity Outside { key ID: Integer; }')
+  await writeFile(
+    path.join(project, 'srv', 'service.cds'),
+    "using { Outside } from '../../outside/model'; service EscapingService { entity Items as projection on Outside; }"
+  )
 
-  const modelWithSnapshot = await getModel(project)
-  assert.notStrictEqual(modelWithSnapshot, model)
-  assert(modelWithSnapshot.definitions.SnapshotService)
+  await assert.rejects(getModel(project), /CDS model source is outside the configured workspace roots/)
+
+  const model = await getModel(project, [workspace])
+  assert(model.definitions.EscapingService)
+  await assert.rejects(getModel(project, [project]), /CDS model source is outside the configured workspace roots/)
 })
 
 async function createProject(serviceName, entityName, compatTextsEntities) {

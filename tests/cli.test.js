@@ -4,6 +4,7 @@ import { test } from 'node:test'
 import { spawn } from 'node:child_process'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { tmpdir } from 'node:os'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
@@ -38,7 +39,8 @@ function runCliCommand(args, options = {}) {
 
 const noFetchEnv = {
   ...process.env,
-  NODE_OPTIONS: '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
+  NODE_OPTIONS:
+    '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
 }
 
 test.describe('CLI usage', () => {
@@ -52,6 +54,15 @@ test.describe('CLI usage', () => {
     assert(Array.isArray(output), 'Output should be an array')
     assert(output.length > 0, 'Should find at least one result')
     assert(output[0].name, 'Result should have a name property')
+  })
+
+  test('search_model accepts an explicit project path outside the CLI working directory', async () => {
+    const result = await runCliCommand(['--offline', 'search_model', sampleProjectPath, 'Books', 'entity'], {
+      cwd: tmpdir()
+    })
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(JSON.parse(result.stdout)[0].name, 'AdminService.Books')
   })
 
   test('search_docs subcommand works', async () => {
