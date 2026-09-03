@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@sap/cds": ">=9",
+    "@sap/cds": ">=10",
     "onnxruntime-web": "^1.27.0"
   },
   "devDependencies": {
