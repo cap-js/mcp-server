@@ -17,8 +17,11 @@ function fakeLoadIndex() {
 }
 
 // Retriever that returns a fixed ranking (best-first) for every question.
+// Each id is wrapped as a single-id chunk to match the {ids, text}[] shape
+// that resolveIds returns and buildReport expects.
 function fakeRetriever(ranking) {
-  return async () => async () => ranking
+  const chunks = ranking.map(id => ({ ids: [id], text: '' }))
+  return async () => async () => chunks
 }
 
 const silentLogger = { log() {}, error() {} }
@@ -93,31 +96,18 @@ describe('evaluate tests', () => {
   })
 
   test('a multi-section chunk is credited for every section it covers (its own Source lines)', async () => {
-    // A chunk spans two headings, each with its own `> Source:` line in the body.
-    // The golden label is the SECOND section — the chunk should still count as a
-    // hit because it structurally covers that section (not by substring-matching
-    // the golden URL against body text).
+    // A chunk spans two headings; resolveIds returns both source IDs in one chunk.
+    // The golden label is the SECOND section — the chunk covers it via chunk.ids.
+    const firstUrl = 'https://x/docs/get-started/#initial-setup'
     const secondUrl = 'https://x/docs/get-started/#nodejs-and-cds-dk'
-    const chunkText = [
-      'Getting Started > Initial Setup > Source: https://x/docs/get-started/#initial-setup',
-      'setup body',
-      '### Node.js and _cds-dk_',
-      `> Source: ${secondUrl}`,
-      'node body'
-    ].join('\n')
-    const fakeRetrieverWithText = async () => {
-      const fn = async () => ['https://x/docs/get-started/#initial-setup']
-      fn.lastTexts = [chunkText]
-      return fn
-    }
+    const fakeRetrieverWithText = async () => async () => [{ ids: [firstUrl, secondUrl], text: '' }]
     await writeGolden([{ id: 'q-001', question: 'installing cds-dk', relevant_doc_ids: [secondUrl] }])
-    const idxWith = async () => ({ idSet: new Set(['https://x/docs/get-started/#initial-setup', secondUrl]), count: 2 })
     const res = await evaluate({
       overrides: baseOverrides(),
       logger: silentLogger,
-      deps: { loadIndex: idxWith, makeRetriever: fakeRetrieverWithText }
+      deps: { loadIndex: async () => ({ idSet: new Set([firstUrl, secondUrl]), count: 2 }), makeRetriever: fakeRetrieverWithText }
     })
-    // The second section's own Source line → covered → hit → recall=1, not 0.
+    // The second section's id is in chunk.ids → hit → recall=1, not 0.
     assert.equal(res.report.per_question[0].metrics.hit_rate_at_k, 1)
     assert.equal(res.report.per_question[0].metrics.recall_at_k, 1)
   })
