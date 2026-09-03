@@ -5,9 +5,9 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
+import { MODEL_DIR } from '../lib/cache.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MODEL_DIR = path.resolve(__dirname, '..', 'models')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 test.describe('embeddings', () => {

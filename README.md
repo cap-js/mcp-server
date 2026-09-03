@@ -140,6 +140,9 @@ cds-mcp search_model . Books entity
 cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 ```
 
+Downloaded model artifacts are stored in the platform's user cache directory. Set `CDS_MCP_CACHE_DIR` to use a
+different location. Use `--offline` or `CDS_MCP_OFFLINE=true` to disable runtime downloads.
+
 ## Available Tools
 
 > [!NOTE]

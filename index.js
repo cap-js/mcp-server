@@ -16,11 +16,12 @@ const helpText = `Usage: cds-mcp [options] [tool] [args...]
 Options:
   -h, --help                 Show this help message
   -v, --version              Show version number
-      --download             Download latest embeddings and model files
-      --offline              Skip downloading of embeddings updates
+      --download             Download documentation embeddings and verified model files
+      --offline              Disable runtime downloads
 
 Environment variables:
   CDS_MCP_OFFLINE=true       Same as --offline
+  CDS_MCP_CACHE_DIR=<path>   Override the model cache directory
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
