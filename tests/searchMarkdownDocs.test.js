@@ -9,7 +9,47 @@ import fs from 'fs/promises'
 const embeddingsDir = path.join(__dirname, '..', 'embeddings')
 
 // Use dynamic import to ensure environment variable is set before module evaluation
-const searchMarkdownDocs = (await import('../lib/searchMarkdownDocs.js')).default
+const searchModule = await import('../lib/searchMarkdownDocs.js')
+const searchMarkdownDocs = searchModule.default
+const { formatResult } = searchModule
+
+describe('formatResult', () => {
+  test('returns content unchanged when meta is absent', () => {
+    assert.strictEqual(formatResult({ content: 'body' }), 'body')
+  })
+
+  test('backward compat: `meta` explicitly undefined behaves like missing key', () => {
+    assert.strictEqual(formatResult({ content: 'body', meta: undefined }), 'body')
+  })
+
+  test('backward compat: joined output for meta-less results is unchanged', () => {
+    // Simulates what searchMarkdownDocs does with pre-metadata files.
+    const results = [{ content: 'A' }, { content: 'B' }, { content: 'C' }]
+    const joined = results.map(formatResult).join('\n---\n')
+    assert.strictEqual(joined, 'A\n---\nB\n---\nC')
+  })
+
+  test('prepends meta as key: value lines separated by blank line', () => {
+    const out = formatResult({
+      content: 'body text',
+      meta: { source: 'a.md', breadcrumb: 'Root > A' }
+    })
+    assert.strictEqual(out, 'source: a.md\nbreadcrumb: Root > A\n\nbody text')
+  })
+
+  test('skips null/undefined/empty meta values', () => {
+    const out = formatResult({
+      content: 'body',
+      meta: { source: 'a.md', breadcrumb: null, tag: '', depth: undefined }
+    })
+    assert.strictEqual(out, 'source: a.md\n\nbody')
+  })
+
+  test('returns content only when all meta values are empty', () => {
+    assert.strictEqual(formatResult({ content: 'body', meta: {} }), 'body')
+    assert.strictEqual(formatResult({ content: 'body', meta: { x: null } }), 'body')
+  })
+})
 
 describe('searchMarkdownDocs integration tests', () => {
   test('should download and load embeddings from server', async () => {
