@@ -419,4 +419,27 @@ describe('compare tests', () => {
     // curr run's rd-pq table should show ▲ delta for MRR improvement
     assert.ok(html.includes('▲+0.500'), 'MRR improvement delta should appear in per-question row')
   })
+
+  test('pq-data blob contains runIds for client-side baseline selection', async () => {
+    const q = pq('cap-001', 'Q?')
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_b', { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const m = html.match(/id="pq-data"[^>]*>(.*?)<\/script>/s)
+    assert.ok(m, 'pq-data blob present')
+    const blob = JSON.parse(m[1].replace(/\\u003c/g, '<'))
+    assert.ok(Array.isArray(blob.runIds), 'runIds array present in blob')
+    assert.ok(blob.runIds.includes('2026-07-30T10:00:00Z_a'))
+    assert.ok(blob.runIds.includes('2026-07-30T11:00:00Z_b'))
+  })
+
+  test('run-detail summary has a baseline radio with data-run-id', async () => {
+    const run_id = '2026-07-30T10:00:00Z_abc'
+    await writeRun(null, fakeReport(run_id))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes(`class="baseline-radio" data-run-id="${run_id}"`))
+    assert.ok(html.includes('name="pq-baseline"'))
+  })
 })

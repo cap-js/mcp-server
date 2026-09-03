@@ -172,6 +172,31 @@ const PQ_SCRIPT = `
       apply();
     });
   });
+
+  // Exposed so run-detail baseline radios (outside this IIFE) can trigger re-render.
+  // runId=null → revert to baked-in deltas (oldest run baseline).
+  window.pqSetBaseline = function(runId){
+    var IDS = blob.runIds || [];
+    var idxBase = runId ? IDS.indexOf(runId) : -1;
+    DATA.forEach(function(q){
+      if(idxBase < 0){
+        // restore baked-in delta (computed server-side against oldest run)
+        KEYS.forEach(function(k){ q._delta = q._delta || {}; });
+        q.delta = q._origDelta;
+      } else {
+        if(!q._origDelta) q._origDelta = q.delta; // save once
+        var d={};
+        KEYS.forEach(function(k){
+          var base=(q.series[k]||[])[idxBase];
+          var last=(q.series[k]||[])[(q.series[k]||[]).length-1];
+          d[k]=(base!=null&&last!=null)?Math.round((last-base)*1000)/1000:null;
+        });
+        q.delta=d;
+      }
+    });
+    apply();
+  };
+
   render(DATA); // default: already sorted regressed-first
   countEl.textContent = DATA.length + ' shown';
 })();
@@ -253,7 +278,7 @@ function renderPerQuestionSection(runs) {
 
   const headCells = METRIC_KEYS.map(k => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join('')
 
-  const blob = { runShorts, gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
+  const blob = { runShorts, runIds: runs.map(r => r.run_id), gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
 
   return `<h2 class="section-h">Per-question metric trends
     <span class="section-hint">${data.length} questions · sorted by MRR drop then lowest MRR · click a row for its charts</span>
@@ -437,7 +462,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
 
   const label = r.config && r.config.label
   return `<details class="run-detail">
-  <summary>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
+  <summary><label class="baseline-label" title="Set as baseline for Δ column" onclick="event.stopPropagation()"><input type="radio" name="pq-baseline" class="baseline-radio" data-run-id="${r.run_id}" value="${r.run_id}"> baseline</label>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
     <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
     <table class="rd-table">
@@ -602,6 +627,9 @@ function renderHtml(runs, textById) {
   .rank-1 { background:rgba(255,200,0,0.18); font-weight:700; }
   .rank-2 { background:rgba(180,180,180,0.15); font-weight:600; }
   .rank-3 { background:rgba(180,110,50,0.13); }
+  .baseline-label { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); cursor:pointer; padding:2px 6px 2px 2px; border-radius:4px; border:1px solid transparent; user-select:none; }
+  .baseline-label:has(.baseline-radio:checked) { color:var(--series); border-color:var(--series); background:rgba(42,120,214,0.08); font-weight:600; }
+  .baseline-radio { accent-color:var(--series); cursor:pointer; }
 </style>
 </head>
 <body>
@@ -614,10 +642,19 @@ ${leaderboard}
 ${charts}
 </section>
 ${perQuestion}
-<h2 class="section-h">Inspect each run <span class="section-hint">(newest first — click to expand aggregate + per-question metrics)</span></h2>
+<h2 class="section-h">Inspect each run <span class="section-hint">(newest first — click to expand · select baseline radio to rebase Δ column)</span></h2>
 <div class="run-list">
 ${runDetails}
 </div>
+<script>
+(function(){
+  document.querySelectorAll('.baseline-radio').forEach(function(r){
+    r.addEventListener('change', function(){
+      if(typeof window.pqSetBaseline === 'function') window.pqSetBaseline(r.value);
+    });
+  });
+})();
+</script>
 </body>
 </html>
 `
