@@ -1,10 +1,11 @@
-import { resolveIds } from './ids.js'
+import { resolveIds, buildSourceMapIndex } from './ids.js'
 import tools from '../../lib/tools.js'
 
 export async function makeSearchDocsRunner(k, sourceMap) {
-  const retrieve = async function (q, time) {
+  const smIndex = buildSourceMapIndex(sourceMap)
+  const retrieve = async function (q) {
     const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
-    return resolveIds(out ? out.split('\n---\n') : [], q, sourceMap)
+    return resolveIds(out ? out.split('\n---\n') : [], q, sourceMap, smIndex)
   }
   return retrieve
 }
