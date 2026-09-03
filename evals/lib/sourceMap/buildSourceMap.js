@@ -49,7 +49,14 @@ function buildSourceMap(text, config) {
 
 async function build() {
   const srcPath = process.argv[2] ? path.resolve(process.argv[2]) : DEFAULT_SRC
-  const text = await fs.readFile(srcPath, 'utf8')
+  let text
+  try {
+    text = await fs.readFile(srcPath, 'utf8')
+  } catch (e) {
+    const response = await fetch('https://cap.cloud.sap/docs/llms-full.txt');
+    if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    text = await response.text();
+  }
   const sourceMap = buildSourceMap(text)
   await fs.writeFile(
     OUT,

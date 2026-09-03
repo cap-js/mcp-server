@@ -1,9 +1,6 @@
 const HEADING = /^(\s*#{1,6}) (.+)$/
 const SOURCE = /Source:\s*(\S+)/i
 
-let duration = 0
-let question = 0
-
 export function buildSourceMapIndex(sourceMap) {
   const byBreadcrumb = new Map()
   const byNonTransformed = new Map()
@@ -20,8 +17,6 @@ export function buildSourceMapIndex(sourceMap) {
 }
 
 export function resolveIds(chunks, q, sourceMap, smIndex = null) {
-  question++
-  const start = performance.now()
   const idx = smIndex || buildSourceMapIndex(sourceMap)
   const { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth } = idx
   const resolvedChunks = []
@@ -105,7 +100,5 @@ export function resolveIds(chunks, q, sourceMap, smIndex = null) {
     resolvedChunks.push({ ids, text })
   }
   if (noSourceFound.length) console.warn(`Added ${noSourceFound.length} placeholders sources for ${q.id}`)
-  duration = duration + performance.now() - start
-  if (question === 100) console.log(duration)
   return resolvedChunks
 }
