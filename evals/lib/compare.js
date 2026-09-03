@@ -178,13 +178,13 @@ const PQ_SCRIPT = `
   window.pqSetBaseline = function(runId){
     var IDS = blob.runIds || [];
     var idxBase = runId ? IDS.indexOf(runId) : -1;
+
+    // Rebase the global per-question trends table.
     DATA.forEach(function(q){
       if(idxBase < 0){
-        // restore baked-in delta (computed server-side against oldest run)
-        KEYS.forEach(function(k){ q._delta = q._delta || {}; });
-        q.delta = q._origDelta;
+        if(q._origDelta) q.delta = q._origDelta;
       } else {
-        if(!q._origDelta) q._origDelta = q.delta; // save once
+        if(!q._origDelta) q._origDelta = q.delta;
         var d={};
         KEYS.forEach(function(k){
           var base=(q.series[k]||[])[idxBase];
@@ -195,6 +195,20 @@ const PQ_SCRIPT = `
       }
     });
     apply();
+
+    // Rebase all run-detail per-question tables.
+    // Build baseMetrics map from the baseline run's rd-pq table rows (data-metrics attrs).
+    var baseMetrics = null;
+    if(runId){
+      baseMetrics = {};
+      var baseTbl = document.querySelector('.rd-table[data-run-id="'+runId+'"]');
+      if(baseTbl) baseTbl.querySelectorAll('tr.rd-pq-row').forEach(function(row){
+        try{ baseMetrics[row.dataset.qid] = JSON.parse(row.dataset.metrics); }catch(e){}
+      });
+    }
+    document.querySelectorAll('.rd-table[data-run-id]').forEach(function(tbl){
+      if(typeof tbl._rebase === 'function') tbl._rebase(baseMetrics);
+    });
   };
 
   render(DATA); // default: already sorted regressed-first
@@ -407,7 +421,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
         }
         return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
       }).join('')
-      return `<tr class="rd-pq-row"><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
+      return `<tr class="rd-pq-row" data-qid="${q.id}" data-metrics="${escHtml(JSON.stringify(q.metrics))}"><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
 <tr class="rd-pq-detail" style="display:none"><td colspan="8"><div class="q-retr-body">
   <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
   <ul class="id-list">${relList}</ul>
@@ -420,7 +434,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   const tblId = `rd-pq-${r.run_id.replace(/[^a-z0-9]/gi, '')}`
   const pqSection = (r.per_question || []).length
     ? `<div class="rd-sub">Per-question metrics <span class="muted">(click row to expand retrieval · click metric header to sort)</span></div>
-       <table id="${tblId}" class="rd-table">
+       <table id="${tblId}" class="rd-table" data-run-id="${r.run_id}">
          <thead><tr><th>id</th><th>question</th>${pqHead}<th>hit ranks</th></tr></thead>
          <tbody>${pqRows}</tbody>
        </table>
@@ -428,7 +442,31 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   var tbl=document.getElementById('${tblId}');
   if(!tbl)return;
   var tbody=tbl.querySelector('tbody');
+  var KEYS=${JSON.stringify(METRIC_KEYS)};
   var sortCol=null,sortDir=1;
+
+  function renderDelta(v, baseV){
+    if(baseV==null) return '';
+    var d=Math.round((v-baseV)*1000)/1000;
+    if(d>0) return ' <span class="d">▲+'+d.toFixed(3)+'</span>';
+    if(d<0) return ' <span class="d">▼−'+Math.abs(d).toFixed(3)+'</span>';
+    return '';
+  }
+
+  // Called by pqSetBaseline when a baseline radio changes.
+  // baseMetrics: Map<qid, {metric:value}> or null (revert to baked-in).
+  tbl._rebase = function(baseMetrics){
+    tbody.querySelectorAll('tr.rd-pq-row').forEach(function(row){
+      var raw=JSON.parse(row.dataset.metrics);
+      KEYS.forEach(function(k,i){
+        var col=i+2; // 0=id,1=question,2..6=metrics
+        var v=raw[k]??0;
+        var baseV=baseMetrics?baseMetrics[row.dataset.qid]?.[k]:null;
+        row.cells[col].innerHTML=v.toFixed(3)+renderDelta(v,baseV);
+      });
+    });
+  };
+
   tbl.querySelectorAll('thead th.sortable').forEach(function(th){
     th.addEventListener('click',function(){
       var col=parseInt(th.dataset.col);
