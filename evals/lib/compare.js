@@ -377,12 +377,12 @@ function renderRunDetails(r, textById, runRanks) {
         const relevant = new Set(q.relevant_doc_ids || [])
         const question = escHtml(q.question)
         const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
-        const retList = (q.retrieved_ids || []).map((id, i) => {
-          const hit = relevant.has(id)
-          const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${id}`
-          // Prefer the run-time text snapshot; fall back to the live corpus for
-          // older reports without one.
-          const text = (q.retrieved_texts && q.retrieved_texts[i]) || (textById && textById.get(id))
+        const retList = (q.retrieved_ids || []).map((chunk, i) => {
+          const chunkIds = chunk.ids || []
+          const hit = chunkIds.some(id => relevant.has(id))
+          const label = chunkIds.join(', ')
+          const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
+          const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
           if (text) {
             return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
           }
@@ -681,7 +681,18 @@ export async function compare({ configPath, overrides, outPath, logger = console
   if (fmt === 'md') {
     content = renderMarkdownCompare(runs)
   } else {
-    content = renderHtml(runs, perQuestionRaw)
+    let textById = null
+    if (perQuestionRaw) {
+      textById = new Map()
+      for (const q of perQuestionRaw) {
+        for (const chunk of q.retrievedIds) {
+          for (const id of chunk.ids) {
+            if (!textById.has(id)) textById.set(id, chunk.text)
+          }
+        }
+      }
+    }
+    content = renderHtml(runs, textById)
   }
   const out = outPath ? path.resolve(outPath) : path.join(cfg.paths.runsDir, `compare.${fmt}`)
   await fs.writeFile(out, content)

@@ -15,7 +15,12 @@ export function relevantHitsAtRank(relevant, retrieved, k) {
   const ranks = []
   const top = topK(retrieved, k)
   for (let i = 0; i < top.length; i++) {
-    if (rel.has(top[i])) ranks.push(i + 1)
+    for (const id of top[i].ids) {
+      if (rel.has(id)) {
+        ranks.push(i + 1)
+        break
+      }
+    }
   }
   return ranks
 }

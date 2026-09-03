@@ -151,39 +151,19 @@ describe('compare tests', () => {
     assert.ok(html.includes('0.500')) // per-question MRR at 3dp
   })
 
-  test('retrieved ids are expandable to chunk text when the corpus resolves them', async () => {
-    const q = {
-      id: 'cap-001', question: 'How do I define X?',
-      relevant_doc_ids: ['https://x/a#hit'],
-      retrieved_ids: ['https://x/a#hit', 'https://x/b#miss'],
-      relevant_hits_at_rank: [1],
-      metrics: { recall_at_k: 1, precision_at_k: 0.5, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
-    }
-    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
-    const textById = new Map([
-      ['https://x/a#hit', 'Heading > Source: https://x/a#hit\nthe relevant chunk body'],
-      ['https://x/b#miss', 'Other > Source: https://x/b#miss\nan irrelevant chunk body']
-    ])
-    await compare({ overrides: overrides(), logger: silentLogger, deps: { loadChunkText: async () => textById } })
-    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
-    // each retrieved id renders as an expandable chunk with its text inside a <pre>
-    assert.ok(html.includes('<details class="chunk">'))
-    assert.ok(html.includes('the relevant chunk body'))
-    assert.ok(html.includes('an irrelevant chunk body'))
-  })
-
   test('retrieved chunk text comes from the report snapshot even if corpus lookup is empty', async () => {
     // retrieved_texts (snapshotted at run time) resolves regardless of the live corpus.
     const q = {
       id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
-      retrieved_ids: ['https://x/a#hit', 'https://x/b#miss'],
-      retrieved_texts: ['snapshot body A', 'snapshot body B'],
+      retrieved_ids: [
+        { ids: ['https://x/a#hit'], text: 'snapshot body A' },
+        { ids: ['https://x/b#miss'], text: 'snapshot body B' }
+      ],
       relevant_hits_at_rank: [1],
       metrics: { recall_at_k: 1, precision_at_k: 0.5, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
     }
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
-    // empty corpus lookup — text must still show from the snapshot
-    await compare({ overrides: overrides(), logger: silentLogger, deps: { loadChunkText: async () => new Map() } })
+    await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     assert.ok(html.includes('<details class="chunk">'))
     assert.ok(html.includes('snapshot body A') && html.includes('snapshot body B'))
@@ -192,11 +172,11 @@ describe('compare tests', () => {
   test('retrieved id with no text (no snapshot, not in corpus) renders without expansion', async () => {
     const q = {
       id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
-      retrieved_ids: ['https://x/gone#stale'], relevant_hits_at_rank: [],
+      retrieved_ids: [{ ids: ['https://x/gone#stale'], text: '' }], relevant_hits_at_rank: [],
       metrics: { recall_at_k: 0, precision_at_k: 0, mrr: 0, hit_rate_at_k: 0, ndcg_at_k: 0 }
     }
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] }))
-    await compare({ overrides: overrides(), logger: silentLogger, deps: { loadChunkText: async () => new Map() } })
+    await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     assert.ok(html.includes('(text unavailable)'))
     assert.ok(!html.includes('<details class="chunk">'))

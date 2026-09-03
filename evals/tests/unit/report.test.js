@@ -23,18 +23,23 @@ const CONFIG = {
   k: 5
 }
 
+// Wrap flat id arrays into the {ids, text} chunk shape resolveIds returns.
+function mkChunks(...ids) {
+  return ids.map(id => ({ ids: [id], text: '' }))
+}
+
 // Two-question fixture. Deterministic — no retriever, no ONNX.
 function fixtureRaw(ret1, ret2) {
   return [
-    { id: 'q-002', question: 'second', relevant_doc_ids: ['b'], retrieved_ids: ret2 },
-    { id: 'q-001', question: 'first', relevant_doc_ids: ['a'], retrieved_ids: ret1 }
+    { id: 'q-002', question: 'second', relevant_doc_ids: ['b'], retrievedIds: ret2 },
+    { id: 'q-001', question: 'first', relevant_doc_ids: ['a'], retrievedIds: ret1 }
   ]
 }
 
 describe('eval tests', () => {
   test('pre-flight detects stale relevant ids', () => {
-    const idSet = new Set(['a', 'c'])
-    const stale = preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], idSet)
+    const sourceMap = [{ source: 'a' }, { source: 'c' }]
+    const stale = preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], sourceMap)
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'b' }])
   })
 
@@ -68,7 +73,7 @@ describe('eval tests', () => {
   test('per_question is sorted by id ascending', () => {
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
       baseline: null,
       gates: GATES
     })
@@ -78,7 +83,7 @@ describe('eval tests', () => {
   test('healthy run → overall pass, exit-worthy status pass', () => {
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a', 'x', 'y'], ['b', 'x', 'y']),
+      perQuestionRaw: fixtureRaw(mkChunks('a', 'x', 'y'), mkChunks('b', 'x', 'y')),
       baseline: null,
       gates: GATES
     })
@@ -92,7 +97,7 @@ describe('eval tests', () => {
     // baseline: both relevant at rank 1 (mrr 1.0)
     const baseReport = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
       baseline: null,
       gates: GATES
     })
@@ -100,7 +105,7 @@ describe('eval tests', () => {
     // now: relevant docs pushed to rank 4 → mrr 0.25 each, recall still 1
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'z', 'a'], ['x', 'y', 'z', 'b']),
+      perQuestionRaw: fixtureRaw(mkChunks('x', 'y', 'z', 'a'), mkChunks('x', 'y', 'z', 'b')),
       baseline,
       gates: GATES
     })
@@ -117,7 +122,7 @@ describe('eval tests', () => {
     // baseline: relevant docs absent → recall/mrr aggregate 0.00
     const baseReport = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y'], ['x', 'y']),
+      perQuestionRaw: fixtureRaw(mkChunks('x', 'y'), mkChunks('x', 'y')),
       baseline: null,
       gates: GATES
     })
@@ -126,7 +131,7 @@ describe('eval tests', () => {
     // now: both relevant at rank 1 → mrr 1.0, a genuine improvement from 0
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
       baseline,
       gates: GATES
     })
@@ -137,7 +142,7 @@ describe('eval tests', () => {
   test('recall regression → chunking/embedding diagnosis (first match wins)', () => {
     const baseReport = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
       baseline: null,
       gates: GATES
     })
@@ -145,7 +150,7 @@ describe('eval tests', () => {
     // relevant docs fall out of top-5 entirely → recall down (and mrr down, but recall wins)
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'y', 'z', 'p', 'q'], ['x', 'y', 'z', 'p', 'q']),
+      perQuestionRaw: fixtureRaw(mkChunks('x', 'y', 'z', 'p', 'q'), mkChunks('x', 'y', 'z', 'p', 'q')),
       baseline,
       gates: GATES
     })
@@ -203,14 +208,14 @@ describe('eval tests', () => {
   test('delta rounding: aggregate 2dp, per-question 3dp', () => {
     const baseReport = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['a'], ['b']),
+      perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
       baseline: null,
       gates: GATES
     })
     const baseline = { run_id: 'base_3', ...baseReport }
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(['x', 'a'], ['b']), // q-001 mrr 0.5, q-002 mrr 1.0 → avg 0.75
+      perQuestionRaw: fixtureRaw(mkChunks('x', 'a'), mkChunks('b')), // q-001 mrr 0.5, q-002 mrr 1.0 → avg 0.75
       baseline,
       gates: GATES
     })
@@ -223,8 +228,8 @@ describe('eval tests', () => {
   })
 
   test('DETERMINISM: same inputs → byte-identical report (ignoring run_id)', () => {
-    const r1 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'x'], ['x', 'b']), baseline: null, gates: GATES })
-    const r2 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(['a', 'x'], ['x', 'b']), baseline: null, gates: GATES })
+    const r1 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')), baseline: null, gates: GATES })
+    const r2 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')), baseline: null, gates: GATES })
     assert.equal(JSON.stringify(r1), JSON.stringify(r2))
   })
 
