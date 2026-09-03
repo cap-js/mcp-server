@@ -453,15 +453,16 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
     return '';
   }
 
-  // Called by pqSetBaseline when a baseline radio changes.
-  // baseMetrics: Map<qid, {metric:value}> or null (revert to baked-in).
+  // Called when a baseline radio changes.
+  // baseMetrics: {qid: {metric:value}} or null (revert to no delta).
   tbl._rebase = function(baseMetrics){
     tbody.querySelectorAll('tr.rd-pq-row').forEach(function(row){
       var raw=JSON.parse(row.dataset.metrics);
+      var qMetrics=baseMetrics&&baseMetrics[row.dataset.qid]||null;
       KEYS.forEach(function(k,i){
         var col=i+2; // 0=id,1=question,2..6=metrics
-        var v=raw[k]??0;
-        var baseV=baseMetrics?baseMetrics[row.dataset.qid]?.[k]:null;
+        var v=raw[k]!=null?raw[k]:0;
+        var baseV=qMetrics&&qMetrics[k]!=null?qMetrics[k]:null;
         row.cells[col].innerHTML=v.toFixed(3)+renderDelta(v,baseV);
       });
     });
@@ -686,9 +687,23 @@ ${runDetails}
 </div>
 <script>
 (function(){
-  document.querySelectorAll('.baseline-radio').forEach(function(r){
-    r.addEventListener('change', function(){
-      if(typeof window.pqSetBaseline === 'function') window.pqSetBaseline(r.value);
+  document.querySelectorAll('.baseline-radio').forEach(function(radio){
+    radio.addEventListener('change', function(){
+      var runId = radio.value;
+      // Rebase global pq-table if present
+      if(typeof window.pqSetBaseline === 'function') window.pqSetBaseline(runId);
+      // Rebase all rd-pq tables directly — works even without global pq section
+      var baseMetrics = null;
+      var baseTbl = document.querySelector('.rd-table[data-run-id="'+runId+'"]');
+      if(baseTbl){
+        baseMetrics = {};
+        baseTbl.querySelectorAll('tr.rd-pq-row').forEach(function(row){
+          try{ baseMetrics[row.dataset.qid] = JSON.parse(row.dataset.metrics); }catch(e){}
+        });
+      }
+      document.querySelectorAll('.rd-table[data-run-id]').forEach(function(tbl){
+        if(typeof tbl._rebase === 'function') tbl._rebase(baseMetrics);
+      });
     });
   });
 })();
