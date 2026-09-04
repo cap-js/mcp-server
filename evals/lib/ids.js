@@ -96,7 +96,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
             const em = HEADING.exec(entry)
             if (!em) continue
             const entryDepth = em[1].trim().length
-            if (entry === firstHeading && firstHeadingDepht === entryDepth) continue
+            if (entry === firstHeading && firstHeadingDepht >= currDepth) continue
             if (entryDepth < currDepth) {
               breadCrumbInText.unshift(em[2])
               currDepth = entryDepth
