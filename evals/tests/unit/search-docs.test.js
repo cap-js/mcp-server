@@ -44,7 +44,6 @@ describe('search-docs tests', () => {
 
   test('retrieve splits on \\n---\\n and resolves ids via sourceMap', async () => {
     const orig = tools.search_docs.handler
-    // Two chunks, each with a heading resolvable via SOURCE_MAP
     tools.search_docs.handler = async () => '# A\n\nSource: /docs/a\nbody\n---\n# B\n\nSource: /docs/b\nbody'
     try {
       const retrieve = await makeSearchDocsRunner(5, SOURCE_MAP)

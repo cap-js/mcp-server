@@ -17,9 +17,9 @@ async function readJsonOrNull(p) {
 // `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
 export async function evaluate({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
-
   const cfg = await loadConfig({ configPath, overrides })
+
+  const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
@@ -80,11 +80,49 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
 }
 
-// Entry point for `npm run evals`: run the eval once, then build the comparison report.
-export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
-  const { code, perQuestionRaw } = await evaluate({ configPath, overrides, logger, deps })
+async function findEmbeddingDirs(sweepDir) {
+  const results = []
+  async function walk(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    if (entries.some(e => e.isFile() && e.name === 'code-chunks.json')) { results.push(dir); return }
+    for (const e of entries) {
+      if (e.isDirectory()) await walk(path.join(dir, e.name))
+    }
+  }
+  await walk(sweepDir)
+  return results.sort()
+}
 
-  // Always compare afterwards; best-effort, doesn't override the eval exit code.
+// Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
+// embeddingsSweepDir is set), then build the comparison report.
+export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
+  const cfg = await loadConfig({ configPath, overrides })
+
+  let code
+  let perQuestionRaw
+  if (cfg.paths.embeddingsSweepDir) {
+    const dirs = await findEmbeddingDirs(cfg.paths.embeddingsSweepDir)
+    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.paths.embeddingsSweepDir}`)
+    logger.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
+    const embeddingsDir = path.join(EVALS_DIR, '..', 'embeddings')
+    const sweepBasename = path.basename(cfg.paths.embeddingsSweepDir)
+    let worstCode = 0
+    for (const dir of dirs) {
+      const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
+      const label = [sweepBasename, ...segments.slice(-2)].join('/')
+      logger.error(`\n→ ${label}`)
+      if (!deps.makeRetriever) {
+        await fs.copyFile(path.join(dir, 'code-chunks.json'), path.join(embeddingsDir, 'code-chunks.json'))
+        await fs.copyFile(path.join(dir, 'code-chunks.bin'), path.join(embeddingsDir, 'code-chunks.bin'))
+      }
+      const { code: c } = await evaluate({ configPath, overrides: { ...overrides, label }, logger, deps })
+      if (c > worstCode) worstCode = c
+    }
+    code = worstCode
+  } else {
+    ;({ code, perQuestionRaw } = await evaluate({ configPath, overrides, logger, deps }))
+  }
+
   try {
     const { compare } = await import('./compare.js')
     await compare({ configPath, overrides, logger, perQuestionRaw })

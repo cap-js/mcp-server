@@ -1,12 +1,9 @@
 /* eslint-disable no-console */
-// Entry point for `npm run evals`: evaluate once, then build the comparison report.
+// Entry point for `npm run evals`: evaluate once (or sweep all subdirs when
+// paths.embeddingsSweepDir is set), then build the comparison report.
 //
-// This thin wrapper exists for one reason: search_docs reads CDS_MCP_OFFLINE at
-// MODULE LOAD. It must be set before ./evaluate.js (which transitively imports
-// the search tool) is loaded — hence the env assignment followed by a dynamic
-// import. A static import here, or setting the env inside evaluate.js, would run
-// too late. Offline scoring against the already-downloaded corpus keeps runs
-// deterministic (no mid-run re-download).
+// CDS_MCP_OFFLINE must be set before ./evaluate.js loads — it is read at module
+// load by the search tool. Dynamic import keeps the assignment first.
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { evaluateAndCompare } = await import('../lib/evaluate.js')

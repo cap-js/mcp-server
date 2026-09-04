@@ -290,3 +290,92 @@ describe('evaluate tests', () => {
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })
 })
+
+describe('evaluateSweep tests', () => {
+  let tmpDir, goldenPath, runsDir, sweepDir
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-sweep-'))
+    goldenPath = path.join(tmpDir, 'golden.json')
+    runsDir = path.join(tmpDir, 'runs')
+    sweepDir = path.join(tmpDir, 'sweep')
+  })
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  async function writeGolden(questions) {
+    await fs.writeFile(goldenPath, JSON.stringify({ golden_set: 'test', questions }))
+  }
+
+  function sweepOverrides(extra = {}) {
+    return {
+      k: 5,
+      paths: { goldenSet: goldenPath, runsDir, embeddingsSweepDir: sweepDir },
+      capire_version: '2026.5.0',
+      ...extra
+    }
+  }
+
+  async function readResults() {
+    const text = await fs.readFile(path.join(runsDir, 'result.jsonl'), 'utf8')
+    return text.split('\n').filter(Boolean).map(l => JSON.parse(l))
+  }
+
+  // deps seam: bypass ONNX, return fixed ranking
+  const fakeDeps = {
+    loadIndex: fakeLoadIndex(),
+    makeRetriever: fakeRetriever(CHUNK_IDS)
+  }
+
+  test('throws when no embedding dirs found under sweepDir', async () => {
+    await fs.mkdir(sweepDir, { recursive: true })
+    await assert.rejects(
+      () => evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps }),
+      /No embedding dirs found/
+    )
+  })
+
+  test('runs once per embedding dir and appends each to result.jsonl', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-1'), { recursive: true })
+    await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-2'), { recursive: true })
+    for (const sub of ['cfg-1', 'cfg-2']) {
+      await fs.writeFile(path.join(sweepDir, 'model-a', sub, 'code-chunks.json'), '{}')
+    }
+
+    const res = await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows.length, 2)
+    const labels = rows.map(r => r.config.label).sort()
+    assert.deepEqual(labels, ['sweep/model-a/cfg-1', 'sweep/model-a/cfg-2'])
+    assert.ok(res.code === 0 || res.code === 1)
+  })
+
+  test('label uses last 2 path segments relative to sweepDir', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const dir = path.join(sweepDir, 'group', 'subgroup', 'variant')
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+
+    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows[0].config.label, 'sweep/subgroup/variant')
+  })
+
+  test('discover: only dirs with code-chunks.json are included', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const hasChunks = path.join(sweepDir, 'has-chunks')
+    await fs.mkdir(hasChunks, { recursive: true })
+    await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
+    await fs.mkdir(path.join(sweepDir, 'no-chunks'), { recursive: true })
+
+    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows.length, 1)
+    assert.ok(rows[0].config.label.endsWith('has-chunks'))
+  })
+})

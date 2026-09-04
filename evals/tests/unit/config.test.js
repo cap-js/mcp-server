@@ -19,6 +19,7 @@ describe('config tests', () => {
     assert.equal(cfg.gates.precision_at_k, null)
     assert.ok(cfg.paths.goldenSet.endsWith('data/golden-set.json'))
     assert.ok(cfg.paths.runsDir.endsWith('runs'))
+    assert.ok(cfg.paths.embeddingsSweepDir === null || typeof cfg.paths.embeddingsSweepDir === 'string')
     // all metric keys present in gates
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
@@ -96,5 +97,17 @@ describe('config tests', () => {
     clearEnv()
     const cfg = await loadConfig({ overrides: { output: { keepRuns: -1 } } })
     assert.equal(cfg.output.keepRuns, -1)
+  })
+
+  test('paths.embeddingsSweepDir resolves absolute path via override', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { paths: { embeddingsSweepDir: '/abs/sweep' } } })
+    assert.equal(cfg.paths.embeddingsSweepDir, '/abs/sweep')
+  })
+
+  test('paths.embeddingsSweepDir is null when not set', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ configPath: '/no/such/config.json' })
+    assert.equal(cfg.paths.embeddingsSweepDir, null)
   })
 })

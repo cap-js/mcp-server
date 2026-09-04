@@ -3,7 +3,8 @@
   "capire_version": "2026.5.0",
   "paths": {
     "goldenSet": "data/golden-set.json",
-    "runsDir": "runs"
+    "runsDir": "runs",
+    "embeddingsSweepDir": null
   },
   "gates": {
     "recall_at_k": 0.8,

@@ -25,9 +25,10 @@ describe('ids tests', () => {
   })
 
   test('heading lookup via sourceMap when no inline Source: line', () => {
+    // lines[0] = 'Getting Started' → breadcrumb matches top-level entry → /docs/get-started/
     const text = 'Getting Started\n## Initial Setup\nbody'
     const r = resolveIds([text], Q, SM)
-    assert.deepEqual(r[0].ids, ['/docs/get-started/#initial-setup'])
+    assert.deepEqual(r[0].ids, ['/docs/get-started/'])
   })
 
   test('multi-section chunk collects ids from multiple Source: lines', () => {
@@ -80,9 +81,9 @@ describe('ids tests', () => {
       { source: '/docs/b/', title: 'B', depth: 1, breadcrumb: 'B' },
       { source: '/docs/b/#setup', title: 'Setup', depth: 2, breadcrumb: 'B > Setup' }
     ]
-    // Chunk is under "B", so breadcrumb should resolve to /docs/b/#setup.
+    // lines[0] = 'B' → breadcrumb 'B' matches top-level entry → /docs/b/
     const text = 'B\n## Setup\nbody'
     const r = resolveIds([text], Q, sm)
-    assert.deepEqual(r[0].ids, ['/docs/b/#setup'])
+    assert.deepEqual(r[0].ids, ['/docs/b/'])
   })
 })

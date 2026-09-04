@@ -52,7 +52,8 @@ export async function loadConfig({ configPath, overrides } = {}) {
     baselineRunId: file.baselineRunId || null,
     paths: {
       goldenSet: resolve(paths.goldenSet || 'data/golden-set.json'),
-      runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs'))
+      runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs')),
+      embeddingsSweepDir: paths.embeddingsSweepDir ? resolve(paths.embeddingsSweepDir) : null
     },
     gates: {},
     output: {
