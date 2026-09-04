@@ -90,12 +90,13 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
           // calc breadcrumb for headings w/o source
           const breadCrumbInText = [heading]
           let currDepth = depth
+          const firstHeadingDepht = HEADING.exec(firstHeading)[1].trim().length
           for (let j = i - 1; j >= 0; j--) {
             const entry = lines[j]
-            if (entry === firstHeading) continue
             const em = HEADING.exec(entry)
             if (!em) continue
             const entryDepth = em[1].trim().length
+            if (entry === firstHeading && firstHeadingDepht === entryDepth) continue
             if (entryDepth < currDepth) {
               breadCrumbInText.unshift(em[2])
               currDepth = entryDepth
