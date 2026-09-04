@@ -1,6 +1,13 @@
 import { metricsFor, relevantHitsAtRank, mean, round } from './metrics.js'
 import { METRIC_KEYS } from './config.js'
 
+// Normalise an authored relevant_doc_ids list into groups (string[][]). A
+// bare string entry becomes a one-element group; an array entry stays as-is.
+// Any match inside a group satisfies that group for retrieval scoring.
+export function normalizeRelevant(relevant_doc_ids) {
+  return relevant_doc_ids.map(entry => (Array.isArray(entry) ? entry : [entry]))
+}
+
 // Structural validation of the golden set. Returns human-readable problem
 // strings ([] = valid); catches malformed labels that would crash the run or
 // silently skew scoring.
@@ -19,17 +26,32 @@ export function validateGolden(questions) {
     if (typeof q.question !== 'string' || !q.question.trim()) problems.push(`${where}: missing non-empty "question"`)
     if (!Array.isArray(q.relevant_doc_ids)) problems.push(`${where}: "relevant_doc_ids" must be an array`)
     else if (q.relevant_doc_ids.length === 0) problems.push(`${where}: "relevant_doc_ids" is empty (no ground truth)`)
-    else if (q.relevant_doc_ids.some(id => typeof id !== 'string' || !id)) problems.push(`${where}: "relevant_doc_ids" contains a non-string/empty id`)
+    else {
+      q.relevant_doc_ids.forEach((entry, j) => {
+        const at = `entry #${j + 1}`
+        if (Array.isArray(entry)) {
+          if (entry.length === 0) problems.push(`${where}: "relevant_doc_ids" ${at} is an empty OR-group`)
+          else if (entry.some(id => typeof id !== 'string' || !id)) problems.push(`${where}: "relevant_doc_ids" ${at} contains a non-string/empty id`)
+        } else if (typeof entry !== 'string' || !entry) {
+          problems.push(`${where}: "relevant_doc_ids" contains a non-string/empty id`)
+        }
+      })
+    }
   })
   return problems
 }
 
-// Pre-flight: every relevant_doc_id must exist in the current index.
+// Pre-flight: every relevant_doc_id must exist in the current index. For an
+// OR-group, each alternate is checked independently — a stale alternate is
+// still worth flagging even if the group has valid siblings.
 export function preflight(goldenQuestions, sourceMap) {
   const stale = []
   for (const q of goldenQuestions) {
-    for (const id of q.relevant_doc_ids) {
-      if (!sourceMap.some(m => m.source === id)) stale.push({ question: q.id, doc_id: id })
+    for (const entry of q.relevant_doc_ids) {
+      const ids = Array.isArray(entry) ? entry : [entry]
+      for (const id of ids) {
+        if (!sourceMap.some(m => m.source === id)) stale.push({ question: q.id, doc_id: id })
+      }
     }
   }
   return stale
@@ -41,7 +63,8 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
 
   const per_question = perQuestionRaw
     .map(q => {
-      const m = metricsFor(q.relevant_doc_ids, q.retrievedIds, k)
+      const groups = normalizeRelevant(q.relevant_doc_ids)
+      const m = metricsFor(groups, q.retrievedIds, k)
       return {
         id: q.id,
         question: q.question,
@@ -49,7 +72,7 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
         retrieved_ids: q.retrievedIds.slice(0, k),
         // Per-slot text snapshot (when provided), so compare needn't re-read the corpus.
         ...(q.retrieved_texts ? { retrieved_texts: q.retrieved_texts.slice(0, k) } : {}),
-        relevant_hits_at_rank: relevantHitsAtRank(q.relevant_doc_ids, q.retrievedIds, k),
+        relevant_hits_at_rank: relevantHitsAtRank(groups, q.retrievedIds, k),
         metrics: {
           recall_at_k: round(m.recall_at_k, 3),
           precision_at_k: round(m.precision_at_k, 3),

@@ -246,4 +246,47 @@ describe('eval tests', () => {
     assert.ok(early < late) // string sort respects the ms component
   })
 
+  test('validateGolden: accepts OR-group entries alongside plain strings', () => {
+    const ok = [
+      { id: 'q-001', question: 'a?', relevant_doc_ids: ['x', ['y1', 'y2']] }
+    ]
+    assert.deepEqual(validateGolden(ok), [])
+  })
+
+  test('validateGolden: rejects empty OR-group and empty/non-string ids inside a group', () => {
+    const bad = [
+      { id: 'q-001', question: 'a?', relevant_doc_ids: [[]] },
+      { id: 'q-002', question: 'b?', relevant_doc_ids: [['']] },
+      { id: 'q-003', question: 'c?', relevant_doc_ids: ['ok', []] }
+    ]
+    const problems = validateGolden(bad)
+    assert.ok(problems.some(p => /q-001.*empty OR-group/.test(p)))
+    assert.ok(problems.some(p => /q-002.*non-string\/empty/.test(p)))
+    assert.ok(problems.some(p => /q-003.*empty OR-group/.test(p)))
+  })
+
+  test('preflight: flags a stale alternate inside an OR-group, keeps valid siblings clean', () => {
+    const sourceMap = [{ source: 'a' }, { source: 'y1' }]
+    const stale = preflight(
+      [{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }],
+      sourceMap
+    )
+    assert.deepEqual(stale, [{ question: 'q1', doc_id: 'y2-stale' }])
+  })
+
+  test('buildReport: OR-group in relevant_doc_ids scores as one group', () => {
+    // one question, one OR-group; retriever finds only the second alternate at rank 1
+    const raw = [{
+      id: 'q-001',
+      question: 'orgroup?',
+      relevant_doc_ids: [['a1', 'a2']],
+      retrievedIds: mkChunks('a2', 'x', 'y')
+    }]
+    const r = buildReport({ config: CONFIG, perQuestionRaw: raw, baseline: null, gates: GATES })
+    const q = r.per_question[0]
+    assert.equal(q.metrics.recall_at_k, 1) // group found once, not 0.5
+    assert.equal(q.metrics.hit_rate_at_k, 1)
+    assert.equal(q.metrics.mrr, 1)
+    assert.deepEqual(q.relevant_doc_ids, [['a1', 'a2']]) // author form preserved
+  })
 })

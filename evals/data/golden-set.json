@@ -1,6 +1,6 @@
 {
   "golden_set": "cap-golden-v3",
-  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. Each entry may be a string (single relevant doc) or an array of strings (an OR-group of alternate docs — any one match satisfies the group and counts as one relevant doc for every metric). IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
   "questions": [
     {
       "id": "capire-1",
@@ -64,7 +64,7 @@
       "id": "capire-8",
       "question": "What type should I use for a currency field in my CDS entity?",
       "relevant_doc_ids": [
-        "/docs/cds/types",
+        ["/docs/cds/types", "/docs/cds/cdl#built-in-types"],
         "/docs/cds/common#code-types"
       ]
     },
@@ -139,7 +139,7 @@
       "id": "capire-18",
       "question": "How do I add constraints for input validation using annotations in CAP?",
       "relevant_doc_ids": [
-        "/docs/guides/services/constraints#input-validation"
+        ["/docs/guides/services/constraints#input-validation", "/docs/guides/services/constraints#introduction"]
       ]
     },
     {

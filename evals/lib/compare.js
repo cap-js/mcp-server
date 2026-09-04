@@ -395,7 +395,11 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   const pqHead = METRIC_KEYS.map((k, i) => `<th class="sortable" data-col="${i + 2}">${METRIC_LABEL[k]}</th>`).join('')
   const pqRows = (r.per_question || [])
     .map(q => {
-      const relevant = new Set(q.relevant_doc_ids || [])
+      const relevantIds = new Set()
+      for (const entry of (q.relevant_doc_ids || [])) {
+        if (Array.isArray(entry)) for (const id of entry) relevantIds.add(id)
+        else relevantIds.add(entry)
+      }
       const baseM = baselinePqMap ? baselinePqMap.get(q.id) : null
       const cells = METRIC_KEYS.map(k => {
         const v = q.metrics[k] ?? 0
@@ -409,10 +413,16 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
       }).join('')
       const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
       const question = escHtml(q.question)
-      const relList = (q.relevant_doc_ids || []).map(id => `<li class="mono">${id}</li>`).join('')
+      const relList = (q.relevant_doc_ids || []).map(entry => {
+        if (Array.isArray(entry)) {
+          const parts = entry.map(id => `<span class="mono">${escHtml(id)}</span>`).join(' <span class="muted">⋁</span> ')
+          return `<li>${parts}</li>`
+        }
+        return `<li class="mono">${escHtml(entry)}</li>`
+      }).join('')
       const retList = (q.retrieved_ids || []).map((chunk, i) => {
         const chunkIds = chunk.ids || []
-        const hit = chunkIds.some(id => relevant.has(id))
+        const hit = chunkIds.some(id => relevantIds.has(id))
         const label = chunkIds.join(', ')
         const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
         const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
