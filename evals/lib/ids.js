@@ -1,6 +1,6 @@
 const HEADING = /^(\s*#{1,6}) (.+)$/
 const SOURCE = /Source:\s*(\S+)/i
-const BREADCRUMB = /Breadcrumb:\s*(.+)/i
+const HEADINGPATH = /HeadingPath:\s*(.+)/i
 
 export function buildSourceMapIndex(sourceMap) {
   const byBreadcrumb = new Map()
@@ -29,9 +29,9 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
     const firstLine = lines[0]
 
     let headings    
-    const breadCrumbLine = text.split('\n').find(line => BREADCRUMB.test(line))
+    const breadCrumbLine = text.split('\n').find(line => HEADINGPATH.test(line))
     if (breadCrumbLine) {
-      headings = breadCrumbLine.replace(/breadcrumb:\s*/i, '').split(' > ')
+      headings = breadCrumbLine.replace(/headingPath:\s*/i, '').split(' > ')
     } else {
       headings = lines[0]
         .split(' > ')
@@ -40,7 +40,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
     }
     
     if (!headings.length) {
-      ids.push(`/placeholder/source/${lines[0].replace(/breadcrumb:\s*/i, '')}`)
+      ids.push(`/placeholder/source/${lines[0].replace(/headingPath:\s*/i, '')}`)
       console.warn(`No breadcrumb found for ${q.id}: ${text}`)
     }
     // when result has no source (old behavior)
