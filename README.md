@@ -155,6 +155,10 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 - Annotations
 - HTTP endpoints
 
+For MCP clients, `projectPath` must resolve inside one of the client's advertised workspace roots. If a client does not
+support roots, the server process's working directory is used. Direct CLI calls continue to accept the explicitly
+provided project path.
+
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ### `search_docs`
