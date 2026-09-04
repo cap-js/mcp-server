@@ -89,8 +89,7 @@
       "id": "capire-11",
       "question": "How does cds watch react when I save a domain model and what is the inner development loop in CAP?",
       "relevant_doc_ids": [
-        "/docs/get-started/bookshop#databases",
-        "/docs/get-started/bookshop#inner-loop"
+        ["/docs/get-started/bookshop#databases", "/docs/get-started/bookshop#inner-loop"]
       ]
     },
     {
