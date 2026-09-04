@@ -1,0 +1,719 @@
+{
+  "golden_set": "cap-golden-v3",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. Each entry may be a string (single relevant doc) or an array of strings (an OR-group of alternate docs — any one match satisfies the group and counts as one relevant doc for every metric). IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
+  "questions": [
+    {
+      "id": "capire-1",
+      "question": "How to define key fields of domain entities?",
+      "relevant_doc_ids": [
+        "/docs/guides/domain/#primary-keys",
+        "/docs/guides/databases/cdl-to-ddl#primary-key-constraints",
+        "/docs/cds/cdl#entity-definitions"
+      ]
+    },
+    {
+      "id": "capire-2",
+      "question": "How to model relationships between entities in cds files?",
+      "relevant_doc_ids": [
+        "/docs/guides/domain/#associations",
+        "/docs/cds/cdl#associations"
+      ]
+    },
+    {
+      "id": "capire-3",
+      "question": "Query field values of nested children",
+      "relevant_doc_ids": [
+        "/docs/guides/services/served-ootb#deep-reads-and-writes",
+        "/docs/cds/cxl#path-navigation"
+      ]
+    },
+    {
+      "id": "capire-4",
+      "question": "How do I register a before handler in CAP Node.js to validate incoming request data before the on handler runs?",
+      "relevant_doc_ids": [
+        "/docs/node.js/core-services#srv-before-request",
+        "/docs/guides/services/custom-code#hooks-on-before-after"
+      ]
+    },
+    {
+      "id": "capire-5",
+      "question": "What is the difference between on, before, and after event handlers in CAP Node.js?",
+      "relevant_doc_ids": [
+        "/docs/node.js/core-services#srv-on-before-after",
+        "/docs/guides/services/custom-code#hooks-on-before-after"
+      ]
+    },
+    {
+      "id": "capire-6",
+      "question": "How do I define a calculated element in CDS?",
+      "relevant_doc_ids": [
+        "/docs/cds/cql#exists-predicate",
+        "/docs/cds/cdl#calculated-elements",
+        "/docs/guides/databases/performance#case-statement"
+      ]
+    },
+    {
+      "id": "capire-7",
+      "question": "How do I query for Authors that have Books with a specific stock level in CAP?",
+      "relevant_doc_ids": [
+        "/docs/cds/cxl#exists-infix-filter",
+        "/docs/cds/cxl#in-exists-predicates"
+      ]
+    },
+    {
+      "id": "capire-8",
+      "question": "What type should I use for a currency field in my CDS entity?",
+      "relevant_doc_ids": [
+        ["/docs/cds/types", "/docs/cds/cdl#built-in-types"],
+        "/docs/cds/common#code-types"
+      ]
+    },
+    {
+      "id": "capire-9",
+      "question": "How do I configure messaging in my CAP Node.js application?",
+      "relevant_doc_ids": [
+        "/docs/node.js/messaging#configuring-message-brokers",
+        "/docs/guides/events/event-queues#by-configuration"
+      ]
+    },
+    {
+      "id": "capire-10",
+      "question": "What is the difference between IAS and XSUAA authentication in CAP and how do I set it up?",
+      "relevant_doc_ids": [
+        "/docs/node.js/authentication#ias",
+        "/docs/node.js/authentication#xsuaa",
+        "/docs/guides/security/remote-authentication#ias-app-2-app"
+      ]
+    },
+    {
+      "id": "capire-11",
+      "question": "How does cds watch react when I save a domain model and what is the inner development loop in CAP?",
+      "relevant_doc_ids": [
+        ["/docs/get-started/bookshop#databases", "/docs/get-started/bookshop#inner-loop"]
+      ]
+    },
+    {
+      "id": "capire-12",
+      "question": "How can customers and partners extend SAP CAP applications?",
+      "relevant_doc_ids": [
+        "/docs/get-started/features#intrinsic-extensibility"
+      ]
+    },
+    {
+      "id": "capire-13",
+      "question": "How can I start Node.js apps on different ports?",
+      "relevant_doc_ids": [
+        "/docs/get-started/get-help#nodejs"
+      ]
+    },
+    {
+      "id": "capire-14",
+      "question": " (requested)'?",
+      "relevant_doc_ids": [
+        "/docs/get-started/get-help#deployment-fails--version-incompatibility"
+      ]
+    },
+    {
+      "id": "capire-15",
+      "question": "What is the difference between capture intent and how-to in CAP documentation?",
+      "relevant_doc_ids": [
+        "/docs/guides/domain/#introduction"
+      ]
+    },
+    {
+      "id": "capire-16",
+      "question": "How do I add UI annotations to my CDS entities?",
+      "relevant_doc_ids": [
+        "/docs/guides/domain/#fiori-annotations"
+      ]
+    },
+    {
+      "id": "capire-17",
+      "question": "How does deleting a root of a composition hierarchy affect the nested children?",
+      "relevant_doc_ids": [
+        "/docs/guides/services/served-ootb#deep-delete"
+      ]
+    },
+    {
+      "id": "capire-18",
+      "question": "How do I add constraints for input validation using annotations in CAP?",
+      "relevant_doc_ids": [
+        ["/docs/guides/services/constraints#input-validation", "/docs/guides/services/constraints#introduction"]
+      ]
+    },
+    {
+      "id": "capire-19",
+      "question": "How are localized models constructed in CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/uis/i18n#merging-algorithm"
+      ]
+    },
+    {
+      "id": "capire-20",
+      "question": "How do I use the common CDS annotations @title and @description?",
+      "relevant_doc_ids": [
+        "/docs/guides/uis/fiori#prefer-title-and-description"
+      ]
+    },
+    {
+      "id": "capire-21",
+      "question": "How can I use the ternary conditional operator in CQL?",
+      "relevant_doc_ids": [
+        "/docs/guides/databases/cap-level-dbs#ternary--operator"
+      ]
+    },
+    {
+      "id": "capire-22",
+      "question": "How do I skip generating a table for a CDS entity?",
+      "relevant_doc_ids": [
+        "/docs/guides/databases/cdl-to-ddl#customizing-options"
+      ]
+    },
+    {
+      "id": "capire-23",
+      "question": "How to deploy entities as hdbmigrationtable?",
+      "relevant_doc_ids": [
+        "/docs/guides/databases/hana#enabling-hdbmigrationtable-generation"
+      ]
+    },
+    {
+      "id": "capire-24",
+      "question": "How do I use a persistent SQLite database with CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/databases/sqlite#using-persistent-databases"
+      ]
+    },
+    {
+      "id": "capire-25",
+      "question": "How do I enable automatic schema evolution in my CAP application?",
+      "relevant_doc_ids": [
+        "/docs/guides/databases/schema-evolution#automatic-migration"
+      ]
+    },
+    {
+      "id": "capire-26",
+      "question": "How do I update a collection of entities with a single PATCH request in OData v4?",
+      "relevant_doc_ids": [
+        "/docs/guides/protocols/odata#odata-patch-collection"
+      ]
+    },
+    {
+      "id": "capire-27",
+      "question": "How are JSON payloads deserialized to Java types in CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/protocols/odata#simple-types"
+      ]
+    },
+    {
+      "id": "capire-28",
+      "question": "How are CDS types mapped to AsyncAPI supported types?",
+      "relevant_doc_ids": [
+        "/docs/guides/protocols/asyncapi#mapping"
+      ]
+    },
+    {
+      "id": "capire-29",
+      "question": "How do I create a denormalized view in a CAP service?",
+      "relevant_doc_ids": [
+        "/docs/guides/integration/calesi#defining-service-apis"
+      ]
+    },
+    {
+      "id": "capire-30",
+      "question": "What are the prerequisites for using SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/integration/data-federation#preliminaries"
+      ]
+    },
+    {
+      "id": "capire-31",
+      "question": "How do I replace a service implementation in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/integration/reuse-and-compose#in-nodejs"
+      ]
+    },
+    {
+      "id": "capire-32",
+      "question": "How can I test updating a review in the reviews service sample?",
+      "relevant_doc_ids": [
+        "/docs/guides/events/core-concepts#2-add-reviews"
+      ]
+    },
+    {
+      "id": "capire-33",
+      "question": "How do I register event handlers for declared events in the messaging service?",
+      "relevant_doc_ids": [
+        "/docs/guides/events/messaging#receive-events-from-messaging-service"
+      ]
+    },
+    {
+      "id": "capire-34",
+      "question": "How do I override CAP's default security configuration?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/overview#key-concept-secure-by-default"
+      ]
+    },
+    {
+      "id": "capire-35",
+      "question": "How do I configure the Application Router with XSUAA in a CAP project?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/authentication#ui-level-testing-1"
+      ]
+    },
+    {
+      "id": "capire-36",
+      "question": "How do I call a public service without sharing the current user's information?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/cap-users#switching-to-anonymous-user"
+      ]
+    },
+    {
+      "id": "capire-37",
+      "question": "How do I configure XSUAA attributes as optional?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/authorization#unrestricted-xsuaa-attributes"
+      ]
+    },
+    {
+      "id": "capire-38",
+      "question": "How do I set up an Audit Log Service on SAP BTP for my CAP application?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/dpp-audit-logging#use-sap-audit-log-service"
+      ]
+    },
+    {
+      "id": "capire-39",
+      "question": "What identity services does SAP BTP offer for managing and authenticating platform and business users?",
+      "relevant_doc_ids": [
+        "/docs/guides/security/data-protection#authenticate-requests"
+      ]
+    },
+    {
+      "id": "capire-40",
+      "question": "How do I add test data for local testing in CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/extensibility/customization#add-test-data"
+      ]
+    },
+    {
+      "id": "capire-41",
+      "question": "How can SaaS providers extend base CAP models with new fields, entities, and annotations?",
+      "relevant_doc_ids": [
+        "/docs/guides/extensibility/feature-toggles#introduction-and-overview"
+      ]
+    },
+    {
+      "id": "capire-42",
+      "question": "How does CAP select the native fetch client for outgoing requests?",
+      "relevant_doc_ids": [
+        "/docs/guides/deploy/to-cf#native-fetch"
+      ]
+    },
+    {
+      "id": "capire-43",
+      "question": "How can I customize the Helm chart generated by cds add kyma?",
+      "relevant_doc_ids": [
+        "/docs/guides/deploy/to-kyma#modify"
+      ]
+    },
+    {
+      "id": "capire-44",
+      "question": "What happens when a tenant container is deleted?",
+      "relevant_doc_ids": [
+        "/docs/guides/multitenancy/#delete-sap-hana-tenants"
+      ]
+    },
+    {
+      "id": "capire-45",
+      "question": "How do I configure an application using profiles in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/guides/multitenancy/mtxs#presets"
+      ]
+    },
+    {
+      "id": "capire-46",
+      "question": "How do I configure the prefer header to trigger asynchronous extension activation?",
+      "relevant_doc_ids": [
+        "/docs/guides/multitenancy/mtxs#http-request-options-1"
+      ]
+    },
+    {
+      "id": "capire-47",
+      "question": "What does the technical tenant t0 store?",
+      "relevant_doc_ids": [
+        "/docs/guides/multitenancy/mtxs#about-technical-tenant-t0"
+      ]
+    },
+    {
+      "id": "capire-48",
+      "question": "How can I develop CAP applications using Java?",
+      "relevant_doc_ids": [
+        "/docs/java/getting-started#introduction"
+      ]
+    },
+    {
+      "id": "capire-49",
+      "question": "How is the active feature set represented in CAP Java requests?",
+      "relevant_doc_ids": [
+        "/docs/java/reflection-api#feature-toggles-info-provider"
+      ]
+    },
+    {
+      "id": "capire-50",
+      "question": "How can I use typed access to process query results in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/cds-data#typed-access-to-query-results"
+      ]
+    },
+    {
+      "id": "capire-51",
+      "question": "How can I use a path expression to select from an entity set in CQl?",
+      "relevant_doc_ids": [
+        "/docs/java/working-with-cql/query-api#from-reference"
+      ]
+    },
+    {
+      "id": "capire-52",
+      "question": "How do I perform bulk upserts in CAP Java?",
+      "relevant_doc_ids": [
+        "/docs/java/working-with-cql/query-api#bulk-upsert"
+      ]
+    },
+    {
+      "id": "capire-53",
+      "question": "What types of string expressions are supported in CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/working-with-cql/query-api#concat-expression"
+      ]
+    },
+    {
+      "id": "capire-54",
+      "question": "How do I query parameterized views in SAP HANA with named parameters?",
+      "relevant_doc_ids": [
+        "/docs/java/working-with-cql/query-execution#querying-views"
+      ]
+    },
+    {
+      "id": "capire-55",
+      "question": "How do I resolve CDS entities in a CQL query?",
+      "relevant_doc_ids": [
+        "/docs/java/working-with-cql/query-introspection#usage"
+      ]
+    },
+    {
+      "id": "capire-56",
+      "question": "What is an example configuration for using SQLite with CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/cqn-services/persistence-services#file-based-storage"
+      ]
+    },
+    {
+      "id": "capire-57",
+      "question": "How do I consume a remote API exposed by a BTP reuse service in a CAP application?",
+      "relevant_doc_ids": [
+        "/docs/java/cqn-services/remote-services#binding-to-a-reuse-service"
+      ]
+    },
+    {
+      "id": "capire-58",
+      "question": "How do I use service instances in event handlers for CDS services?",
+      "relevant_doc_ids": [
+        "/docs/java/event-handlers/#servicearguments"
+      ]
+    },
+    {
+      "id": "capire-59",
+      "question": "How can I control how long a processing entry is held before another instance picks it up?",
+      "relevant_doc_ids": [
+        "/docs/java/event-queues#status-lock-timeout"
+      ]
+    },
+    {
+      "id": "capire-60",
+      "question": "How do I configure message routing between multiple message brokers in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/messaging#composite-messaging-service"
+      ]
+    },
+    {
+      "id": "capire-61",
+      "question": "How do I define advanced identifiers for associated entities in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/change-tracking#tips-and-tricks"
+      ]
+    },
+    {
+      "id": "capire-62",
+      "question": "How do I transform an authenticated user and inject it as UserInfo for a request in CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/security#custom-users"
+      ]
+    },
+    {
+      "id": "capire-63",
+      "question": "How do I use the CDS Maven plugin to watch my application and automatically rebuild on changes?",
+      "relevant_doc_ids": [
+        "/docs/java/developing-applications/running#cds-watch"
+      ]
+    },
+    {
+      "id": "capire-64",
+      "question": "How are correlation IDs handled in CAP Java SDK?",
+      "relevant_doc_ids": [
+        "/docs/java/operating-applications/observability#correlation-ids"
+      ]
+    },
+    {
+      "id": "capire-65",
+      "question": "How do I implement a protocol adapter in CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/building-plugins#protocol-adapter"
+      ]
+    },
+    {
+      "id": "capire-66",
+      "question": "How does the new behavior of expand and inline affect draft-enabled entities in CAP?",
+      "relevant_doc_ids": [
+        "/docs/java/migration#star-expand-and-inline-all-are-no-longer-permitted"
+      ]
+    },
+    {
+      "id": "capire-67",
+      "question": "How do I get the CdsModelProvider with user info and feature toggles?",
+      "relevant_doc_ids": [
+        "/docs/java/migration#comsapcdsservicesruntime"
+      ]
+    },
+    {
+      "id": "capire-68",
+      "question": "What are the submodules referenced in the cds object?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-facade#refs-to-submodules"
+      ]
+    },
+    {
+      "id": "capire-69",
+      "question": "How do I convert a CSN file to an AsyncAPI document in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-compile#asyncapi"
+      ]
+    },
+    {
+      "id": "capire-70",
+      "question": "What are the convenient shortcuts for accessing entity definitions in CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-reflect#-actions-1"
+      ]
+    },
+    {
+      "id": "capire-71",
+      "question": "How can I customize server startup using the cds-plugin package?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-server#see-also"
+      ]
+    },
+    {
+      "id": "capire-72",
+      "question": "How do I specify a service name in the requires configuration?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-connect#cdsrequiressrvservice"
+      ]
+    },
+    {
+      "id": "capire-73",
+      "question": "What is executed before a request is handled in an SAP CAP service?",
+      "relevant_doc_ids": [
+        "/docs/node.js/core-services#srv-before-request"
+      ]
+    },
+    {
+      "id": "capire-74",
+      "question": "How do I configure CSRF-token handling for a remote service in CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/remote-services#remoteservice-configuration"
+      ]
+    },
+    {
+      "id": "capire-75",
+      "question": "How do I start a transaction manually in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/databases#db-begin"
+      ]
+    },
+    {
+      "id": "capire-76",
+      "question": "How do I record multiple errors in a CAP request?",
+      "relevant_doc_ids": [
+        "/docs/node.js/events#req-error"
+      ]
+    },
+    {
+      "id": "capire-77",
+      "question": "How do I create an object stream and call a callback for each object in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-ql#foreach"
+      ]
+    },
+    {
+      "id": "capire-78",
+      "question": "How do I set the format for new loggers in CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-log#cds-log-format"
+      ]
+    },
+    {
+      "id": "capire-79",
+      "question": "How do I customize the default locale in CDS?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-i18n#using-default-locales"
+      ]
+    },
+    {
+      "id": "capire-80",
+      "question": "How do I set environment variables for the CDS server on UNIX-based systems?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-env#on-the-command-line"
+      ]
+    },
+    {
+      "id": "capire-81",
+      "question": "How do I delete messages from the outbox in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/node.js/event-queues#inspecting-cdsoutboxmessages"
+      ]
+    },
+    {
+      "id": "capire-82",
+      "question": "How can I check if a user has a specific role in my CAP application?",
+      "relevant_doc_ids": [
+        "/docs/node.js/authentication#user-is"
+      ]
+    },
+    {
+      "id": "capire-83",
+      "question": "How do I test my CAP application with cds.test?",
+      "relevant_doc_ids": [
+        "/docs/node.js/cds-plugins#usage-in-a-cap-project"
+      ]
+    },
+    {
+      "id": "capire-84",
+      "question": "How do I add TypeScript support to my SAP CAP project?",
+      "relevant_doc_ids": [
+        "/docs/node.js/typescript#enable-typescript-support"
+      ]
+    },
+    {
+      "id": "capire-85",
+      "question": "How do I use the Audit Logging plugin for CAP Node.js?",
+      "relevant_doc_ids": [
+        "/docs/plugins/#as-cds-plugins-for-nodejs"
+      ]
+    },
+    {
+      "id": "capire-86",
+      "question": "When are the planned release schedules for major versions of SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/releases/#major-versions"
+      ]
+    },
+    {
+      "id": "capire-87",
+      "question": "What built-in or native alternatives has SAP CAP replaced third-party dependencies with?",
+      "relevant_doc_ids": [
+        "/docs/releases/2026/jun26#going-native"
+      ]
+    },
+    {
+      "id": "capire-88",
+      "question": "How do I extend a view definition with CQL clauses?",
+      "relevant_doc_ids": [
+        "/docs/releases/2026/apr26#extending-views-with-cql-clauses"
+      ]
+    },
+    {
+      "id": "capire-89",
+      "question": "How has the SAP CAP documentation been updated and improved?",
+      "relevant_doc_ids": [
+        "/docs/releases/2026/jan26#capire-renovations"
+      ]
+    },
+    {
+      "id": "capire-90",
+      "question": "How do I implement deep updates for draft data in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/dec25#important-changes-in-java"
+      ]
+    },
+    {
+      "id": "capire-91",
+      "question": "How can I improve the localized data documentation?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/nov25#capire-updates"
+      ]
+    },
+    {
+      "id": "capire-92",
+      "question": "What happened to the previous SAP CAP samples repository?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/aug25#github-discussions"
+      ]
+    },
+    {
+      "id": "capire-93",
+      "question": "How do I access the Implementations (Experimental) section in SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/jul25#tools"
+      ]
+    },
+    {
+      "id": "capire-94",
+      "question": "How do I use the Technical Outbox API in CAP Java?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/may25#in-java"
+      ]
+    },
+    {
+      "id": "capire-95",
+      "question": "How does the CDS Code Formatter format case expressions?",
+      "relevant_doc_ids": [
+        "/docs/releases/2025/may25#compact-formatting-of-case-expressions"
+      ]
+    },
+    {
+      "id": "capire-96",
+      "question": "What resources are available for learning SAP CAP?",
+      "relevant_doc_ids": [
+        "/docs/resources/#if-you-are-new-to-cap"
+      ]
+    },
+    {
+      "id": "capire-97",
+      "question": "How do I check the installed version of the SAP CAP packages?",
+      "relevant_doc_ids": [
+        "/docs/tools/cds-cli#cds-version"
+      ]
+    },
+    {
+      "id": "capire-98",
+      "question": "How do I start a Maven-based Spring Boot application in debug mode with cds debug?",
+      "relevant_doc_ids": [
+        "/docs/tools/cds-cli#local-applications-1"
+      ]
+    },
+    {
+      "id": "capire-99",
+      "question": "How do I add and stop at breakpoints in my service implementation?",
+      "relevant_doc_ids": [
+        "/docs/tools/cds-editors#debug-services"
+      ]
+    },
+    {
+      "id": "capire-100",
+      "question": "How do I use Markdown rendering in CAP code?",
+      "relevant_doc_ids": [
+        "/docs/tools/cds-editors#github-integration"
+      ]
+    }
+  ]
+}

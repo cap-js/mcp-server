@@ -1,0 +1,21 @@
+{
+  "k": 5,
+  "capire_version": "2026.5.0",
+  "paths": {
+    "goldenSet": "data/golden-set.json",
+    "runsDir": "runs",
+    "embeddingsSweepDir": null
+  },
+  "gates": {
+    "recall_at_k": 0.8,
+    "mrr": 0.5,
+    "hit_rate_at_k": 0.8,
+    "precision_at_k": null,
+    "ndcg_at_k": null
+  },
+  "output": {
+    "keepRuns": 100,
+    "resultsName": "result.jsonl",
+    "compareFormat": "html"
+  }
+}

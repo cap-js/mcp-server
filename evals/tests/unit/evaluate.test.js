@@ -1,0 +1,381 @@
+import { test, describe, beforeEach, afterEach } from 'node:test'
+import assert from 'node:assert/strict'
+import fs from 'fs/promises'
+import path from 'path'
+import os from 'os'
+import { evaluate, evaluateAndCompare } from '../../lib/evaluate.js'
+
+// ---- fixtures -------------------------------------------------------------
+// A tiny in-memory index + retriever so no ONNX model / network is touched.
+const CHUNK_IDS = ['doc-a#0001', 'doc-b#0002', 'doc-c#0003', 'doc-d#0004', 'doc-e#0005']
+
+function fakeLoadIndex() {
+  return async () => ({
+    idSet: new Set(CHUNK_IDS),
+    count: CHUNK_IDS.length
+  })
+}
+
+// Retriever that returns a fixed ranking (best-first) for every question.
+// Each id is wrapped as a single-id chunk to match the {ids, text}[] shape
+// that resolveIds returns and buildReport expects.
+function fakeRetriever(ranking) {
+  const chunks = ranking.map(id => ({ ids: [id], text: '' }))
+  return async () => async () => chunks
+}
+
+const silentLogger = { log() {}, error() {} }
+
+let tmpDir
+let goldenPath
+let runsDir
+
+async function writeGolden(questions, name = 'test-golden') {
+  await fs.writeFile(goldenPath, JSON.stringify({ golden_set: name, questions }))
+}
+
+function baseOverrides(extra = {}) {
+  return {
+    k: 5,
+    paths: { goldenSet: goldenPath, runsDir },
+    capire_version: '2026.5.0',
+    ...extra
+  }
+}
+
+// Read result.jsonl as an array of parsed run reports.
+async function readResults() {
+  const text = await fs.readFile(path.join(runsDir, 'result.jsonl'), 'utf8')
+  return text.split('\n').filter(Boolean).map(l => JSON.parse(l))
+}
+
+describe('evaluate tests', () => {
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-cli-'))
+    goldenPath = path.join(tmpDir, 'golden.json')
+    runsDir = path.join(tmpDir, 'runs')
+  })
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  test('happy path: exit 0, appends one line to result.jsonl (no folders, no md)', async () => {
+    await writeGolden([
+      { id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] },
+      { id: 'q-002', question: 'q2', relevant_doc_ids: ['doc-b#0002'] }
+    ])
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 0)
+    assert.equal(res.report.overall_status, 'pass')
+
+    const rows = await readResults()
+    assert.equal(rows.length, 1)
+    assert.equal(rows[0].run_id, res.report.run_id)
+    assert.equal(rows[0].config.capire_version, '2026.5.0')
+    assert.equal(rows[0].config.golden_set, 'test-golden')
+
+    // no per-run folders, no report.md, only result.jsonl in runsDir
+    const entries = await fs.readdir(runsDir)
+    assert.deepEqual(entries.sort(), ['result.jsonl'])
+  })
+
+  test('label is recorded in the report config', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const res = await evaluate({
+      overrides: baseOverrides({ label: 'tuned chunker' }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.ok(res.report.config.label.includes('tuned chunker'))
+    const rows = await readResults()
+    assert.ok(rows[0].config.label.includes('tuned chunker'))
+  })
+
+  test('a multi-section chunk is credited for every section it covers (its own Source lines)', async () => {
+    // A chunk spans two headings; resolveIds returns both source IDs in one chunk.
+    // The golden label is the SECOND section — the chunk covers it via chunk.ids.
+    const firstUrl = 'https://x/docs/get-started/#initial-setup'
+    const secondUrl = 'https://x/docs/get-started/#nodejs-and-cds-dk'
+    const fakeRetrieverWithText = async () => async () => [{ ids: [firstUrl, secondUrl], text: '' }]
+    await writeGolden([{ id: 'q-001', question: 'installing cds-dk', relevant_doc_ids: [secondUrl] }])
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: async () => ({ idSet: new Set([firstUrl, secondUrl]), count: 2 }), makeRetriever: fakeRetrieverWithText }
+    })
+    // The second section's id is in chunk.ids → hit → recall=1, not 0.
+    assert.equal(res.report.per_question[0].metrics.hit_rate_at_k, 1)
+    assert.equal(res.report.per_question[0].metrics.recall_at_k, 1)
+  })
+
+  test('evaluate() does not touch CDS_MCP_OFFLINE (entry point owns the flag)', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    delete process.env.CDS_MCP_OFFLINE
+    await evaluate({ overrides: baseOverrides(), logger: silentLogger, deps })
+    // evaluate() must not set/mutate the env — bin/eval.js sets it once before import.
+    assert.equal('CDS_MCP_OFFLINE' in process.env, false)
+  })
+
+  test('gated failure → exit 1', async () => {
+    // Relevant docs not retrieved at all → recall/hit-rate 0, below gate.
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['not-retrieved#9999'] }])
+    // 'not-retrieved#9999' isn't in the index → would trip pre-flight; add it to the index.
+    const idxWithMissing = async () => ({
+      idSet: new Set([...CHUNK_IDS, 'not-retrieved#9999']),
+      count: CHUNK_IDS.length + 1
+    })
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: idxWithMissing, makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 1)
+    assert.equal(res.report.overall_status, 'fail')
+    assert.ok(res.report.gated_failures.includes('recall_at_k'))
+  })
+
+  test('stale golden id → warns, proceeds, scores as a miss (run still written)', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['ghost#dead'] }])
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    // No abort: the stale id is never retrieved → recall/hit-rate 0 → gated fail (exit 1),
+    // and the run is still recorded.
+    assert.equal(res.code, 1)
+    assert.equal(res.report.per_question[0].metrics.recall_at_k, 0)
+    await fs.access(path.join(runsDir, 'result.jsonl')) // written, not skipped
+  })
+
+  test('missing golden set → exit 3', async () => {
+    // goldenPath does not exist
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 3)
+  })
+
+  test('a non-ENOENT error reading the golden set propagates', async () => {
+    // goldenPath is a directory → readFile fails with EISDIR (not ENOENT) → rethrown.
+    await fs.mkdir(goldenPath)
+    await assert.rejects(
+      () => evaluate({ overrides: baseOverrides(), logger: silentLogger, deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) } }),
+      err => err.code !== 'ENOENT'
+    )
+  })
+
+  test('malformed golden question → exit 3, no crash, no run written', async () => {
+    // question missing relevant_doc_ids would previously TypeError in preflight
+    await writeGolden([{ id: 'q-001', question: 'q1' }])
+    const res = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 3)
+    await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
+  })
+
+  test('baseline = oldest run: second run diffs against the first', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    // First run is the baseline (oldest); it has no baseline itself.
+    const first = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(first.report.baseline_run_id, null)
+    // Second run with a WORSE ranking (relevant doc pushed to rank 3).
+    const worse = ['doc-x#000x', 'doc-y#000y', 'doc-a#0001', 'doc-b#0002', 'doc-c#0003']
+    const second = await evaluate({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(worse) }
+    })
+    assert.equal(second.report.baseline_run_id, first.report.run_id) // diffed vs oldest
+    assert.ok(second.report.aggregate.mrr.delta < 0) // mrr dropped vs baseline
+    assert.match(second.report.diagnosis, /ranking\/scoring regression/)
+  })
+
+  test('pinned baselineRunId: diffs against the pinned run, not the oldest', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    const r1 = await evaluate({ overrides: baseOverrides(), logger: silentLogger, deps })
+    const r2 = await evaluate({ overrides: baseOverrides(), logger: silentLogger, deps })
+    // Pin the SECOND run as baseline for a third run — not the oldest (r1).
+    const r3 = await evaluate({
+      overrides: baseOverrides({ baselineRunId: r2.report.run_id }),
+      logger: silentLogger,
+      deps
+    })
+    assert.equal(r3.report.baseline_run_id, r2.report.run_id)
+    assert.notEqual(r3.report.baseline_run_id, r1.report.run_id)
+  })
+
+  test('pinned baselineRunId not found → no baseline, no crash', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    await evaluate({ overrides: baseOverrides(), logger: silentLogger, deps })
+    const r = await evaluate({
+      overrides: baseOverrides({ baselineRunId: 'no-such-run' }),
+      logger: silentLogger,
+      deps
+    })
+    assert.equal(r.report.baseline_run_id, null)
+  })
+
+  test('result.jsonl accumulates one line per run, chronologically', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    for (let i = 0; i < 3; i++) {
+      await evaluate({ overrides: baseOverrides({ output: { keepRuns: 20 } }), logger: silentLogger, deps })
+    }
+    const rows = await readResults()
+    assert.equal(rows.length, 3)
+    // sorted by run_id ascending
+    const ids = rows.map(r => r.run_id)
+    assert.deepEqual(ids, [...ids].sort())
+  })
+
+  test('run hygiene: caps result.jsonl to the most recent keepRuns lines', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const deps = { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    for (let i = 0; i < 5; i++) {
+      await evaluate({ overrides: baseOverrides({ output: { keepRuns: 2 } }), logger: silentLogger, deps })
+    }
+    const rows = await readResults()
+    assert.equal(rows.length, 2) // capped to keepRuns, newest kept
+  })
+
+  test('custom resultsName is honored', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    await evaluate({
+      overrides: baseOverrides({ output: { keepRuns: 20, resultsName: 'runs.jsonl' } }),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    const entries = await fs.readdir(runsDir)
+    assert.deepEqual(entries.sort(), ['runs.jsonl'])
+  })
+
+  test('evaluateAndCompare runs the eval once and writes compare', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const res = await evaluateAndCompare({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 0)
+    const rows = await readResults()
+    assert.equal(rows.length, 1)
+    await fs.access(path.join(runsDir, 'compare.html'))
+  })
+
+  test('evaluateAndCompare stops on a hard error (missing golden set) and still compares', async () => {
+    // No golden set written → run() returns exit 3 (hard error).
+    const res = await evaluateAndCompare({
+      overrides: baseOverrides(),
+      logger: silentLogger,
+      deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
+    })
+    assert.equal(res.code, 3)
+    await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
+  })
+})
+
+describe('evaluateSweep tests', () => {
+  let tmpDir, goldenPath, runsDir, sweepDir
+
+  beforeEach(async () => {
+    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-sweep-'))
+    goldenPath = path.join(tmpDir, 'golden.json')
+    runsDir = path.join(tmpDir, 'runs')
+    sweepDir = path.join(tmpDir, 'sweep')
+  })
+  afterEach(async () => {
+    await fs.rm(tmpDir, { recursive: true, force: true })
+  })
+
+  async function writeGolden(questions) {
+    await fs.writeFile(goldenPath, JSON.stringify({ golden_set: 'test', questions }))
+  }
+
+  function sweepOverrides(extra = {}) {
+    return {
+      k: 5,
+      paths: { goldenSet: goldenPath, runsDir, embeddingsSweepDir: sweepDir },
+      capire_version: '2026.5.0',
+      ...extra
+    }
+  }
+
+  async function readResults() {
+    const text = await fs.readFile(path.join(runsDir, 'result.jsonl'), 'utf8')
+    return text.split('\n').filter(Boolean).map(l => JSON.parse(l))
+  }
+
+  // deps seam: bypass ONNX, return fixed ranking
+  const fakeDeps = {
+    loadIndex: fakeLoadIndex(),
+    makeRetriever: fakeRetriever(CHUNK_IDS)
+  }
+
+  test('throws when no embedding dirs found under sweepDir', async () => {
+    await fs.mkdir(sweepDir, { recursive: true })
+    await assert.rejects(
+      () => evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps }),
+      /No embedding dirs found/
+    )
+  })
+
+  test('runs once per embedding dir and appends each to result.jsonl', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-1'), { recursive: true })
+    await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-2'), { recursive: true })
+    for (const sub of ['cfg-1', 'cfg-2']) {
+      await fs.writeFile(path.join(sweepDir, 'model-a', sub, 'code-chunks.json'), '{}')
+    }
+
+    const res = await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows.length, 2)
+    const labels = rows.map(r => r.config.label).sort()
+    assert.deepEqual(labels, ['sweep/model-a/cfg-1', 'sweep/model-a/cfg-2'])
+    assert.ok(res.code === 0 || res.code === 1)
+  })
+
+  test('label uses last 2 path segments relative to sweepDir', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const dir = path.join(sweepDir, 'group', 'subgroup', 'variant')
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+
+    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows[0].config.label, 'sweep/subgroup/variant')
+  })
+
+  test('discover: only dirs with code-chunks.json are included', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const hasChunks = path.join(sweepDir, 'has-chunks')
+    await fs.mkdir(hasChunks, { recursive: true })
+    await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
+    await fs.mkdir(path.join(sweepDir, 'no-chunks'), { recursive: true })
+
+    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
+
+    const rows = await readResults()
+    assert.equal(rows.length, 1)
+    assert.ok(rows[0].config.label.endsWith('has-chunks'))
+  })
+})
