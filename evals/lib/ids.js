@@ -21,7 +21,6 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
   const idx = smIndex || buildSourceMapIndex(sourceMap)
   const { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth } = idx
   const resolvedChunks = []
-  const noSourceFound = []
   for (const text of results) {
     const ids = []
     const lines = text ? text.split('\n') : ['']
@@ -56,7 +55,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
       } else {
         const candidates = byTitle.get(headings[headings.length - 1]) || []
         ids.push(`/placeholder/source/${firstLine}`)
-        noSourceFound.push(`${candidates.length > 1 ? 'Multiple' : 'No'} sources found for ${q.id}: ${firstLine}`)
+        console.warn(`${candidates.length > 1 ? 'Multiple' : 'No'} sources found for ${q.id}: ${firstLine}`)
       }
     } else {
       // new behavior: source under heading
@@ -106,7 +105,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
           const fullBreadcrumb = [...headings, ...breadCrumbInText].join(' > ')
           const found = byBreadcrumb.get(fullBreadcrumb)
           if (found) ids.push(found.source)
-          else console.warn(`Added placeholder source for ${q.id}`)
+          else console.warn(`Added placeholder source for ${q.id}: ${fullBreadcrumb}`)
         } else if(isHeading) {
           firstHeading = line
         }
@@ -117,6 +116,5 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
     if (!ids.length) throw Error('No IDs found')
     resolvedChunks.push({ ids, text })
   }
-  if (noSourceFound.length) console.warn(`Added ${noSourceFound.length} placeholder sources for ${q.id}`)
   return resolvedChunks
 }
