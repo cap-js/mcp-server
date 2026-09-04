@@ -7,19 +7,21 @@ export function buildSourceMapIndex(sourceMap) {
   const byNonTransformed = new Map()
   const byTitle = new Map()
   const byTitleDepth = new Map()
+  const bySource = new Map()
   for (const s of sourceMap) {
     if (s.breadcrumb) byBreadcrumb.set(s.breadcrumb, s)
     if (s.nonTransformedBreadcrumb) byNonTransformed.set(s.nonTransformedBreadcrumb, s)
     const ta = byTitle.get(s.title) || []; ta.push(s); byTitle.set(s.title, ta)
     const key = `${s.title}::${s.depth}`
     const tda = byTitleDepth.get(key) || []; tda.push(s); byTitleDepth.set(key, tda)
+    const sa = bySource.get(s.source) || []; sa.push(s); bySource.set(s.source, sa)
   }
-  return { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth }
+  return { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth, bySource }
 }
 
 export function resolveIds(results, q, sourceMap, smIndex = null) {
   const idx = smIndex || buildSourceMapIndex(sourceMap)
-  const { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth } = idx
+  const { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth, bySource } = idx
   const resolvedChunks = []
   for (const text of results) {
     const ids = []
@@ -96,7 +98,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
             const em = HEADING.exec(entry)
             if (!em) continue
             const entryDepth = em[1].trim().length
-            if (entry === firstHeading && firstHeadingDepht >= currDepth) continue
+            if (entry === firstHeading && firstHeadingDepht === 1) continue
             if (entryDepth < currDepth) {
               breadCrumbInText.unshift(em[2])
               currDepth = entryDepth
@@ -106,7 +108,25 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
           const fullBreadcrumb = [...headings, ...breadCrumbInText].join(' > ')
           const found = byBreadcrumb.get(fullBreadcrumb)
           if (found) ids.push(found.source)
-          else console.warn(`Added placeholder source for ${q.id} heading: ${heading}`)
+          else {
+            const parent = sourceMap.find(m => m.source === ids[0])
+            const start = sourceMap.indexOf(parent)
+            let found = false
+            for (let i = start+1; i < sourceMap.length; i++) {
+              const current = sourceMap[i]
+              if (current.depth < depth) continue
+              if (current.depth < depth) break
+              if (current.title === heading) {
+                found = true
+                ids.push(current.source)
+                break
+              }
+            }
+            if (!found) {
+              ids.push(`/placeholder/source/${firstLine.replace(/headingPath:\s*/i, '')}`)
+              console.warn(`Added placeholder source for ${q.id} heading: ${heading}`)
+            }
+          }
         } else if(isHeading) {
           firstHeading = line
         }
