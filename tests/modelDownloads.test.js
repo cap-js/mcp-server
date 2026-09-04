@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, readdir, rename, rm, unlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import assert from 'node:assert'
@@ -47,6 +47,45 @@ test('downloadFile verifies content before atomically replacing a file', async (
     await rm(dir, { recursive: true, force: true })
   }
 })
+
+for (const code of ['EEXIST', 'EPERM']) {
+  test(`downloadFile replaces an existing cache entry when Windows rename fails with ${code}`, async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'cds-mcp-download-'))
+    const outputPath = path.join(dir, 'tokenizer.json')
+    const downloaded = '{"model":{"vocab":{"a":1}}}'
+    let replacements = 0
+    const windowsLikeFileSystem = {
+      writeFile,
+      unlink,
+      async rename(source, destination) {
+        if (destination === outputPath && replacements++ === 0) {
+          const error = new Error('destination already exists')
+          error.code = code
+          throw error
+        }
+        return rename(source, destination)
+      }
+    }
+
+    try {
+      await writeFile(outputPath, 'corrupted cache entry')
+
+      await downloadFile(
+        'https://example.invalid/tokenizer.json',
+        outputPath,
+        sha256(downloaded),
+        async () => new Response(downloaded, { status: 200 }),
+        windowsLikeFileSystem
+      )
+
+      assert.equal(replacements, 2)
+      assert.equal(await readFile(outputPath, 'utf8'), downloaded)
+      assert.deepEqual(await readdir(dir), ['tokenizer.json'])
+    } finally {
+      await rm(dir, { recursive: true, force: true })
+    }
+  })
+}
 
 test('downloadFile rejects a digest mismatch without replacing the existing file', async () => {
   const dir = await mkdtemp(path.join(tmpdir(), 'cds-mcp-download-'))
