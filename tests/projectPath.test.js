@@ -83,4 +83,18 @@ test.describe('project path authorization', () => {
     const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
     await assert.rejects(resolver(directory), /Unable to determine MCP workspace roots: client unavailable/)
   })
+
+  test('fails closed with a specific error when all advertised roots are invalid', async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
+    t.after(() => rm(directory, { recursive: true, force: true }))
+    const project = join(directory, 'project')
+    await mkdir(project)
+    const server = {
+      getClientCapabilities: () => ({ roots: {} }),
+      listRoots: async () => ({ roots: [{ uri: pathToFileURL(join(directory, 'missing')).href }] })
+    }
+
+    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
+    await assert.rejects(resolver(project), /No valid workspace roots are configured/)
+  })
 })
