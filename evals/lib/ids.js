@@ -105,7 +105,7 @@ export function resolveIds(results, q, sourceMap, smIndex = null) {
           const fullBreadcrumb = [...headings, ...breadCrumbInText].join(' > ')
           const found = byBreadcrumb.get(fullBreadcrumb)
           if (found) ids.push(found.source)
-          else console.warn(`Added placeholder source for ${q.id} heading: ${fullBreadcrumb[0]}`)
+          else console.warn(`Added placeholder source for ${q.id} heading: ${heading}`)
         } else if(isHeading) {
           firstHeading = line
         }
