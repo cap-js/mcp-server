@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Unreleased
+
+### Fixed
+
+- Pin and SHA-256-verify downloaded model artifacts, safely repairing corrupted cached files.
+
 ## Version 0.0.5 - 2026-04-27
 
 ### Added
