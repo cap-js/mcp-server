@@ -2,6 +2,10 @@ models/
 embeddings/
 node_modules/
 .claude
+db.sqlite
+db.sqlite-shm
+db.sqlite-wal
+.cds/
 
 # Transient eval output — result.jsonl and compare.html/.md (recreated on demand)
 evals/runs/
