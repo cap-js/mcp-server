@@ -31,7 +31,8 @@
     "evals:compare": "node evals/bin/compare.js",
     "evals:build-source-map": "node evals/lib/sourceMap/buildSourceMap.js",
     "evals:test": "node --test --test-concurrency=1 evals/tests/unit/*.test.js",
-    "create-embeddings": "node scripts/createEmbeddings.js"
+    "create-embeddings": "node scripts/createEmbeddings.js",
+    "install-model": "node scripts/installModel.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -45,6 +46,7 @@
     "@huggingface/hub": "^2.16.3",
     "@huggingface/tokenizers": "^0.1.3",
     "@huggingface/transformers": "^4.2.0",
+    "cli-progress": "^3.12.0",
     "prettier": "^3.9.6"
   },
   "overrides": {
