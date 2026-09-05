@@ -24,7 +24,8 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "eval:retrieval": "node evals/retrieval/run.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",

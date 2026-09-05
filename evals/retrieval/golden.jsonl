@@ -1,0 +1,33 @@
+// Level-A golden set — one JSON object per line (JSONL).
+// Schema: { id, query, relevant: [urlSubstring, ...], category, difficulty }
+//   `relevant` = substrings of the doc `Source:` URL that count as a correct hit.
+//   Keep substrings specific enough to be unambiguous (a full path is safest).
+//
+// This is a SEED set (~25 items) to prove the harness. Grow to 150-300 —
+// see ../README.md "Growing the golden set". Add adversarial keyword queries
+// (exact tokens/annotations) to justify hybrid search.
+{"id":"getstarted-init","query":"how do I start a new CAP project from scratch","relevant":["docs/get-started"],"category":"get-started","difficulty":"easy"}
+{"id":"cql-columns","query":"how to add columns to a select statement in CAP Node.js","relevant":["docs/node.js/","docs/java/working-with-cql","docs/cds/cqn"],"category":"cds-ql","difficulty":"medium"}
+{"id":"custom-actions","query":"how do I define a custom action or function on a service","relevant":["docs/guides/services/custom-actions"],"category":"services","difficulty":"medium"}
+{"id":"assert-range","query":"validate that a field only accepts values in a range","relevant":["docs/guides/services/constraints","docs/cds/cdl"],"category":"validation","difficulty":"medium"}
+{"id":"mandatory","query":"make a field required so it cannot be null","relevant":["docs/guides/services/constraints","docs/cds/cdl"],"category":"validation","difficulty":"easy"}
+{"id":"managed-aspect","query":"add createdAt and createdBy audit fields to an entity","relevant":["docs/cds/common"],"category":"modeling","difficulty":"easy"}
+{"id":"cuid","query":"give an entity a generated UUID primary key","relevant":["docs/cds/common"],"category":"modeling","difficulty":"easy"}
+{"id":"localized","query":"how do I make entity text translatable / localized","relevant":["docs/guides/uis/localized-data","docs/guides/uis/i18n"],"category":"i18n","difficulty":"medium"}
+{"id":"temporal","query":"model time-dependent / temporal data with validity periods","relevant":["docs/guides/domain/temporal-data"],"category":"modeling","difficulty":"hard"}
+{"id":"authorization","query":"restrict access to an entity based on user role","relevant":["docs/guides/security/authorization"],"category":"security","difficulty":"medium"}
+{"id":"authentication","query":"configure authentication for a CAP service","relevant":["docs/guides/security/authentication","docs/node.js/authentication"],"category":"security","difficulty":"medium"}
+{"id":"connect-to","query":"connect to another service programmatically in Node.js","relevant":["docs/node.js/cds-connect"],"category":"nodejs","difficulty":"medium"}
+{"id":"remote-services","query":"consume a remote OData service in CAP","relevant":["docs/node.js/remote-services","docs/guides/using-services"],"category":"integration","difficulty":"hard"}
+{"id":"before-handler","query":"register a before handler to validate input in Node.js","relevant":["docs/node.js/"],"category":"nodejs","difficulty":"medium"}
+{"id":"transactions","query":"how does transaction handling work in CAP Node.js","relevant":["docs/node.js/cds-tx"],"category":"nodejs","difficulty":"hard"}
+{"id":"messaging","query":"emit and subscribe to events with messaging","relevant":["docs/guides/events/messaging","docs/node.js/messaging"],"category":"events","difficulty":"medium"}
+{"id":"deploy-hana","query":"deploy a CAP app to SAP HANA","relevant":["docs/guides/databases","docs/guides/deploy"],"category":"deploy","difficulty":"medium"}
+{"id":"deploy-cf","query":"deploy CAP application to Cloud Foundry","relevant":["docs/guides/deploy/to-cf"],"category":"deploy","difficulty":"medium"}
+{"id":"multitenancy","query":"make my CAP application multitenant","relevant":["docs/guides/multitenancy"],"category":"deploy","difficulty":"hard"}
+{"id":"draft","query":"enable Fiori draft editing on an entity","relevant":["docs/advanced/fiori","docs/guides/uis/fiori","docs/node.js/fiori"],"category":"fiori","difficulty":"medium"}
+{"id":"add-data","query":"generate sample CSV data for my entities","relevant":["docs/guides/databases","docs/tools"],"category":"tooling","difficulty":"easy"}
+{"id":"cds-env","query":"read a configuration value from cds.env","relevant":["docs/node.js/cds-env"],"category":"nodejs","difficulty":"medium"}
+{"id":"cds-log","query":"add logging to a custom handler","relevant":["docs/node.js/cds-log"],"category":"nodejs","difficulty":"easy"}
+{"id":"reflect-model","query":"reflect on the CSN model at runtime in Node.js","relevant":["docs/node.js/cds-reflect"],"category":"nodejs","difficulty":"hard"}
+{"id":"compile-error","query":"what does a CDS compiler error message mean","relevant":["docs/cds/compiler/messages"],"category":"tooling","difficulty":"medium"}
