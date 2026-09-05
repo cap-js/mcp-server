@@ -5,7 +5,6 @@ import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import run, { runTool } from './lib/run.js'
-import { downloadEmbeddings } from './lib/searchMarkdownDocs.js'
 import { forceDownloadModel } from './lib/calculateEmbeddings.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -16,8 +15,8 @@ const helpText = `Usage: cds-mcp [options] [tool] [args...]
 Options:
   -h, --help                 Show this help message
   -v, --version              Show version number
-      --download             Download latest embeddings and model files
-      --offline              Skip downloading of embeddings updates
+      --download             Download the local inference model
+      --offline              Skip downloading
 
 Environment variables:
   CDS_MCP_OFFLINE=true       Same as --offline
@@ -49,9 +48,8 @@ if (values.download || values['download-embeddings']) {
     console.error('--download must be the only argument')
     process.exit(1)
   }
-  const result = await downloadEmbeddings()
   await forceDownloadModel()
-  console.log(JSON.stringify(result))
+  console.log(JSON.stringify({ updated: true }))
 } else if (values.help) {
   console.log(helpText)
 } else if (values.version) {

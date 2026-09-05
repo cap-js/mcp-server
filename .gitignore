@@ -2,3 +2,10 @@ models/
 embeddings/
 node_modules/
 .claude
+db.sqlite
+db.sqlite-shm
+db.sqlite-wal
+.cds/
+
+# local file for source map generation
+llms-full.txt

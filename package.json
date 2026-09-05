@@ -14,6 +14,7 @@
   "files": [
     ".claude-plugin/",
     "lib/",
+    "embeddings/",
     ".mcp.json",
     "icon.png",
     "index.js",
@@ -23,8 +24,10 @@
     "cds-mcp": "./index.js"
   },
   "scripts": {
+    "setup": "rm -r node_modules package-lock.json && npm i && rm -r node_modules/@cap-js/sqlite && node scripts/linkSqlite.mjs ",
     "test": "node --test --test-concurrency=1",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "create-embeddings": "node scripts/createEmbeddings.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
@@ -32,7 +35,15 @@
     "onnxruntime-web": "^1.27.0"
   },
   "devDependencies": {
+    "@cap-js/ai": "git+https://github.com/cap-js/ai.git#prep-v1.2.0",
+    "@cap-js/db-service": "git+https://github.com/cap-js/cds-dbs.git#use-ai-plugin",
+    "@cap-js/sqlite": "^3.0.2",
+    "@huggingface/hub": "^2.16.3",
+    "@huggingface/tokenizers": "^0.1.3",
     "@huggingface/transformers": "^4.2.0",
     "prettier": "^3.9.6"
+  },
+  "overrides": {
+    "onnxruntime-node": "1.20.1"
   }
 }
