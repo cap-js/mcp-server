@@ -29,7 +29,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@sap/cds": ">=9",
-    "onnxruntime-web": "^1.27.0"
+    "onnxruntime-web": "^1.29.0"
   },
   "devDependencies": {
     "@huggingface/transformers": "^4.2.0",
