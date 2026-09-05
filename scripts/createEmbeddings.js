@@ -1,32 +1,14 @@
-import { readFile, writeFile, mkdir, unlink } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, unlink, access } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'path'
 import { fileURLToPath } from 'url'
 import cds from '@sap/cds'
+import cliProgress from 'cli-progress'
 import { runPipeline } from './chunker/pipeline.js'
-import { mergeConfig } from './chunker/config.js'
-
+import { parseArgs } from './chunker/config.js'
 
 const FALLBACK_URL = 'https://cap.cloud.sap/docs/llms-full.txt';
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-
-export function parseArgs(argv) {
-  const overrides = {};
-  let input = null;
-
-  for (let i = 0; i < argv.length; i++) {
-    const arg = argv[i];
-    switch (arg) {
-      case '--max-chunk-size':   overrides.maxChunkSize = argv[++i];    break;
-      case '--min-chunk-size':   overrides.minChunkSize = argv[++i];    break;
-      case '--max-heading-depth': overrides.maxHeadingDepth = argv[++i]; break;
-      case '--output':           overrides.output = argv[++i];          break;
-      default: input = arg; break;
-    }
-  }
-
-  return { overrides, input };
-}
 
 export async function readInput(input) {
   if (!input) {
@@ -53,14 +35,28 @@ export function toMeta(chunk) {
 
 const esc = (s) => s.replace(/'/g, "''");
 
-export async function buildEmbeddings(sections, { outDir, id = 'code-chunks', dbFile } = {}) {
+export async function buildEmbeddings(sections, { outDir, id = 'code-chunks', dbFile, model } = {}) {
   const startTime = Date.now()
+
+  if (model) {
+    const lockPath = path.join(__dirname, '..', '.cds', 'models', ...model.split('/'), 'embedding.lock.json')
+    try {
+      await access(lockPath)
+    } catch {
+      console.log(`Model ${model} not installed, running install-model...`)
+      const { default: installModel } = await import('./installModel.js')
+      await installModel()
+    }
+  }
+
   if (dbFile) await unlink(dbFile).catch(() => {})
 
+  const embeddingConfig = model ? { model } : undefined
   const db = await cds.connect.to('embed-db', {
     kind: 'sqlite',
     impl: '@cap-js/ai/lib/sqlite/AISQLiteService.js',
-    credentials: { url: dbFile ?? ':memory:' }
+    credentials: { url: dbFile ?? ':memory:' },
+    ...(embeddingConfig && { embedding: embeddingConfig })
   })
 
   await db.run(`
@@ -72,10 +68,19 @@ export async function buildEmbeddings(sections, { outDir, id = 'code-chunks', db
   `)
 
   const rows = sections.map(s => ({ ID: randomUUID(), chunk: embedText(s) }))
-  console.log('inserting', rows.length, 'rows...')
+
+  const bar = new cliProgress.SingleBar({
+    format: 'embedding [{bar}] {percentage}% | {value}/{total} chunks',
+    clearOnComplete: false,
+    hideCursor: true,
+  }, cliProgress.Presets.shades_classic)
+  bar.start(rows.length, 0)
+
   for (const { ID, chunk } of rows) {
     await db.run(`INSERT INTO Docs(ID, chunk) VALUES ('${ID}', '${esc(chunk)}')`)
+    bar.increment()
   }
+  bar.stop()
 
   console.log('reading embeddings back...')
   const stored = await db.run('SELECT ID, chunk, emb FROM Docs')
@@ -112,9 +117,9 @@ export async function buildEmbeddings(sections, { outDir, id = 'code-chunks', db
 }
 
 export async function main() {
-  const { overrides, input } = parseArgs(process.argv.slice(2))
-  const config = mergeConfig(overrides)
-  const text = await readInput(input || config.input);
+  const config = parseArgs(process.argv.slice(2))
+
+  const text = await readInput(config.input);
   console.log('running chunking pipeline...')
 
   const { sections } = runPipeline(text, config)
@@ -122,7 +127,7 @@ export async function main() {
 
   const outDir = path.join(__dirname, '..', 'embeddings')
   const dbFile = path.join(__dirname, '..', 'db.sqlite')
-  await buildEmbeddings(sections, { outDir, dbFile })
+  await buildEmbeddings(sections, { outDir, dbFile, model: config.model })
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
