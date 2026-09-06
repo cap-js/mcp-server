@@ -15,7 +15,7 @@ const PROMPTS = {
 const MODEL = process.argv[2];
 if (!MODEL) {
   console.error(
-    "Usage: node test/embed-smoke/run-smoke.mjs <huggingface-repo>",
+    "Usage: node scripts/embedSmokeTest.mjs <huggingface-repo>",
   );
   console.error("\nModels in this comparison:");
   for (const m of MODELS) console.error(`  ${m}`);
@@ -23,7 +23,7 @@ if (!MODEL) {
 }
 
 const shortName = MODEL.split("/").pop();
-const rootDir = path.resolve(fileURLToPath(import.meta.url), "../../../");
+const rootDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dbFile = path.join(rootDir, `embed-smoke-${shortName}.db`);
 
 if (existsSync(dbFile)) unlinkSync(dbFile);
