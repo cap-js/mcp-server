@@ -23,6 +23,7 @@ jobs:
         with:
           node-version: 24.x
       - run: npm ci
+      - run: rm -rf node_modules/@cap-js/sqlite && node scripts/linkSqlite.mjs
       - run: npm run lint
   test:
     runs-on: ubuntu-latest
@@ -37,4 +38,5 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm ci
+      - run: rm -rf node_modules/@cap-js/sqlite && node scripts/linkSqlite.mjs
       - run: npm run test
