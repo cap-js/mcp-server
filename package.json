@@ -24,15 +24,20 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",
-    "lint": "npx eslint ."
+    "lint": "npx eslint .",
+    "setup": "rm -r node_modules package-lock.json && npm i && rm -r node_modules/@cap-js/sqlite && node scripts/linkSqlite.mjs"
   },
   "dependencies": {
+    "@cap-js/ai": "git+https://github.com/cap-js/ai.git#prep-v1.2.0",
+    "@cap-js/db-service": "git+https://github.com/cap-js/cds-dbs.git#use-ai-plugin",
+    "@cap-js/sqlite": "^3.0.2",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@sap/cds": ">=9",
-    "onnxruntime-web": "^1.27.0"
+    "@sap/cds": ">=9"
   },
   "devDependencies": {
+    "@huggingface/hub": "^2.16.3",
     "@huggingface/transformers": "^4.2.0",
+    "onnxruntime-node": "1.20.1",
     "prettier": "^3.9.6"
   }
 }
