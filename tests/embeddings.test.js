@@ -1,9 +1,10 @@
 import { test, describe, before } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs'
+import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { getEmbeddings } from '../lib/embeddings.js'
+import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -11,10 +12,6 @@ const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-tran
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
-  // Pre-download models once at the start to speed up all tests
-  before(async () => {
-    await calculateEmbeddings('initialization test')
-  })
   test('should create embeddings for a test string', async () => {
     const results = await getEmbeddings('Node.js testing')
     assert(results.length, 'Results should be an array')
@@ -181,6 +178,24 @@ describe('embeddings', () => {
     norm = Math.sqrt(norm)
 
     assert(Math.abs(norm - 1.0) < 0.001, `Long string embedding should be normalized: ${norm}`)
+  })
+
+  test('createEmbeddings preserves chunk order in output', async () => {
+    const chunks = [
+      'first chunk about cds init',
+      'second chunk about cds watch',
+      'third chunk about cds deploy',
+      'fourth chunk about service definitions',
+      'fifth chunk about entity projections'
+    ]
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-order-test-'))
+    try {
+      await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
   })
 
   test('should handle model corruption and re-download', async () => {
