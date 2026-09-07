@@ -6,7 +6,7 @@ import os from 'node:os'
 import { createEmbeddings } from '../lib/calculateEmbeddings.js'
 
 // Model max window for sentence-transformers/all-MiniLM-L6-v2 is 512 tokens
-// (BERT-style). One English word ≈ 1-2 WordPiece tokens, so ~5000 words of
+// (BERT-style). One English word ≈ 1-2 WordPiece tokens, so ~10000 words of
 // "banana" is comfortably past the window.
 const LONG = 'banana '.repeat(10000).trim()
 const SHORT = 'banana'
