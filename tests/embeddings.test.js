@@ -180,6 +180,35 @@ describe('embeddings', () => {
     assert(Math.abs(norm - 1.0) < 0.001, `Long string embedding should be normalized: ${norm}`)
   })
 
+  test('createEmbeddings preserves chunk order when chunks are reverse-alphabetical', async () => {
+    // chunks are intentionally in reverse-alphabetical order so that ORDER BY chunk
+    // would produce a different sequence — catches accidental sort on content
+    const chunks = [
+      'zebra: last alphabetically but first in insertion order',
+      'mango: middle alphabetically but second in insertion order',
+      'apple: first alphabetically but last in insertion order'
+    ]
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-order-edge-'))
+    try {
+      await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      assert.deepStrictEqual(meta.chunks, chunks, 'reverse-alphabetical insertion order must be preserved')
+      // also verify the bin rows align: embedding at slot 0 must match chunk 0
+      const bin = fs.readFileSync(path.join(tmpDir, 'test.bin'))
+      const flat = new Float32Array(bin.buffer, bin.byteOffset, bin.byteLength / 4)
+      const dim = meta.dim
+      assert.strictEqual(flat.length, chunks.length * dim, 'bin size must equal count * dim floats')
+      // each row must be a non-zero vector (rules out a silent zero-fill from a mis-ordered read)
+      for (let i = 0; i < chunks.length; i++) {
+        const row = flat.slice(i * dim, (i + 1) * dim)
+        const norm = Math.sqrt(row.reduce((s, v) => s + v * v, 0))
+        assert(norm > 0.01, `embedding at slot ${i} is zero — likely a row order mismatch`)
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   test('createEmbeddings preserves chunk order in output', async () => {
     const chunks = [
       'first chunk about cds init',
