@@ -198,6 +198,46 @@ describe('embeddings', () => {
     }
   })
 
+  test('createEmbeddings writes metadata when provided', async () => {
+    const chunks = ['chunk about cds init', 'chunk about cds watch', 'chunk about cds deploy']
+    const metadata = [{ source: 'getting-started', label: 'node' }, { source: 'getting-started', label: 'java' }, { source: 'deploy', label: 'node' }]
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-meta-test-'))
+    try {
+      await createEmbeddings('test', chunks, tmpDir, { metadata })
+      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
+      assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  test('createEmbeddings without metadata produces no metadata key', async () => {
+    const chunks = ['chunk about cds init']
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-nometa-test-'))
+    try {
+      await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  test('createEmbeddings throws when metadata length mismatches chunks', async () => {
+    const chunks = ['a', 'b', 'c']
+    const metadata = [{ x: 1 }, { x: 2 }] // one short
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-metalen-test-'))
+    try {
+      await assert.rejects(
+        () => createEmbeddings('test', chunks, tmpDir, { metadata }),
+        /metadata length must match chunks length/
+      )
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   test('should handle model corruption and re-download', async () => {
     // Create a temporary test directory to simulate corruption without affecting real models
     const testModelDir = path.join(__dirname, 'temp_model_test')
