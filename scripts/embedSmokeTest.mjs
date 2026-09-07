@@ -36,7 +36,7 @@ console.log(`DB:    ${dbFile}`);
 
 const db = await cds.connect.to("embed-test-db", {
   kind: "sqlite",
-  impl: "@cap-js/ai/lib/sqlite/AISQLiteService.js",
+  impl: '@cap-js/db-services/sqlite/lib/SQLiteService.js',
   credentials: { url: dbFile },
   embedding: { model: MODEL, prompts: PROMPTS[MODEL] },
 });
@@ -45,7 +45,7 @@ await db.run(`
   CREATE TABLE TestDoc (
     id   TEXT PRIMARY KEY,
     text TEXT NOT NULL,
-    emb  TEXT GENERATED ALWAYS AS (VECTOR_EMBEDDING(text, 'DOCUMENT')) STORED
+    emb  TEXT GENERATED ALWAYS AS (VECTOR_EMBEDDING(text, 'DOCUMENT', '')) STORED
   )
 `);
 
@@ -122,7 +122,7 @@ let allPassed = true;
 for (const q of queries) {
   const queryStart = performance.now();
   const results = await db.run(`
-    SELECT text, COSINE_SIMILARITY(emb, VECTOR_EMBEDDING('${esc(q)}', 'QUERY')) AS score
+    SELECT text, COSINE_SIMILARITY(emb, VECTOR_EMBEDDING('${esc(q)}', 'QUERY', '')) AS score
     FROM TestDoc
     WHERE emb IS NOT NULL
     ORDER BY score DESC
