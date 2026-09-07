@@ -36,7 +36,7 @@ console.log(`DB:    ${dbFile}`);
 
 const db = await cds.connect.to("embed-test-db", {
   kind: "sqlite",
-  impl: '@cap-js/db-services/sqlite/lib/SQLiteService.js',
+  impl: '@cap-js/ai/lib/sqlite/AISQLiteService.js',
   credentials: { url: dbFile },
   embedding: { model: MODEL, prompts: PROMPTS[MODEL] },
 });
