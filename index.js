@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import run, { runTool } from './lib/run.js'
 import { downloadEmbeddings } from './lib/searchMarkdownDocs.js'
-import { forceDownloadModel } from './lib/calculateEmbeddings.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -50,7 +49,6 @@ if (values.download || values['download-embeddings']) {
     process.exit(1)
   }
   const result = await downloadEmbeddings()
-  await forceDownloadModel()
   console.log(JSON.stringify(result))
 } else if (values.help) {
   console.log(helpText)

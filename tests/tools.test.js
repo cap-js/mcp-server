@@ -1,14 +1,14 @@
 // Node.js test runner (test) for lib/tools.js
 import tools from '../lib/tools.js'
 import assert from 'node:assert'
-import { test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 // Point to the sample project directory
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-test.describe('tools', () => {
+describe('tools', () => {
   test('search_model: should find services', async () => {
     const result = await tools.search_model.handler({
       projectPath: sampleProjectPath,
