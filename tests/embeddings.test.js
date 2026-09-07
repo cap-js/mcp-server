@@ -7,7 +7,7 @@ import { getEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MODEL_DIR = path.resolve(__dirname, '..', 'models')
+const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
