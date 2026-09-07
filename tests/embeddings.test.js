@@ -224,6 +224,34 @@ describe('embeddings', () => {
     }
   })
 
+  test('createEmbeddings places output under capireVersion.version folder', async () => {
+    const chunks = ['chunk about cds init']
+    const capireVersion = { version: '3.0.1', cdsDevDependency: '8.9.0' }
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-capver-test-'))
+    try {
+      const { outDir } = await createEmbeddings('test', chunks, tmpDir, { capireVersion })
+      assert.ok(outDir.endsWith('3.0.1'), `outDir should end with version folder, got: ${outDir}`)
+      const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
+      assert.deepStrictEqual(meta.capireVersion, capireVersion)
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
+  test('createEmbeddings without capireVersion uses MODEL_FOLDER only', async () => {
+    const chunks = ['chunk about cds init']
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-nover-test-'))
+    try {
+      const { outDir } = await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
+      assert.strictEqual(meta.capireVersion, undefined)
+      const { MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
+      assert.ok(outDir.endsWith(MODEL_FOLDER), `outDir should end with MODEL_FOLDER, got: ${outDir}`)
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true })
+    }
+  })
+
   test('createEmbeddings throws when metadata length mismatches chunks', async () => {
     const chunks = ['a', 'b', 'c']
     const metadata = [{ x: 1 }, { x: 2 }] // one short
