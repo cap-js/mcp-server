@@ -136,6 +136,7 @@ export async function resolveIds(results, q, sourceMap, smIndex = null, logger =
         }
         const m = lines[i]?.match(SOURCE)
         if (m) {
+          const sourceInText = m[1].replace('https://cap.cloud.sap', '')
           ids.push(m[1])
           i++
           continue
