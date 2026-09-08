@@ -1,6 +1,16 @@
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
+
+let testPassed = false
+
+after(() => {
+  // onnxruntime-node holds native handles from both CAP AI and
+  // @huggingface/transformers. Their exit-time finalizers race and
+  // abort the process; force a clean exit only when the test passed,
+  // otherwise let the real failure surface via normal exit.
+  if (testPassed) process.exit(0)
+})
 
 test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async () => {
   // Load HuggingFace pipeline
@@ -336,4 +346,6 @@ test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async
   for (const sim of similarities) {
     assert(sim >= -1.001 && sim <= 1.001, `Similarity should be in range [-1, 1], got ${sim}`)
   }
+
+  testPassed = true
 })
