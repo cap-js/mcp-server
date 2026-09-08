@@ -1,4 +1,5 @@
 import { fileURLToPath } from 'url'
+import { MODEL_FOLDER } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -6,7 +7,7 @@ import { test, describe } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs/promises'
 
-const embeddingsDir = path.join(__dirname, '..', 'embeddings')
+const embeddingsDir = path.join(__dirname, '..', 'embeddings', MODEL_FOLDER)
 
 // Use dynamic import to ensure environment variable is set before module evaluation
 const searchModule = await import('../lib/searchMarkdownDocs.js')
