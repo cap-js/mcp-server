@@ -3,7 +3,7 @@ const SOURCE = /Source:\s*(\S+)/i
 const HEADINGPATH = /HeadingPath:\s*(.+)/i
 
 const PLACEHOLDER = '/placeholder/source/'
-const LLM_MODEL = process.env.EVAL_LLM_MODEL || 'claude-opus-4-5'
+const LLM_MODEL = process.env.EVAL_LLM_MODEL || 'claude-sonnet-latest'
 
 let _anthropicClient
 async function anthropicClient() {
@@ -75,7 +75,7 @@ export async function resolveIds(results, q, sourceMap, smIndex = null, logger =
   async function pushPlaceholderOrLlm(ids, text, placeholderId, warnMsg) {
     if (llmOn) {
       const picked = await llmResolvePlaceholder(text, sourceMap, logger)
-      if (picked) { ids.push(picked); return }
+      if (picked) { logger.warn(`Added source found by llm for ${q.id}`); ids.push(picked); return }
     }
     ids.push(placeholderId)
     logger.warn(warnMsg)
