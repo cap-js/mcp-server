@@ -20,9 +20,14 @@ function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, ch
   const seen = []
   globalThis.fetch = async (url, init = {}) => {
     seen.push({ url: String(url), headers: init.headers || {} })
-    return new Response(JSON.stringify({ ...body, embeddings: Buffer.from(bin).toString('base64') }), {
+    const metaBuf = Buffer.from(JSON.stringify(body))
+    const binBuf = Buffer.from(bin)
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(metaBuf.length, 0)
+    const frame = Buffer.concat([header, metaBuf, binBuf])
+    return new Response(frame, {
       status: 200,
-      headers: { etag: 'W/"seed"', 'x-embeddings-version': version }
+      headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
     })
   }
   return seen
@@ -108,12 +113,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
   })
 
-  test('throws when bundle response lacks embeddings field', async () => {
+  test('throws when bundle frame is truncated (metaLen exceeds body)', async () => {
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(9999, 0)
     globalThis.fetch = async () => new Response(
-      JSON.stringify({ dim: 0, count: 0, chunks: [] }),
-      { status: 200, headers: { 'x-embeddings-version': testVer } }
+      Buffer.concat([header, Buffer.from('short')]),
+      { status: 200, headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' } }
     )
-    await assert.rejects(downloadEmbeddings(), /missing embeddings/)
+    await assert.rejects(downloadEmbeddings(), /metaLen exceeds body/)
   })
 
   test('propagates fetch network error', async () => {
