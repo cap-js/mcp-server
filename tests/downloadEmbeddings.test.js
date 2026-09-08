@@ -125,6 +125,13 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 describe('resolveLocalVersion', () => {
   const testVersions = ['__local_1.0.0__', '__local_2.5.0__', '__local_2.10.0__', '__incomplete__']
 
+  beforeEach(async () => {
+    const entries = await fs.readdir(DEFAULT_EMBEDDINGS_DIR, { withFileTypes: true }).catch(() => [])
+    for (const e of entries) {
+      if (e.isDirectory()) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, e.name), { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
   after(async () => {
     for (const v of testVersions) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
   })
@@ -161,8 +168,6 @@ describe('resolveLocalVersion', () => {
       await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
     }
     const local = await resolveLocalVersion()
-    if (local.version === low || local.version === high) {
-      assert.strictEqual(local.version, high)
-    }
+    assert.strictEqual(local.version, high)
   })
 })
