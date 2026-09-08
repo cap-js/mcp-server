@@ -10,10 +10,10 @@ const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../l
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
-const versionJsonEtagPath = path.join(DEFAULT_DIR, 'versions.etag')
+const manifestEtagPath = path.join(DEFAULT_DIR, 'manifest.etag')
 
 async function clearBundleState() {
-  await fs.rm(versionJsonEtagPath, { force: true }).catch(() => {})
+  await fs.rm(manifestEtagPath, { force: true }).catch(() => {})
 }
 
 function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
@@ -69,7 +69,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   test('persists etag, sends If-None-Match on next call, 304 → resolveLocalVersion fallback', async () => {
     stubBundle({ version: testVer })
     await downloadEmbeddings()
-    const savedEtag = (await fs.readFile(versionJsonEtagPath, 'utf-8')).trim()
+    const savedEtag = (await fs.readFile(manifestEtagPath, 'utf-8')).trim()
     assert.strictEqual(savedEtag, 'W/"seed"')
 
     let condHeader = null
@@ -85,7 +85,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('throws when bundle 304 but no local versioned embeddings exist', async () => {
-    await fs.writeFile(versionJsonEtagPath, 'W/"orphan"')
+    await fs.writeFile(manifestEtagPath, 'W/"orphan"')
     // Ensure no local versioned dirs exist under DEFAULT_EMBEDDINGS_DIR.
     const entries = await fs.readdir(DEFAULT_EMBEDDINGS_DIR, { withFileTypes: true }).catch(() => [])
     for (const e of entries) {
