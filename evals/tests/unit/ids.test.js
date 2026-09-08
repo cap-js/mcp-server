@@ -9,29 +9,29 @@ const SM = [
 ]
 const Q = { id: 'q1', question: 'test?' }
 
-describe('ids tests', () => {
-  test('single chunk with Source: line → one id, text preserved', () => {
+describe('ids tests', async () => {
+  test('single chunk with Source: line → one id, text preserved', async () => {
     const text = '# Getting Started\n\nSource: /docs/get-started/\nbody'
-    const r = resolveIds([text], Q, SM)
+    const r = await resolveIds([text], Q, SM)
     assert.equal(r.length, 1)
     assert.deepEqual(r[0].ids, ['/docs/get-started/'])
     assert.equal(r[0].text, text)
   })
 
-  test('Source: line is matched at position i+2 (one blank line between heading and source)', () => {
+  test('Source: line is matched at position i+2 (one blank line between heading and source)', async () => {
     const text = '# Section A\n\nSource: /docs/a\nmore'
-    const r = resolveIds([text], Q, [])
+    const r = await resolveIds([text], Q, [])
     assert.deepEqual(r[0].ids, ['/docs/a'])
   })
 
-  test('heading lookup via sourceMap when no inline Source: line', () => {
+  test('heading lookup via sourceMap when no inline Source: line', async () => {
     // lines[0] = 'Getting Started' → breadcrumb matches top-level entry → /docs/get-started/
     const text = 'Getting Started\n## Initial Setup\nbody'
-    const r = resolveIds([text], Q, SM)
+    const r = await resolveIds([text], Q, SM)
     assert.deepEqual(r[0].ids, ['/docs/get-started/'])
   })
 
-  test('multi-section chunk collects ids from multiple Source: lines', () => {
+  test('multi-section chunk collects ids from multiple Source: lines', async () => {
     const text = [
       '# Getting Started',
       '',
@@ -42,38 +42,38 @@ describe('ids tests', () => {
       'Source: /docs/get-started/#initial-setup',
       'setup body'
     ].join('\n')
-    const r = resolveIds([text], Q, SM)
+    const r = await resolveIds([text], Q, SM)
     assert.ok(r[0].ids.includes('/docs/get-started/'))
     assert.ok(r[0].ids.includes('/docs/get-started/#initial-setup'))
   })
 
-  test('two independent chunks → two result entries', () => {
+  test('two independent chunks → two result entries', async () => {
     const sm = [{ source: '/a', title: 'A', depth: 1 }, { source: '/b', title: 'B', depth: 1 }]
     const c1 = '# A\n\nSource: /a\nbody'
     const c2 = '# B\n\nSource: /b\nbody'
-    const r = resolveIds([c1, c2], Q, sm)
+    const r = await resolveIds([c1, c2], Q, sm)
     assert.equal(r.length, 2)
     assert.deepEqual(r[0].ids, ['/a'])
     assert.deepEqual(r[1].ids, ['/b'])
   })
 
-  test('empty chunk (no breadcrumb) → returns placeholder id', () => {
-    const r = resolveIds([''], Q, [])
+  test('empty chunk (no breadcrumb) → returns placeholder id', async () => {
+    const r = await resolveIds([''], Q, [])
     assert.equal(r.length, 1)
     assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
   })
 
-  test('chunk with breadcrumb but no source match → returns placeholder id', () => {
-    const r = resolveIds(['Heading A\nbody\nmore body\nstill no source'], Q, [])
+  test('chunk with breadcrumb but no source match → returns placeholder id', async () => {
+    const r = await resolveIds(['Heading A\nbody\nmore body\nstill no source'], Q, [])
     assert.equal(r.length, 1)
     assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
   })
 
-  test('empty chunks array → returns empty array', () => {
-    assert.deepEqual(resolveIds([], Q, []), [])
+  test('empty chunks array → returns empty array', async () => {
+    assert.deepEqual(await resolveIds([], Q, []), [])
   })
 
-  test('breadcrumb-only heading resolved via getSourceByBreadCrump', () => {
+  test('breadcrumb-only heading resolved via getSourceByBreadCrump', async () => {
     // Two entries share title "Setup" at depth 2 — disambiguation via breadcrumb.
     const sm = [
       { source: '/docs/a/', title: 'A', depth: 1, breadcrumb: 'A' },
@@ -83,7 +83,7 @@ describe('ids tests', () => {
     ]
     // lines[0] = 'B' → breadcrumb 'B' matches top-level entry → /docs/b/
     const text = 'B\n## Setup\nbody'
-    const r = resolveIds([text], Q, sm)
+    const r = await resolveIds([text], Q, sm)
     assert.deepEqual(r[0].ids, ['/docs/b/'])
   })
 })
