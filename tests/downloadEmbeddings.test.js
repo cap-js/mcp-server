@@ -1,102 +1,119 @@
-import { test, describe, after, afterEach } from 'node:test'
+import { test, describe, before, after, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 
-// Prevent the module-load download from hitting the real network — tests below
-// exercise downloadEmbeddings() explicitly with a stubbed fetch.
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
-const { DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
+const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
+const manifestEtagPath = path.join(DEFAULT_DIR, 'manifest.etag')
 
-function stubManifestAnd(versionsEntries, { jsonBody, jsonStatus = 200, binStatus = 200 } = {}) {
-  globalThis.fetch = async (url) => {
-    const s = String(url)
-    if (s.endsWith('/versions.json')) {
-      return new Response(JSON.stringify({ [MODEL_FOLDER]: versionsEntries }), { status: 200 })
-    }
-    if (s.endsWith('/code-chunks.json')) {
-      if (jsonStatus !== 200) return new Response(null, { status: jsonStatus, statusText: 'Err' })
-      return new Response(jsonBody ?? JSON.stringify({ chunks: [], dim: 0 }), { status: 200 })
-    }
-    if (s.endsWith('/code-chunks.bin')) {
-      if (binStatus !== 200) return new Response(null, { status: binStatus, statusText: 'Err' })
-      return new Response(Buffer.alloc(0), { status: 200 })
-    }
-    return new Response(null, { status: 404 })
-  }
+async function clearBundleState() {
+  await fs.rm(manifestEtagPath, { force: true }).catch(() => {})
 }
 
-function major(v) { return parseInt(String(v).split('.')[0], 10) }
+function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
+  const seen = []
+  globalThis.fetch = async (url, init = {}) => {
+    seen.push({ url: String(url), headers: init.headers || {} })
+    return new Response(JSON.stringify({ ...body, embeddings: Buffer.from(bin).toString('base64') }), {
+      status: 200,
+      headers: { etag: 'W/"seed"', 'x-embeddings-version': version }
+    })
+  }
+  return seen
+}
 
-describe('downloadEmbeddings (versioned layout)', () => {
-  afterEach(async () => {
+describe('downloadEmbeddings (bundle endpoint)', () => {
+  const testVer = '__test_bundle__'
+  const testDir = path.join(DEFAULT_EMBEDDINGS_DIR, testVer)
+
+  beforeEach(async () => {
     globalThis.fetch = originalFetch
-    await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, '__test_dl__'), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, '__test_cached__'), { recursive: true, force: true }).catch(() => {})
+    await clearBundleState()
+    await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })
-  after(() => { globalThis.fetch = originalFetch })
-
-  test('downloads chunks into versioned subdir and reports version', async () => {
-    stubManifestAnd([{ version: '__test_dl__', cdsDevDependency: `>=${major(cds.version)}` }])
-    const result = await downloadEmbeddings()
-    assert.strictEqual(result.version, '__test_dl__')
-    assert.strictEqual(result.updated, true)
-    const dir = path.join(DEFAULT_EMBEDDINGS_DIR, '__test_dl__')
-    const [j, b] = await Promise.all([
-      fs.access(path.join(dir, 'code-chunks.json')).then(() => true).catch(() => false),
-      fs.access(path.join(dir, 'code-chunks.bin')).then(() => true).catch(() => false)
-    ])
-    assert.ok(j, 'code-chunks.json exists under version dir')
-    assert.ok(b, 'code-chunks.bin exists under version dir')
+  after(async () => {
+    globalThis.fetch = originalFetch
+    await clearBundleState()
+    await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })
 
-  test('subsequent call sees cached files and reports updated=false', async () => {
-    const cachedDir = path.join(DEFAULT_EMBEDDINGS_DIR, '__test_cached__')
-    await fs.mkdir(cachedDir, { recursive: true })
-    await fs.writeFile(path.join(cachedDir, 'code-chunks.json'), '{}')
-    await fs.writeFile(path.join(cachedDir, 'code-chunks.bin'), Buffer.alloc(0))
-    stubManifestAnd([{ version: '__test_cached__', cdsDevDependency: `>=${major(cds.version)}` }])
-    const result = await downloadEmbeddings()
-    assert.strictEqual(result.version, '__test_cached__')
-    assert.strictEqual(result.updated, false)
+  test('sends cds and model query params', async () => {
+    const seen = stubBundle({ version: testVer })
+    await downloadEmbeddings()
+    const url = new URL(seen[0].url)
+    assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
+    assert.strictEqual(url.searchParams.get('cds'), cds.version)
+    assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
   })
-})
 
-describe('downloadEmbeddings error cases', () => {
-  afterEach(() => { globalThis.fetch = originalFetch })
-  after(() => { globalThis.fetch = originalFetch })
+  test('writes versioned json + bin and returns updated=true', async () => {
+    stubBundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: 'BYTES' })
+    const r = await downloadEmbeddings()
+    assert.strictEqual(r.updated, true)
+    assert.strictEqual(r.version, testVer)
 
-  test('throws when no suitable version is found', async () => {
-    globalThis.fetch = async (url) => {
-      if (String(url).endsWith('/versions.json')) {
-        return new Response(JSON.stringify({ [MODEL_FOLDER]: [{ version: '1.0.0', cdsDevDependency: '>=999' }] }), { status: 200 })
-      }
-      return new Response(null, { status: 404 })
+    const meta = JSON.parse(await fs.readFile(path.join(testDir, 'code-chunks.json'), 'utf-8'))
+    assert.deepStrictEqual(meta.chunks, ['hi'])
+    assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
+
+    const bin = await fs.readFile(path.join(testDir, 'code-chunks.bin'))
+    assert.strictEqual(bin.toString(), 'BYTES')
+  })
+
+  test('persists etag, sends If-None-Match on next call, 304 → resolveLocalVersion fallback', async () => {
+    stubBundle({ version: testVer })
+    await downloadEmbeddings()
+    const savedEtag = (await fs.readFile(manifestEtagPath, 'utf-8')).trim()
+    assert.strictEqual(savedEtag, 'W/"seed"')
+
+    let condHeader = null
+    globalThis.fetch = async (url, init = {}) => {
+      condHeader = init.headers?.['If-None-Match']
+      return new Response(null, { status: 304 })
     }
-    await assert.rejects(downloadEmbeddings(), /No suitable embeddings version found/)
+    const r = await downloadEmbeddings()
+    assert.strictEqual(condHeader, 'W/"seed"')
+    assert.strictEqual(r.updated, false)
+    // First call wrote the versioned dir; resolveLocalVersion should surface it.
+    assert.ok(r.version, 'returns some version from local dir')
   })
 
-  test('throws when manifest fetch returns non-OK', async () => {
-    globalThis.fetch = async (url) => {
-      if (String(url).endsWith('/versions.json')) return new Response(null, { status: 500 })
-      return new Response(null, { status: 404 })
+  test('throws when bundle 304 but no local versioned embeddings exist', async () => {
+    await fs.writeFile(manifestEtagPath, 'W/"orphan"')
+    // Ensure no local versioned dirs exist under DEFAULT_EMBEDDINGS_DIR.
+    const entries = await fs.readdir(DEFAULT_EMBEDDINGS_DIR, { withFileTypes: true }).catch(() => [])
+    for (const e of entries) {
+      if (e.isDirectory()) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, e.name), { recursive: true, force: true }).catch(() => {})
     }
-    await assert.rejects(downloadEmbeddings(), /No suitable embeddings version found/)
+    globalThis.fetch = async () => new Response(null, { status: 304 })
+    await assert.rejects(downloadEmbeddings(), /no local versioned embeddings found/)
   })
 
-  test('throws when JSON download returns non-OK', async () => {
-    stubManifestAnd([{ version: '__test_json_fail__', cdsDevDependency: `>=${major(cds.version)}` }], { jsonStatus: 404 })
-    await assert.rejects(downloadEmbeddings(), /Failed to download JSON: 404/)
+  test('throws when bundle response is non-OK', async () => {
+    globalThis.fetch = async () => new Response(null, { status: 500, statusText: 'Server Err' })
+    await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
   })
 
-  test('throws when BIN download returns non-OK', async () => {
-    stubManifestAnd([{ version: '__test_bin_fail__', cdsDevDependency: `>=${major(cds.version)}` }], { binStatus: 500 })
-    await assert.rejects(downloadEmbeddings(), /Failed to download BIN: 500/)
+  test('throws when bundle response lacks X-Embeddings-Version header', async () => {
+    globalThis.fetch = async () => new Response(
+      JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
+      { status: 200, headers: { etag: 'W/"x"' } }
+    )
+    await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
+  })
+
+  test('throws when bundle response lacks embeddings field', async () => {
+    globalThis.fetch = async () => new Response(
+      JSON.stringify({ dim: 0, count: 0, chunks: [] }),
+      { status: 200, headers: { 'x-embeddings-version': testVer } }
+    )
+    await assert.rejects(downloadEmbeddings(), /missing embeddings/)
   })
 
   test('propagates fetch network error', async () => {
@@ -109,9 +126,7 @@ describe('resolveLocalVersion', () => {
   const testVersions = ['__local_1.0.0__', '__local_2.5.0__', '__local_2.10.0__', '__incomplete__']
 
   after(async () => {
-    for (const v of testVersions) {
-      await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
-    }
+    for (const v of testVersions) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
   })
 
   test('returns a version with both files and skips incomplete dirs', async () => {
@@ -126,11 +141,9 @@ describe('resolveLocalVersion', () => {
     await fs.writeFile(path.join(incompleteDir, 'code-chunks.json'), '{}')
 
     const local = await resolveLocalVersion()
-    assert.ok(local, 'returns a candidate')
-    assert.ok(local.version, 'candidate has version')
+    assert.ok(local)
     assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, local.version))
-    assert.notStrictEqual(local.version, '__incomplete__', 'skips dir missing bin')
-    // Both files must exist for the returned version.
+    assert.notStrictEqual(local.version, '__incomplete__')
     const [j, b] = await Promise.all([
       fs.access(path.join(local.localDir, 'code-chunks.json')).then(() => true).catch(() => false),
       fs.access(path.join(local.localDir, 'code-chunks.bin')).then(() => true).catch(() => false)
@@ -139,7 +152,6 @@ describe('resolveLocalVersion', () => {
   })
 
   test('among two seeded siblings, returns the higher one', async () => {
-    // Seed two ONLY-underscore versions with no siblings in real dir that outrank both.
     const low = '__local_1.0.0__'
     const high = '__local_2.10.0__'
     for (const v of [low, high]) {
@@ -149,8 +161,6 @@ describe('resolveLocalVersion', () => {
       await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
     }
     const local = await resolveLocalVersion()
-    // Real dir may contain other versioned dirs; assert relative ordering: if returned
-    // version is one of ours, it must be the higher one.
     if (local.version === low || local.version === high) {
       assert.strictEqual(local.version, high)
     }
