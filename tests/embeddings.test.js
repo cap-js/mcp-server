@@ -1,4 +1,4 @@
-import { test, describe, before } from 'node:test'
+import { test, describe } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs'
 import os from 'os'
