@@ -1,6 +1,6 @@
-import { test, describe } from 'node:test'
+import { test, describe, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveIds } from '../../lib/ids.js'
+import { resolveIds, buildSourceMapIndex, isLlmFallbackEnabled } from '../../lib/ids.js'
 
 const SM = [
   { source: '/docs/get-started/', title: 'Getting Started', depth: 1 },
@@ -85,5 +85,316 @@ describe('ids tests', async () => {
     const text = 'B\n## Setup\nbody'
     const r = await resolveIds([text], Q, sm)
     assert.deepEqual(r[0].ids, ['/docs/b/'])
+  })
+})
+
+const silentLogger = { warn() {}, log() {}, error() {} }
+
+describe('isLlmFallbackEnabled', () => {
+  let savedFallback, savedKey
+
+  beforeEach(() => {
+    savedFallback = process.env.EVAL_LLM_FALLBACK
+    savedKey = process.env.ANTHROPIC_API_KEY
+  })
+
+  afterEach(() => {
+    if (savedFallback === undefined) delete process.env.EVAL_LLM_FALLBACK
+    else process.env.EVAL_LLM_FALLBACK = savedFallback
+    if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = savedKey
+  })
+
+  test('returns true when EVAL_LLM_FALLBACK=true and ANTHROPIC_API_KEY set', () => {
+    // TODO: Review AI Test
+    process.env.EVAL_LLM_FALLBACK = 'true'
+    process.env.ANTHROPIC_API_KEY = 'sk-test'
+
+    assert.equal(isLlmFallbackEnabled(), true)
+  })
+
+  test('returns false when ANTHROPIC_API_KEY absent', () => {
+    // TODO: Review AI Test
+    process.env.EVAL_LLM_FALLBACK = 'true'
+    delete process.env.ANTHROPIC_API_KEY
+
+    assert.equal(isLlmFallbackEnabled(), false)
+  })
+
+  test('returns false when EVAL_LLM_FALLBACK is not "true"', () => {
+    // TODO: Review AI Test
+    process.env.EVAL_LLM_FALLBACK = '1'
+    process.env.ANTHROPIC_API_KEY = 'sk-test'
+
+    assert.equal(isLlmFallbackEnabled(), false)
+  })
+
+  test('returns false when EVAL_LLM_FALLBACK absent', () => {
+    // TODO: Review AI Test
+    delete process.env.EVAL_LLM_FALLBACK
+    process.env.ANTHROPIC_API_KEY = 'sk-test'
+
+    assert.equal(isLlmFallbackEnabled(), false)
+  })
+})
+
+describe('buildSourceMapIndex', () => {
+  const sm = [
+    { source: '/a', title: 'A', depth: 1, breadcrumb: 'A', nonTransformedBreadcrumb: 'A_nt' },
+    { source: '/b', title: 'A', depth: 2 },
+    { source: '/c', title: 'C', depth: 1 },
+    { source: '/d', title: 'C', depth: 1 }
+  ]
+  let idx
+
+  beforeEach(() => { idx = buildSourceMapIndex(sm) })
+
+  test('byBreadcrumb maps breadcrumb string to entry', () => {
+    // TODO: Review AI Test
+    assert.equal(idx.byBreadcrumb.get('A'), sm[0])
+    assert.equal(idx.byBreadcrumb.has(''), false)
+  })
+
+  test('byBreadcrumb skips entries without breadcrumb property', () => {
+    // TODO: Review AI Test
+    assert.equal(idx.byBreadcrumb.size, 1)
+  })
+
+  test('byNonTransformed maps nonTransformedBreadcrumb to entry', () => {
+    // TODO: Review AI Test
+    assert.equal(idx.byNonTransformed.get('A_nt'), sm[0])
+    assert.equal(idx.byNonTransformed.size, 1)
+  })
+
+  test('byTitle groups all entries sharing a title into an array', () => {
+    // TODO: Review AI Test
+    assert.deepEqual(idx.byTitle.get('A'), [sm[0], sm[1]])
+    assert.deepEqual(idx.byTitle.get('C'), [sm[2], sm[3]])
+  })
+
+  test('byTitleDepth groups by title::depth composite key', () => {
+    // TODO: Review AI Test
+    assert.deepEqual(idx.byTitleDepth.get('A::1'), [sm[0]])
+    assert.deepEqual(idx.byTitleDepth.get('A::2'), [sm[1]])
+    assert.deepEqual(idx.byTitleDepth.get('C::1'), [sm[2], sm[3]])
+  })
+
+  test('bySource groups all entries sharing a source into an array', () => {
+    // TODO: Review AI Test
+    assert.deepEqual(idx.bySource.get('/a'), [sm[0]])
+    assert.deepEqual(idx.bySource.get('/c'), [sm[2]])
+  })
+})
+
+describe('resolveIds - HeadingPath line', () => {
+  test('HeadingPath used as breadcrumb for sourceMap lookup when no inline Source:', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/section-a', title: 'Section A', depth: 1, breadcrumb: 'Docs > Section A' }
+    ]
+    const text = 'HeadingPath: Docs > Section A\nbody without source line'
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/section-a'])
+  })
+
+  test('HeadingPath heading stripped before breadcrumb join', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/x', title: 'X', depth: 1, breadcrumb: 'X' }
+    ]
+    const text = 'HeadingPath: X\nbody'
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/x'])
+  })
+})
+
+describe('resolveIds - nonTransformedBreadcrumb lookup', () => {
+  test('falls back to nonTransformedBreadcrumb when byBreadcrumb misses', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/', title: 'A transformed', depth: 1, nonTransformedBreadcrumb: 'A (original)' }
+    ]
+    const text = 'A (original)\nbody'
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/a/'])
+  })
+})
+
+describe('resolveIds - byTitle disambiguation (no inline Source:)', () => {
+  test('single byTitle match used when breadcrumb not found', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/setup', title: 'Setup', depth: 1 }]
+    const text = 'Setup\nbody'
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/setup'])
+  })
+
+  test('multiple byTitle candidates → placeholder with "Multiple" warning', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/setup', title: 'Setup', depth: 1 },
+      { source: '/docs/b/setup', title: 'Setup', depth: 1 }
+    ]
+    const text = 'Setup\nbody'
+    const warnings = []
+    const logger = { warn: msg => warnings.push(msg) }
+
+    const r = await resolveIds([text], Q, sm, null, logger)
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+    assert.ok(warnings.some(w => w.startsWith('Multiple')))
+  })
+})
+
+describe('resolveIds - source: new behavior heading lookup', () => {
+  test('sub-heading resolved via byTitleDepth single match', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/', title: 'Getting Started', depth: 1 },
+      { source: '/docs/a/#setup', title: 'Setup', depth: 2 }
+    ]
+    const text = [
+      '# Getting Started',
+      '',
+      'Source: /docs/a/',
+      '## Setup',
+      'content'
+    ].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids.includes('/docs/a/'))
+    assert.ok(r[0].ids.includes('/docs/a/#setup'))
+  })
+
+  test('sub-heading with multiple byTitleDepth matches resolved via breadcrumb', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/', title: 'Section A', depth: 1, breadcrumb: 'Section A' },
+      { source: '/docs/a/#setup', title: 'Setup', depth: 2, breadcrumb: 'Section A > Setup' },
+      { source: '/docs/b/', title: 'Section B', depth: 1, breadcrumb: 'Section B' },
+      { source: '/docs/b/#setup', title: 'Setup', depth: 2, breadcrumb: 'Section B > Setup' }
+    ]
+    const text = [
+      '# Section A',
+      '',
+      'Source: /docs/a/',
+      '## Setup',
+      'content'
+    ].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/a/', '/docs/a/#setup'])
+  })
+
+  test('sub-heading with multiple byTitleDepth matches resolved via linear scan when breadcrumb absent', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/', title: 'Section A', depth: 1 },
+      { source: '/docs/a/#setup', title: 'Setup', depth: 2 },
+      { source: '/docs/b/', title: 'Section B', depth: 1 },
+      { source: '/docs/b/#setup', title: 'Setup', depth: 2 }
+    ]
+    const text = [
+      '# Section A',
+      '',
+      'Source: /docs/a/',
+      '## Setup',
+      'content'
+    ].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids.includes('/docs/a/'))
+    assert.ok(r[0].ids.includes('/docs/a/#setup'))
+  })
+
+  test('sub-heading not in byTitleDepth → skipped, no placeholder', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/docs/a/', title: 'Section A', depth: 1 }
+    ]
+    const text = [
+      '# Section A',
+      '',
+      'Source: /docs/a/',
+      '## Unknown Subsection',
+      'content'
+    ].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(r[0].ids, ['/docs/a/'])
+  })
+})
+
+describe('resolveIds - pre-built smIndex', () => {
+  test('accepts pre-built index and returns same result as auto-building', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1, breadcrumb: 'A' }]
+    const text = 'A\nbody'
+    const smIndex = buildSourceMapIndex(sm)
+
+    const withIndex = await resolveIds([text], Q, sm, smIndex, silentLogger)
+    const withoutIndex = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(withIndex, withoutIndex)
+  })
+})
+
+describe('side-effects', () => {
+  test('resolveIds does not mutate the results array', async () => {
+    // TODO: Review AI Test
+    const text = '# A\n\nSource: /a\nbody'
+    const results = [text]
+    const keysBefore = Object.keys(results).sort()
+
+    await resolveIds(results, Q, SM, null, silentLogger)
+
+    assert.deepEqual(Object.keys(results).sort(), keysBefore)
+    assert.equal(results[0], text)
+  })
+
+  test('resolveIds does not mutate the sourceMap array', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1, breadcrumb: 'A' }]
+    const smCopy = JSON.parse(JSON.stringify(sm))
+    const text = 'A\nbody'
+
+    await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.deepEqual(sm, smCopy)
+  })
+
+  test('resolveIds does not mutate the query object', async () => {
+    // TODO: Review AI Test
+    const q = { id: 'q-side', question: 'test?' }
+    const keysBefore = Object.keys(q).sort()
+    const text = '# A\n\nSource: /a\nbody'
+
+    await resolveIds([text], q, SM, null, silentLogger)
+
+    assert.deepEqual(Object.keys(q).sort(), keysBefore)
+    assert.equal(q.id, 'q-side')
+    assert.equal(q.question, 'test?')
+  })
+
+  test('buildSourceMapIndex does not mutate the input array', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/a', title: 'A', depth: 1, breadcrumb: 'A' }]
+    const smCopy = JSON.parse(JSON.stringify(sm))
+
+    buildSourceMapIndex(sm)
+
+    assert.deepEqual(sm, smCopy)
   })
 })
