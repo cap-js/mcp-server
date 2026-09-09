@@ -10,10 +10,10 @@ const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../l
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
-const manifestEtagPath = path.join(DEFAULT_DIR, 'manifest.etag')
+const manifestEtagPath = path.join(DEFAULT_DIR, cds.version, 'manifest.etag')
 
 async function clearBundleState() {
-  await fs.rm(manifestEtagPath, { force: true }).catch(() => {})
+  await fs.rm(path.join(DEFAULT_DIR, cds.version), { recursive: true, force: true }).catch(() => {})
 }
 
 function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
@@ -71,11 +71,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     assert.strictEqual(bin.toString(), 'BYTES')
   })
 
-  test('persists etag, sends If-None-Match on next call, 304 → resolveLocalVersion fallback', async () => {
+  test('persists etag+capireVersion, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
     stubBundle({ version: testVer })
     await downloadEmbeddings()
-    const savedEtag = (await fs.readFile(manifestEtagPath, 'utf-8')).trim()
-    assert.strictEqual(savedEtag, 'W/"seed"')
+    const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    assert.strictEqual(saved.etag, 'W/"seed"')
+    assert.strictEqual(saved.capireVersion, testVer)
 
     let condHeader = null
     globalThis.fetch = async (url, init = {}) => {
@@ -85,19 +86,45 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const r = await downloadEmbeddings()
     assert.strictEqual(condHeader, 'W/"seed"')
     assert.strictEqual(r.updated, false)
-    // First call wrote the versioned dir; resolveLocalVersion should surface it.
-    assert.ok(r.version, 'returns some version from local dir')
+    assert.strictEqual(r.version, testVer, '304 returns the capire version stored alongside the etag')
   })
 
-  test('throws when bundle 304 but no local versioned embeddings exist', async () => {
-    await fs.writeFile(manifestEtagPath, 'W/"orphan"')
-    // Ensure no local versioned dirs exist under DEFAULT_EMBEDDINGS_DIR.
-    const entries = await fs.readdir(DEFAULT_EMBEDDINGS_DIR, { withFileTypes: true }).catch(() => [])
-    for (const e of entries) {
-      if (e.isDirectory()) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, e.name), { recursive: true, force: true }).catch(() => {})
+  test('304 returns the stored capire version, not the newest local dir', async () => {
+    // Seed two local versioned dirs — a newer one and an older one.
+    const older = '__test_bundle_1.0.0__'
+    const newer = '__test_bundle_9.9.9__'
+    for (const v of [older, newer]) {
+      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
+      await fs.mkdir(dir, { recursive: true })
+      await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+      await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
     }
+    // Etag file says: for THIS cds version, server would serve `older`.
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', capireVersion: older }))
+
     globalThis.fetch = async () => new Response(null, { status: 304 })
-    await assert.rejects(downloadEmbeddings(), /no local versioned embeddings found/)
+    const r = await downloadEmbeddings()
+    assert.strictEqual(r.version, older, '304 must return stored version, not newest-local')
+    assert.strictEqual(r.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, older))
+
+    // Cleanup.
+    for (const v of [older, newer]) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+  })
+
+  test('throws when bundle 304 but etag file has no capireVersion', async () => {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
+    globalThis.fetch = async () => new Response(null, { status: 304 })
+    await assert.rejects(downloadEmbeddings(), /no capireVersion/)
+  })
+
+  test('throws when bundle 304 but the stored capire version dir is missing on disk', async () => {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', capireVersion: '__gone__' }))
+    await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, '__gone__'), { recursive: true, force: true }).catch(() => {})
+    globalThis.fetch = async () => new Response(null, { status: 304 })
+    await assert.rejects(downloadEmbeddings(), /missing files/)
   })
 
   test('throws when bundle response is non-OK', async () => {
