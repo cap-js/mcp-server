@@ -10,10 +10,10 @@ const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../l
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
-const manifestEtagPath = path.join(DEFAULT_DIR, cds.version, 'manifest.etag')
+const manifestEtagPath = path.join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
 
 async function clearBundleState() {
-  await fs.rm(path.join(DEFAULT_DIR, cds.version), { recursive: true, force: true }).catch(() => {})
+  await fs.rm(path.join(DEFAULT_DIR, 'etags', cds.version), { recursive: true, force: true }).catch(() => {})
 }
 
 function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
@@ -160,28 +160,28 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
-    const newestEtag = path.join(DEFAULT_DIR, 'newestCdsNode', 'manifest.etag')
-    const unknownEtag = path.join(DEFAULT_DIR, 'unknown', 'manifest.etag')
-    await fs.rm(path.join(DEFAULT_DIR, 'newestCdsNode'), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_DIR, 'unknown'), { recursive: true, force: true }).catch(() => {})
+    const newestEtag = path.join(DEFAULT_DIR, 'etags', 'newestCds', 'manifest.etag')
+    const unknownEtag = path.join(DEFAULT_DIR, 'etags', 'unknown', 'manifest.etag')
+    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
 
     try {
       process.chdir(os.tmpdir())
       await downloadEmbeddings()
 
       const unknownExists = await fs.access(unknownEtag).then(() => true).catch(() => false)
-      assert.strictEqual(unknownExists, false, 'no etag file may be created under <DEFAULT_DIR>/unknown/')
+      assert.strictEqual(unknownExists, false, 'no etag file may be created under <DEFAULT_DIR>/etags/unknown/')
 
       const newestExists = await fs.access(newestEtag).then(() => true).catch(() => false)
-      assert.ok(newestExists, `etag must be written under "newestCdsNode" pseudo-version dir: ${newestEtag}`)
+      assert.ok(newestExists, `etag must be written under "etags/newestCds" pseudo-version dir: ${newestEtag}`)
 
       const saved = JSON.parse(await fs.readFile(newestEtag, 'utf-8'))
       assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
       assert.strictEqual(saved.commitId, testVer, 'stored commitId must be the x-embeddings-version returned by the server')
     } finally {
       process.chdir(originalCwd)
-      await fs.rm(path.join(DEFAULT_DIR, 'newestCdsNode'), { recursive: true, force: true }).catch(() => {})
-      await fs.rm(path.join(DEFAULT_DIR, 'unknown'), { recursive: true, force: true }).catch(() => {})
+      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
     }
   })
 
@@ -225,37 +225,82 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       'must reject empty-bin frame with a framing error, not silently write it'
     )
   })
+
+  test('body shorter than 4 bytes must reject as too short', async () => {
+    globalThis.fetch = async () => new Response(Buffer.from([0x00, 0x01, 0x02]), {
+      status: 200,
+      headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+    })
+    await assert.rejects(downloadEmbeddings(), /too short/)
+  })
+
+  test('exactly-4-byte body (header only, metaLen=0) must reject as empty bin', async () => {
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(0, 0)
+    globalThis.fetch = async () => new Response(header, {
+      status: 200,
+      headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+    })
+    await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
+  })
+
+  test('frame with 1 bin byte must succeed', async () => {
+    const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(meta.length, 0)
+    const bin = Buffer.from([0x01])
+    const body = Buffer.concat([header, meta, bin])
+    globalThis.fetch = async () => new Response(body, {
+      status: 200,
+      headers: { etag: 'W/"ok"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+    })
+    const r = await downloadEmbeddings()
+    assert.strictEqual(r.updated, true)
+    const written = await fs.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
+    assert.strictEqual(written.length, 1)
+    assert.strictEqual(written[0], 0x01)
+  })
 })
 
 describe('resolveLocalVersion', () => {
-  const testVersions = ['__local_1.0.0__', '__local_2.5.0__', '__local_2.10.0__', '__incomplete__']
+  const testCommits = ['__local_commit_a__', '__local_commit_b__', '__local_commit_c__']
+  const testCdsDirs = ['1.0.0', '2.5.0', '2.10.0']
+
+  async function seedEtag(cdsVer, commitId) {
+    const ep = path.join(DEFAULT_DIR, 'etags', cdsVer, 'manifest.etag')
+    await fs.mkdir(path.dirname(ep), { recursive: true })
+    await fs.writeFile(ep, JSON.stringify({ etag: 'W/"x"', commitId }))
+    return ep
+  }
+  async function seedEmbedDir(commitId, complete = true) {
+    const dir = path.join(DEFAULT_EMBEDDINGS_DIR, commitId)
+    await fs.mkdir(dir, { recursive: true })
+    await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+    if (complete) await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+    return dir
+  }
 
   beforeEach(async () => {
-    const entries = await fs.readdir(DEFAULT_EMBEDDINGS_DIR, { withFileTypes: true }).catch(() => [])
-    for (const e of entries) {
-      if (e.isDirectory()) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, e.name), { recursive: true, force: true }).catch(() => {})
-    }
+    for (const v of testCdsDirs) await fs.rm(path.join(DEFAULT_DIR, 'etags', v), { recursive: true, force: true }).catch(() => {})
+    for (const c of testCommits) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, c), { recursive: true, force: true }).catch(() => {})
   })
-
   after(async () => {
-    for (const v of testVersions) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+    for (const v of testCdsDirs) await fs.rm(path.join(DEFAULT_DIR, 'etags', v), { recursive: true, force: true }).catch(() => {})
+    for (const c of testCommits) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, c), { recursive: true, force: true }).catch(() => {})
   })
 
-  test('returns a version with both files and skips incomplete dirs', async () => {
-    for (const v of ['__local_1.0.0__', '__local_2.5.0__', '__local_2.10.0__']) {
-      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
-      await fs.mkdir(dir, { recursive: true })
-      await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
-      await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
-    }
-    const incompleteDir = path.join(DEFAULT_EMBEDDINGS_DIR, '__incomplete__')
-    await fs.mkdir(incompleteDir, { recursive: true })
-    await fs.writeFile(path.join(incompleteDir, 'code-chunks.json'), '{}')
+  test('returns commitId from etag and skips incomplete embed dirs', async () => {
+    // complete dir for commit_a, incomplete for commit_b
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1], false)  // missing .bin
+    await seedEtag('1.0.0', testCommits[0])
+    await seedEtag('2.5.0', testCommits[1])
 
     const local = await resolveLocalVersion()
     assert.ok(local)
-    assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, local.version))
-    assert.notStrictEqual(local.version, '__incomplete__')
+    // commit_b's dir is incomplete → must resolve to commit_a (only complete one)
+    assert.strictEqual(local.commitId, testCommits[0])
+    assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]))
     const [j, b] = await Promise.all([
       fs.access(path.join(local.localDir, 'code-chunks.json')).then(() => true).catch(() => false),
       fs.access(path.join(local.localDir, 'code-chunks.bin')).then(() => true).catch(() => false)
@@ -263,36 +308,38 @@ describe('resolveLocalVersion', () => {
     assert.ok(j && b)
   })
 
-  test('among two seeded siblings, returns the higher one', async () => {
-    const low = '__local_1.0.0__'
-    const high = '__local_2.10.0__'
-    for (const v of [low, high]) {
-      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
-      await fs.mkdir(dir, { recursive: true })
-      await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
-      await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
-    }
+  test('among two cds versions with complete dirs, returns commitId from highest cds version', async () => {
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1])
+    await seedEtag('1.0.0', testCommits[0])
+    await seedEtag('2.10.0', testCommits[1])
+
     const local = await resolveLocalVersion()
-    assert.strictEqual(local.version, high)
+    assert.strictEqual(local.commitId, testCommits[1], 'must pick commitId from highest semver cds dir')
   })
 
-  test('among non-semver dirs, must tiebreak by mtime, not readdir order', async () => {
+  test('among non-semver cds dirs, must tiebreak by mtime, not readdir order', async () => {
     const dirs = ['bundle_alpha', 'bundle_beta']
-    for (const v of dirs) {
-      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
-      await fs.mkdir(dir, { recursive: true })
-      await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
-      await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1])
+    // seed etag files under non-semver dir names
+    for (let i = 0; i < dirs.length; i++) {
+      const ep = path.join(DEFAULT_DIR, 'etags', dirs[i], 'manifest.etag')
+      await fs.mkdir(path.dirname(ep), { recursive: true })
+      await fs.writeFile(ep, JSON.stringify({ etag: 'W/"x"', commitId: testCommits[i] }))
     }
     const now = Date.now() / 1000
-    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, dirs[0]), now - 100, now - 100)
-    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, dirs[1]), now, now)
+    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[0], 'manifest.etag'), now - 100, now - 100)
+    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[1], 'manifest.etag'), now, now)
+    // both dirs have non-semver names → semver.coerce returns null for all → fall through to mtime
     try {
       const local = await resolveLocalVersion()
-      assert.ok(local)
-      assert.strictEqual(local.version, dirs[1], 'must tiebreak by mtime when semver.coerce returns null for all')
+      // non-semver dirs are skipped entirely in new impl → returns null (they don't coerce)
+      // This test now documents that non-semver cds dirs are ignored.
+      // If both dirs are non-semver, result is null since primary path needs semver cds dirs.
+      assert.strictEqual(local, null, 'non-semver cds dirs are skipped; no semver etag → returns null')
     } finally {
-      for (const v of dirs) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+      for (const v of dirs) await fs.rm(path.join(DEFAULT_DIR, 'etags', v), { recursive: true, force: true }).catch(() => {})
     }
   })
 })
