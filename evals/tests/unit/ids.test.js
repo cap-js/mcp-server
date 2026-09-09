@@ -184,6 +184,17 @@ describe('buildSourceMapIndex', () => {
     assert.deepEqual(idx.bySource.get('/a'), [sm[0]])
     assert.deepEqual(idx.bySource.get('/c'), [sm[2]])
   })
+
+  test('empty sourceMap → all maps are empty', () => {
+    // TODO: Review AI Test
+    const emptyIdx = buildSourceMapIndex([])
+
+    assert.equal(emptyIdx.byBreadcrumb.size, 0)
+    assert.equal(emptyIdx.byNonTransformed.size, 0)
+    assert.equal(emptyIdx.byTitle.size, 0)
+    assert.equal(emptyIdx.byTitleDepth.size, 0)
+    assert.equal(emptyIdx.bySource.size, 0)
+  })
 })
 
 describe('resolveIds - HeadingPath line', () => {
@@ -251,6 +262,19 @@ describe('resolveIds - byTitle disambiguation (no inline Source:)', () => {
 
     assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
     assert.ok(warnings.some(w => w.startsWith('Multiple')))
+  })
+
+  test('zero byTitle candidates → placeholder with "No" warning', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/other', title: 'Other', depth: 1 }]
+    const text = 'UnknownTitle\nbody'
+    const warnings = []
+    const logger = { warn: msg => warnings.push(msg) }
+
+    const r = await resolveIds([text], Q, sm, null, logger)
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+    assert.ok(warnings.some(w => w.startsWith('No')))
   })
 })
 
@@ -334,6 +358,31 @@ describe('resolveIds - source: new behavior heading lookup', () => {
     const r = await resolveIds([text], Q, sm, null, silentLogger)
 
     assert.deepEqual(r[0].ids, ['/docs/a/'])
+  })
+
+  test('sub-heading with multiple byTitleDepth matches, breadcrumb miss, linear scan miss → placeholder', async () => {
+    // TODO: Review AI Test
+    // Setup entries appear BEFORE the parent in sourceMap so linear scan (start+1 onward) finds nothing
+    const sm = [
+      { source: '/docs/b/#setup', title: 'Setup', depth: 2 },
+      { source: '/docs/c/#setup', title: 'Setup', depth: 2 },
+      { source: '/docs/a/', title: 'Section A', depth: 1 }
+    ]
+    const text = [
+      '# Section A',
+      '',
+      'Source: /docs/a/',
+      '## Setup',
+      'content'
+    ].join('\n')
+    const warnings = []
+    const logger = { warn: msg => warnings.push(msg) }
+
+    const r = await resolveIds([text], Q, sm, null, logger)
+
+    assert.ok(r[0].ids.includes('/docs/a/'))
+    assert.ok(r[0].ids.some(id => id.startsWith('/placeholder/source/')))
+    assert.ok(warnings.some(w => w.includes('placeholder source')))
   })
 })
 
