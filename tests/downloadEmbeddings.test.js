@@ -58,7 +58,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
-    stubBundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: 'BYTES' })
+    stubBundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
     const r = await downloadEmbeddings()
     assert.strictEqual(r.updated, true)
     assert.strictEqual(r.version, testVer)
@@ -68,7 +68,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
 
     const bin = await fs.readFile(path.join(testDir, 'code-chunks.bin'))
-    assert.strictEqual(bin.toString(), 'BYTES')
+    assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
   })
 
   test('persists etag+capireVersion, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
@@ -147,12 +147,83 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       Buffer.concat([header, Buffer.from('short')]),
       { status: 200, headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' } }
     )
-    await assert.rejects(downloadEmbeddings(), /metaLen exceeds body/)
+    await assert.rejects(downloadEmbeddings(), /framing/)
   })
 
   test('propagates fetch network error', async () => {
     globalThis.fetch = async () => { throw new TypeError('network down') }
     await assert.rejects(downloadEmbeddings(), /network down/)
+  })
+
+  test('when detection misses, etag lands under "newestCdsNode" pseudo-version, never "unknown"', async () => {
+    stubBundle({ version: testVer })
+
+    const os = await import('node:os')
+    const originalCwd = process.cwd()
+    const newestEtag = path.join(DEFAULT_DIR, 'newestCdsNode', 'manifest.etag')
+    const unknownEtag = path.join(DEFAULT_DIR, 'unknown', 'manifest.etag')
+    await fs.rm(path.join(DEFAULT_DIR, 'newestCdsNode'), { recursive: true, force: true }).catch(() => {})
+    await fs.rm(path.join(DEFAULT_DIR, 'unknown'), { recursive: true, force: true }).catch(() => {})
+
+    try {
+      process.chdir(os.tmpdir())
+      await downloadEmbeddings()
+
+      const unknownExists = await fs.access(unknownEtag).then(() => true).catch(() => false)
+      assert.strictEqual(unknownExists, false, 'no etag file may be created under <DEFAULT_DIR>/unknown/')
+
+      const newestExists = await fs.access(newestEtag).then(() => true).catch(() => false)
+      assert.ok(newestExists, `etag must be written under "newestCdsNode" pseudo-version dir: ${newestEtag}`)
+
+      const saved = JSON.parse(await fs.readFile(newestEtag, 'utf-8'))
+      assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
+      assert.strictEqual(saved.capireVersion, testVer, 'stored capireVersion must be the x-embeddings-version returned by the server')
+    } finally {
+      process.chdir(originalCwd)
+      await fs.rm(path.join(DEFAULT_DIR, 'newestCdsNode'), { recursive: true, force: true }).catch(() => {})
+      await fs.rm(path.join(DEFAULT_DIR, 'unknown'), { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('concurrent downloadEmbeddings calls must be single-flighted', async () => {
+    let concurrent = 0
+    let maxConcurrent = 0
+    globalThis.fetch = async () => {
+      concurrent++
+      maxConcurrent = Math.max(maxConcurrent, concurrent)
+      await new Promise(r => setTimeout(r, 30))
+      concurrent--
+      const meta = Buffer.from(JSON.stringify({ dim: 0, count: 0, chunks: [], model: 't' }))
+      const header = Buffer.alloc(4)
+      header.writeUInt32BE(meta.length, 0)
+      const frame = Buffer.concat([header, meta, Buffer.from('BIN')])
+      return new Response(frame, {
+        status: 200,
+        headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+      })
+    }
+    const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
+    const anyRejected = results.some(r => r.status === 'rejected')
+    assert.ok(
+      !anyRejected && maxConcurrent === 1,
+      `downloadEmbeddings must serialize concurrent callers. maxConcurrent=${maxConcurrent}, rejected=${anyRejected}`
+    )
+  })
+
+  test('metaLen leaving empty bin must reject as framing error, not corruption', async () => {
+    const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
+    const header = Buffer.alloc(4)
+    header.writeUInt32BE(meta.length, 0)
+    const body = Buffer.concat([header, meta]) // zero bin bytes
+    globalThis.fetch = async () => new Response(body, {
+      status: 200,
+      headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+    })
+    await assert.rejects(
+      downloadEmbeddings(),
+      /empty bin|framing|bin bytes/i,
+      'must reject empty-bin frame with a framing error, not silently write it'
+    )
   })
 })
 
@@ -203,5 +274,25 @@ describe('resolveLocalVersion', () => {
     }
     const local = await resolveLocalVersion()
     assert.strictEqual(local.version, high)
+  })
+
+  test('among non-semver dirs, must tiebreak by mtime, not readdir order', async () => {
+    const dirs = ['bundle_alpha', 'bundle_beta']
+    for (const v of dirs) {
+      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
+      await fs.mkdir(dir, { recursive: true })
+      await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+      await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+    }
+    const now = Date.now() / 1000
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, dirs[0]), now - 100, now - 100)
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, dirs[1]), now, now)
+    try {
+      const local = await resolveLocalVersion()
+      assert.ok(local)
+      assert.strictEqual(local.version, dirs[1], 'must tiebreak by mtime when semver.coerce returns null for all')
+    } finally {
+      for (const v of dirs) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+    }
   })
 })
