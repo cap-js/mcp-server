@@ -226,7 +226,7 @@ describe('embeddings', () => {
 
   test('createEmbeddings places output under capire.version folder', async () => {
     const chunks = ['chunk about cds init']
-    const capire = { version: '3.0.1', cdsDevDependency: '8.9.0' }
+    const capire = { version: '3.0.1', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-capver-test-'))
     try {
       const { outDir } = await createEmbeddings('test', chunks, tmpDir, { capire })
