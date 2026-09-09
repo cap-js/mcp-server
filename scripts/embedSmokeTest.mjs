@@ -5,7 +5,15 @@ import path from "node:path";
 import cds from "@sap/cds";
 
 const MODELS = [
-  "Xenova/all-MiniLM-L6-v2"
+  "perplexity-ai/pplx-embed-v1-0.6b",
+  "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+  "sentence-transformers/all-roberta-large-v1",
+  "sentence-transformers/msmarco-roberta-base-v2",
+  "sentence-transformers/all-mpnet-base-v2",
+  "sentence-transformers/stsb-roberta-base-v2",
+  "Xenova/all-MiniLM-L6-v2",
+  "jinaai/jina-embeddings-v2-base-zh",
+  "nomic-ai/nomic-embed-text-v1.5",
 ];
 
 const PROMPTS = {

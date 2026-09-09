@@ -190,8 +190,8 @@ describe('embeddings', () => {
     ]
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-order-test-'))
     try {
-      await createEmbeddings('test', chunks, tmpDir)
-      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      const { outDir } = await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
@@ -203,8 +203,8 @@ describe('embeddings', () => {
     const metadata = [{ source: 'getting-started', label: 'node' }, { source: 'getting-started', label: 'java' }, { source: 'deploy', label: 'node' }]
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-meta-test-'))
     try {
-      await createEmbeddings('test', chunks, tmpDir, { metadata })
-      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      const { outDir } = await createEmbeddings('test', chunks, tmpDir, { metadata })
+      const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
       assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
     } finally {
@@ -216,8 +216,8 @@ describe('embeddings', () => {
     const chunks = ['chunk about cds init']
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-nometa-test-'))
     try {
-      await createEmbeddings('test', chunks, tmpDir)
-      const meta = JSON.parse(fs.readFileSync(path.join(tmpDir, 'test.json'), 'utf-8'))
+      const { outDir } = await createEmbeddings('test', chunks, tmpDir)
+      const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })

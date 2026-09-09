@@ -21,11 +21,11 @@ test('too-long chunk produces exactly one row, truncated not split', async () =>
   // Only two rows in and two rows out — no auto-split.
   assert.strictEqual(result.count, 2, 'input rows == output rows (no splitting)')
   const { readFile } = await import('node:fs/promises')
-  const meta = JSON.parse(await readFile(path.join(dir, 'code-chunks.json'), 'utf8'))
+  const meta = JSON.parse(await readFile(path.join(result.outDir, 'code-chunks.json'), 'utf8'))
   assert.strictEqual(LONG.length, LONG.length, 'input rows == output rows (no splitting)')
 
-  await unlink(path.join(dir, 'code-chunks.bin'))
-  await unlink(path.join(dir, 'code-chunks.json'))
+  await unlink(path.join(result.outDir, 'code-chunks.bin'))
+  await unlink(path.join(result.outDir, 'code-chunks.json'))
 
   testPassed = true
 })
