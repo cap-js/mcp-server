@@ -3,6 +3,8 @@ import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 
+process.env.CDS_MCP_OFFLINE = 'true'
+
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
 const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
