@@ -1,6 +1,14 @@
 import { test, describe, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveIds, buildSourceMapIndex, isLlmFallbackEnabled } from '../../lib/ids.js'
+import Anthropic from '@anthropic-ai/sdk'
+
+// Shared Anthropic Messages prototype for mock patching across LLM tests.
+// Dynamic import inside ids.js returns the same cached module, so mutations
+// on this prototype are seen by all Anthropic instances.
+const _tmpA = new Anthropic({ apiKey: 'test-key-for-proto-access' })
+const _MessagesProto = Object.getPrototypeOf(_tmpA.messages)
+const _origCreate = _MessagesProto.create
 
 const SM = [
   { source: '/docs/get-started/', title: 'Getting Started', depth: 1 },
@@ -71,6 +79,15 @@ describe('ids tests', async () => {
 
   test('empty chunks array → returns empty array', async () => {
     assert.deepEqual(await resolveIds([], Q, []), [])
+  })
+
+  test('text with "source: " substring but no URL after colon → ids empty → throws "No IDs found"', async () => {
+    // TODO: Review AI Test
+    // 'source: ' enters new-behavior path but SOURCE regex requires \S+ → no match → ids stays empty
+    await assert.rejects(
+      () => resolveIds(['source: '], Q, [], null, silentLogger),
+      { message: 'No IDs found' }
+    )
   })
 
   test('breadcrumb-only heading resolved via getSourceByBreadCrump', async () => {
@@ -383,6 +400,141 @@ describe('resolveIds - source: new behavior heading lookup', () => {
     assert.ok(r[0].ids.includes('/docs/a/'))
     assert.ok(r[0].ids.some(id => id.startsWith('/placeholder/source/')))
     assert.ok(warnings.some(w => w.includes('placeholder source')))
+  })
+
+  test('intermediate heading overwrites firstHeading, backward scan unshifts (L170-172) then breaks at depth-1 (L174)', async () => {
+    // TODO: Review AI Test
+    // # Top → ## Redefine (overrides firstHeading: ids.length=0 on second heading) → Source → ### Deep
+    // Backward scan from ### Deep: ## Redefine (depth 2 < 3 → unshift), # Top (depth 1 ≤ 1 → break)
+    const sm = [
+      { source: '/docs/a/', title: 'Redefine', depth: 2 },
+      { source: '/docs/a/#deep1', title: 'Deep', depth: 3, breadcrumb: 'Top > Top > Redefine > Deep' },
+      { source: '/docs/b/#deep2', title: 'Deep', depth: 3, breadcrumb: 'Other > Deep' }
+    ]
+    const text = ['# Top', '## Redefine', 'Source: /docs/a/', '### Deep', 'content'].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids.includes('/docs/a/'))
+    assert.ok(r[0].ids.includes('/docs/a/#deep1'))
+  })
+
+  test('linear scan skips lower-depth entries via continue (L185) before finding the match', async () => {
+    // TODO: Review AI Test
+    // Multiple byTitleDepth matches for Deep::3, no breadcrumb → linear scan
+    // sm[1] has depth=1 < 3 → L185: current.depth < depth → true → continue
+    // sm[2] has depth=3 and title=Deep → found
+    const sm = [
+      { source: '/docs/a/', title: 'Section A', depth: 1 },
+      { source: '/docs/x/', title: 'X', depth: 1 },            // depth 1 < 3 → L185 continue
+      { source: '/docs/a/#deep', title: 'Deep', depth: 3 },
+      { source: '/docs/b/', title: 'Section B', depth: 1 },
+      { source: '/docs/b/#deep', title: 'Deep', depth: 3 }
+    ]
+    const text = ['# Section A', '', 'Source: /docs/a/', '### Deep', 'content'].join('\n')
+
+    const r = await resolveIds([text], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids.includes('/docs/a/'))
+    assert.ok(r[0].ids.includes('/docs/a/#deep'))
+  })
+})
+
+describe('resolveIds - LLM fallback (pushPlaceholderOrLlm)', () => {
+  let savedFallback, savedKey
+
+  beforeEach(() => {
+    savedFallback = process.env.EVAL_LLM_FALLBACK
+    savedKey = process.env.ANTHROPIC_API_KEY
+    process.env.EVAL_LLM_FALLBACK = 'true'
+    process.env.ANTHROPIC_API_KEY = 'sk-test'
+  })
+
+  afterEach(() => {
+    _MessagesProto.create = _origCreate
+    if (savedFallback === undefined) delete process.env.EVAL_LLM_FALLBACK
+    else process.env.EVAL_LLM_FALLBACK = savedFallback
+    if (savedKey === undefined) delete process.env.ANTHROPIC_API_KEY
+    else process.env.ANTHROPIC_API_KEY = savedKey
+  })
+
+  test('empty sourceMap → llmResolvePlaceholder returns null early (L24), falls through to placeholder', async () => {
+    // TODO: Review AI Test
+    const warnings = []
+
+    const r = await resolveIds([''], Q, [], null, { warn: m => warnings.push(m) })
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+    assert.ok(warnings.some(w => w.startsWith('No breadcrumb')))
+  })
+
+  test('API throws → catch logs "LLM fallback failed" (L47-49), placeholder pushed', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1 }]
+    const warnings = []
+    _MessagesProto.create = async () => { throw new Error('boom') }
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, { warn: m => warnings.push(m) })
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+    assert.ok(warnings.some(w => w.startsWith('LLM fallback failed')))
+  })
+
+  test('API returns "NONE" → llmResolvePlaceholder returns null (L43), placeholder pushed', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1 }]
+    _MessagesProto.create = async () => ({ content: [{ text: 'NONE' }] })
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+  })
+
+  test('API returns out-of-range number → llmResolvePlaceholder returns null (L45), placeholder pushed', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1 }]
+    _MessagesProto.create = async () => ({ content: [{ text: '0' }] })
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+  })
+
+  test('API returns valid number → picked source pushed, "Added source found by llm" warned (L46, L78-79)', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1 }]
+    const warnings = []
+    _MessagesProto.create = async () => ({ content: [{ text: '1' }] })
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, { warn: m => warnings.push(m) })
+
+    assert.deepEqual(r[0].ids, ['/docs/a/'])
+    assert.ok(warnings.some(w => w.startsWith('Added source found by llm')))
+  })
+
+  test('API returns null text → treated as empty string, returns null (L42 ?. branch, L44 || branch)', async () => {
+    // TODO: Review AI Test
+    const sm = [{ source: '/docs/a/', title: 'A', depth: 1 }]
+    _MessagesProto.create = async () => ({ content: [{ text: null }] })
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, silentLogger)
+
+    assert.ok(r[0].ids[0].startsWith('/placeholder/source/'))
+  })
+
+  test('LLM candidate list uses c.breadcrumb when present, c.source when breadcrumb and title absent (L27 branches)', async () => {
+    // TODO: Review AI Test
+    const sm = [
+      { source: '/x', breadcrumb: 'X breadcrumb', depth: 1 }, // c.breadcrumb branch
+      { source: '/y', depth: 1 }                               // c.source branch (no breadcrumb, no title)
+    ]
+    const warnings = []
+    _MessagesProto.create = async () => ({ content: [{ text: '2' }] })
+
+    const r = await resolveIds(['Unknown\nbody'], Q, sm, null, { warn: m => warnings.push(m) })
+
+    assert.deepEqual(r[0].ids, ['/y'])
+    assert.ok(warnings.some(w => w.startsWith('Added source found by llm')))
   })
 })
 
