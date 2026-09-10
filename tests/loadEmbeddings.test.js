@@ -1,12 +1,13 @@
-import { test, describe, beforeEach, afterEach } from 'node:test'
+import { test, describe, beforeEach, afterEach, after } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs/promises'
 import path from 'path'
-import { fileURLToPath } from 'url'
+import { mkdtempSync } from 'node:fs'
+import os from 'node:os'
 import { loadChunks } from '../lib/embeddings.js'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const TEST_EMBEDDINGSDIR = path.join(__dirname, 'temp-embeddings')
+const TEST_EMBEDDINGSDIR = mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-load-test-'))
+after(async () => { await fs.rm(TEST_EMBEDDINGSDIR, { recursive: true, force: true }).catch(() => {}) })
 
 describe('loadEmbeddings tests', () => {
   beforeEach(async () => {

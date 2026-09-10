@@ -1,4 +1,4 @@
-import { test, describe, after, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
@@ -11,6 +11,19 @@ const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
 const manifestEtagPath = path.join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
+
+// Snapshot the real etag for the installed cds version before any test runs,
+// restore it after all tests complete so no pre-existing files are lost.
+let _savedEtag = null
+before(async () => { _savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null) })
+after(async () => {
+  if (_savedEtag !== null) {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, _savedEtag)
+  } else {
+    await fs.rm(path.dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
+  }
+})
 
 async function clearBundleState() {
   await fs.rm(path.join(DEFAULT_DIR, 'etags', cds.version), { recursive: true, force: true }).catch(() => {})
