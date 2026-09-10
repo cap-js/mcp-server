@@ -16,7 +16,7 @@ async function clearBundleState() {
   await fs.rm(path.join(DEFAULT_DIR, 'etags', cds.version), { recursive: true, force: true }).catch(() => {})
 }
 
-function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
+function stubBundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
   const seen = []
   globalThis.fetch = async (url, init = {}) => {
     seen.push({ url: String(url), headers: init.headers || {} })
