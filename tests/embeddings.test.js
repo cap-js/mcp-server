@@ -226,11 +226,11 @@ describe('embeddings', () => {
 
   test('createEmbeddings places output under capire.version folder', async () => {
     const chunks = ['chunk about cds init']
-    const capire = { version: '3.0.1', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
+    const capire = { commitId: '__commit_id_1234__', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-capver-test-'))
     try {
       const { outDir } = await createEmbeddings('test', chunks, tmpDir, { capire })
-      assert.ok(outDir.endsWith('3.0.1'), `outDir should end with version folder, got: ${outDir}`)
+      assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
       const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.capire, capire)
     } finally {
