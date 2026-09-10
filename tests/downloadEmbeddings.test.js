@@ -329,15 +329,14 @@ describe('resolveLocalVersion', () => {
       await fs.writeFile(ep, JSON.stringify({ etag: 'W/"x"', commitId: testCommits[i] }))
     }
     const now = Date.now() / 1000
-    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[0], 'manifest.etag'), now - 100, now - 100)
-    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[1], 'manifest.etag'), now, now)
-    // both dirs have non-semver names → semver.coerce returns null for all → fall through to mtime
+    // control mtime on the embed dirs themselves — last-resort uses those, not etag dirs
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]), now - 100, now - 100)
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]), now, now)
+    // both etag dirs have non-semver names → semver scan skips them → fall through to mtime last-resort
     try {
       const local = await resolveLocalVersion()
-      // non-semver dirs are skipped entirely in new impl → returns null (they don't coerce)
-      // This test now documents that non-semver cds dirs are ignored.
-      // If both dirs are non-semver, result is null since primary path needs semver cds dirs.
-      assert.strictEqual(local, null, 'non-semver cds dirs are skipped; no semver etag → returns null')
+      assert.ok(local, 'last-resort must find a complete embed dir')
+      assert.strictEqual(local.commitId, testCommits[1], 'must pick newer embed dir by mtime')
     } finally {
       for (const v of dirs) await fs.rm(path.join(DEFAULT_DIR, 'etags', v), { recursive: true, force: true }).catch(() => {})
     }
