@@ -155,14 +155,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /network down/)
   })
 
-  test('when detection misses, etag lands under "newestCds" pseudo-version, never "unknown"', async () => {
+  test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
     stubBundle({ version: testVer })
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
-    const newestEtag = path.join(DEFAULT_DIR, 'etags', 'newestCds', 'manifest.etag')
+    const newestEtag = path.join(DEFAULT_DIR, 'etags', 'latest', 'manifest.etag')
     const unknownEtag = path.join(DEFAULT_DIR, 'etags', 'unknown', 'manifest.etag')
-    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'latest'), { recursive: true, force: true }).catch(() => {})
     await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
 
     try {
@@ -173,14 +173,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.strictEqual(unknownExists, false, 'no etag file may be created under <DEFAULT_DIR>/etags/unknown/')
 
       const newestExists = await fs.access(newestEtag).then(() => true).catch(() => false)
-      assert.ok(newestExists, `etag must be written under "etags/newestCds" pseudo-version dir: ${newestEtag}`)
+      assert.ok(newestExists, `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
 
       const saved = JSON.parse(await fs.readFile(newestEtag, 'utf-8'))
       assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
       assert.strictEqual(saved.commitId, testVer, 'stored commitId must be the x-embeddings-version returned by the server')
     } finally {
       process.chdir(originalCwd)
-      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'latest'), { recursive: true, force: true }).catch(() => {})
       await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
     }
   })
