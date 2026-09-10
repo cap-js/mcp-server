@@ -238,15 +238,15 @@ describe('embeddings', () => {
     }
   })
 
-  test('createEmbeddings without capire uses MODEL_FOLDER only', async () => {
+  test('createEmbeddings without capire uses MODEL_DIR only', async () => {
     const chunks = ['chunk about cds init']
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-nover-test-'))
     try {
       const { outDir } = await createEmbeddings('test', chunks, tmpDir)
       const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.capire, undefined)
-      const { MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
-      assert.ok(outDir.endsWith(MODEL_FOLDER), `outDir should end with MODEL_FOLDER, got: ${outDir}`)
+      const { MODEL_DIR } = await import('../lib/calculateEmbeddings.js')
+      assert.ok(outDir.endsWith(MODEL_DIR), `outDir should end with MODEL_DIR, got: ${outDir}`)
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }

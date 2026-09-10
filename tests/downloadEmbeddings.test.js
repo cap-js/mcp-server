@@ -6,7 +6,7 @@ import fs from 'fs/promises'
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
-const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } = await import('../lib/calculateEmbeddings.js')
+const { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
@@ -67,7 +67,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const url = new URL(seen[0].url)
     assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
     assert.strictEqual(url.searchParams.get('cds'), cds.version)
-    assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
+    assert.strictEqual(url.searchParams.get('model'), MODEL)
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
