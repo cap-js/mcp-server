@@ -155,7 +155,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /network down/)
   })
 
-  test('when detection misses, etag lands under "newestCdsNode" pseudo-version, never "unknown"', async () => {
+  test('when detection misses, etag lands under "newestCds" pseudo-version, never "unknown"', async () => {
     stubBundle({ version: testVer })
 
     const os = await import('node:os')
