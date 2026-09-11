@@ -3,5 +3,10 @@ export default [
   ...cds.recommended,
   {
     ignores: ['scripts/']
+  },
+  {
+    rules: {
+      'no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
+    }
   }
 ]

@@ -1,12 +1,35 @@
 // Node.js test runner (test) for lib/tools.js
-import tools from '../lib/tools.js'
 import assert from 'node:assert'
-import { describe, test } from 'node:test'
+import { describe, test, after } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import fs from 'fs/promises'
+import { DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
+import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
-// Point to the sample project directory
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
+
+const testBundleDir = join(DEFAULT_EMBEDDINGS_DIR, TEST_COMMIT_ID)
+const manifestEtagPath = getManifestEtagPath()
+const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
+
+// Build real embeddings and mock fetch BEFORE importing tools.js.
+// tools.js statically imports searchMarkdownDocs.js which fires downloadEmbeddings() at module load.
+const testFrame = await buildTestBundle()
+globalThis.fetch = makeFetchStub(testFrame)
+
+const tools = (await import('../lib/tools.js')).default
+
+after(async () => {
+  globalThis.fetch = undefined
+  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
+  if (savedEtag !== null) {
+    await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, savedEtag)
+  } else {
+    await fs.rm(dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
+  }
+})
 
 describe('tools', () => {
   test('search_model: should find services', async () => {
@@ -56,7 +79,6 @@ describe('tools', () => {
     assert(books.length > 0, 'Should find at least one entity')
     assert(books[0].name, 'AdminService.Books', 'Should find AdminService.Books entity')
 
-    // Check that keys are present and correct
     assert(books[0].elements.ID, 'Books entity should have key ID')
     assert(books[0].elements.ID.key === true, 'ID should be marked as key')
   })
@@ -70,7 +92,6 @@ describe('tools', () => {
     })
     assert(Array.isArray(books), 'Result should be an array')
     assert(books.length > 0, 'Should find at least one entity')
-    // Check draft fields
     assert(books[0].elements.IsActiveEntity, 'Draft-enabled entity should have IsActiveEntity')
     assert(books[0].elements.IsActiveEntity.key === true, 'IsActiveEntity should be marked as key')
     assert(books[0].elements.HasActiveEntity, 'Draft-enabled entity should have HasActiveEntity')
@@ -101,8 +122,7 @@ describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test.skip('search_docs: should find docs', async () => {
-    // Normal search
+  test('search_docs: should find docs', async () => {
     const results = await tools.search_docs.handler({
       query: 'how to create a new cap project',
       maxResults: 10
@@ -110,7 +130,7 @@ describe('tools', () => {
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
   })
 
-  test.skip('search_docs: event mesh should mention enterprise-messaging', async () => {
+  test('search_docs: event mesh should mention enterprise-messaging', async () => {
     const meshResults = await tools.search_docs.handler({
       query: 'event mesh config',
       maxResults: 10

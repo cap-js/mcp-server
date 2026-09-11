@@ -1,18 +1,39 @@
 import { fileURLToPath } from 'url'
 import { MODEL_FOLDER } from '../lib/calculateEmbeddings.js'
 import path from 'path'
+import fs from 'fs/promises'
+import { test, describe, after } from 'node:test'
+import assert from 'node:assert'
+import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-import { test, describe } from 'node:test'
-import assert from 'node:assert'
-import fs from 'fs/promises'
-
 const embeddingsDir = path.join(__dirname, '..', 'embeddings', MODEL_FOLDER)
+const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
+const manifestEtagPath = getManifestEtagPath()
 
-// Use dynamic import to ensure environment variable is set before module evaluation
+// Save etag that may exist before we overwrite it with the test bundle etag.
+const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
+
+// Build real embeddings and mock fetch BEFORE importing searchMarkdownDocs.js.
+// That module fires downloadEmbeddings() at module load time — mock must be in place first.
+const testFrame = await buildTestBundle()
+globalThis.fetch = makeFetchStub(testFrame)
+
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
 const { formatResult } = searchModule
+
+after(async () => {
+  globalThis.fetch = undefined
+  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
+  if (savedEtag !== null) {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, savedEtag)
+  } else {
+    await fs.rm(path.dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
+  }
+})
 
 describe('formatResult', () => {
   test('returns content unchanged when meta is absent', () => {
@@ -53,21 +74,19 @@ describe('formatResult', () => {
 })
 
 describe('searchMarkdownDocs integration tests', () => {
-  test.skip('should download and load embeddings from server', async () => {
-    // This test verifies the full download and search functionality
+  test('should download and load embeddings from server', async () => {
     const result = await searchMarkdownDocs('entity definition', 3)
 
     assert(typeof result === 'string', 'Result should be a string')
     assert(result.length > 0, 'Result should not be empty')
     assert(result.includes('---'), 'Result should contain separators between chunks')
 
-    // Verify files were created
     const jsonExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.json'))
+      .access(path.join(testBundleDir, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.bin'))
+      .access(path.join(testBundleDir, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 
@@ -75,7 +94,7 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
-  test.skip('should handle search queries and return relevant results', async () => {
+  test('should handle search queries and return relevant results', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
     for (const query of queries) {
@@ -88,22 +107,19 @@ describe('searchMarkdownDocs integration tests', () => {
     }
   })
 
-  test.skip('should use embeddings files consistently', async () => {
-    // Get file stats before making calls
-    const jsonPath = path.join(embeddingsDir, 'code-chunks.json')
-    const binPath = path.join(embeddingsDir, 'code-chunks.bin')
+  test('should use embeddings files consistently', async () => {
+    const jsonPath = path.join(testBundleDir, 'code-chunks.json')
+    const binPath = path.join(testBundleDir, 'code-chunks.bin')
 
-    // Ensure files exist first
+    // Files already written by the initial download; this call just uses them.
     await searchMarkdownDocs('test', 1)
 
     const jsonStatBefore = await fs.stat(jsonPath)
     const binStatBefore = await fs.stat(binPath)
 
-    // Make several calls
     const result1 = await searchMarkdownDocs('entity', 1)
     const result2 = await searchMarkdownDocs('service', 1)
 
-    // Check that files weren't modified (using cached files)
     const jsonStatAfter = await fs.stat(jsonPath)
     const binStatAfter = await fs.stat(binPath)
 
@@ -112,7 +128,6 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result1.length > 0, 'First result should not be empty')
     assert(result2.length > 0, 'Second result should not be empty')
 
-    // Files should have same modification time (not re-downloaded)
     assert.strictEqual(
       jsonStatBefore.mtime.getTime(),
       jsonStatAfter.mtime.getTime(),
@@ -124,24 +139,22 @@ describe('searchMarkdownDocs integration tests', () => {
       'Binary file should not be re-downloaded'
     )
   })
-  test.skip('should reuse downloaded files on subsequent calls', async () => {
-    // First call - downloads embeddings
+
+  test('should reuse downloaded files on subsequent calls', async () => {
     const result1 = await searchMarkdownDocs('entity', 1)
 
-    // Verify files exist
     const jsonExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.json'))
+      .access(path.join(testBundleDir, 'code-chunks.json'))
       .then(() => true)
       .catch(() => false)
     const binExists = await fs
-      .access(path.join(embeddingsDir, 'code-chunks.bin'))
+      .access(path.join(testBundleDir, 'code-chunks.bin'))
       .then(() => true)
       .catch(() => false)
 
     assert(jsonExists, 'JSON file should exist')
     assert(binExists, 'Binary file should exist')
 
-    // Second call - should use existing files
     const result2 = await searchMarkdownDocs('service', 1)
     assert(typeof result1 === 'string', 'First result should be a string')
     assert(typeof result2 === 'string', 'Second result should be a string')
@@ -149,15 +162,14 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result2.length > 0, 'Second result should not be empty')
   })
 
-  test.skip('should respect maxResults parameter', async () => {
+  test('should respect maxResults parameter', async () => {
     const maxResults = 5
     const result = await searchMarkdownDocs('entity service', maxResults)
 
     const chunks = result.split('\n---\n')
     assert(chunks.length <= maxResults, `Should return at most ${maxResults} chunks`)
 
-    // Test with different maxResults values
-    for (const max of [1, 3, 10]) {
+    for (const max of [1, 3, 6]) {
       const limitedResult = await searchMarkdownDocs('cds model', max)
       const limitedChunks = limitedResult.split('\n---\n')
       assert(limitedChunks.length <= max, `Should return at most ${max} chunks`)
