@@ -1,17 +1,16 @@
 import { fileURLToPath } from 'url'
-import { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR, MODEL_FOLDER } from '../lib/calculateEmbeddings.js'
+import { MODEL_FOLDER } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after } from 'node:test'
 import assert from 'node:assert'
-import { buildTestBundle, makeFetchStub, TEST_COMMIT_ID } from './helpers/testBundle.js'
-import cds from '@sap/cds'
+import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const embeddingsDir = path.join(__dirname, '..', 'embeddings', MODEL_FOLDER)
 const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
-const manifestEtagPath = path.join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
+const manifestEtagPath = getManifestEtagPath()
 
 // Save etag that may exist before we overwrite it with the test bundle etag.
 const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)

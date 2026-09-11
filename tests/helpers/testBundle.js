@@ -1,4 +1,6 @@
-import calculateEmbeddings from '../../lib/calculateEmbeddings.js'
+import { createRequire } from 'node:module'
+import path from 'path'
+import calculateEmbeddings, { DEFAULT_DIR, UNKNOWN_CDS_VERSION } from '../../lib/calculateEmbeddings.js'
 
 export const TEST_COMMIT_ID = '__test_bundle__'
 
@@ -37,4 +39,19 @@ export function makeFetchStub(frame, commitId = TEST_COMMIT_ID) {
         'content-type': 'application/octet-stream'
       }
     })
+}
+
+// Mirror etagPathFor(detectRuntime().cdsVersion) from searchMarkdownDocs.js using the
+// same createRequire + process.cwd() logic, so save/restore always targets the exact
+// path _downloadEmbeddings() writes — including the 'latest' fallback when no CAP
+// runtime is detected in the test working directory.
+export function getManifestEtagPath() {
+  try {
+    const req = createRequire(path.join(process.cwd(), 'package.json'))
+    const c = req('@sap/cds')
+    if (c.env?.['project-nature'] === 'nodejs') {
+      return path.join(DEFAULT_DIR, 'etags', c.version, 'manifest.etag')
+    }
+  } catch {}
+  return path.join(DEFAULT_DIR, 'etags', UNKNOWN_CDS_VERSION, 'manifest.etag')
 }

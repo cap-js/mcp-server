@@ -6,16 +6,15 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import cds from '@sap/cds'
-import { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import { DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
+import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 const mockFetchUrl = new URL('./helpers/mock-fetch.mjs', import.meta.url).href
 
 const testBundleDir = join(DEFAULT_EMBEDDINGS_DIR, TEST_COMMIT_ID)
-const manifestEtagPath = join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
+const manifestEtagPath = getManifestEtagPath()
 const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
 let savedEtag = null
 

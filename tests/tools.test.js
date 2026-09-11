@@ -1,18 +1,16 @@
 // Node.js test runner (test) for lib/tools.js
 import assert from 'node:assert'
-import { describe, test } from 'node:test'
+import { describe, test, after } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs/promises'
-import cds from '@sap/cds'
-import { after } from 'node:test'
-import { DEFAULT_DIR, DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, makeFetchStub, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import { DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
+import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
 const testBundleDir = join(DEFAULT_EMBEDDINGS_DIR, TEST_COMMIT_ID)
-const manifestEtagPath = join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
+const manifestEtagPath = getManifestEtagPath()
 const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
 
 // Build real embeddings and mock fetch BEFORE importing tools.js.
