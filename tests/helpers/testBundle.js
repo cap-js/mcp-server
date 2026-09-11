@@ -52,6 +52,6 @@ export function getManifestEtagPath() {
     if (c.env?.['project-nature'] === 'nodejs') {
       return path.join(DEFAULT_DIR, 'etags', c.version, 'manifest.etag')
     }
-  } catch {}
+  } catch { /* not a cds node project */ }
   return path.join(DEFAULT_DIR, 'etags', UNKNOWN_CDS_VERSION, 'manifest.etag')
 }
