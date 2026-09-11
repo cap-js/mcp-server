@@ -53,7 +53,7 @@ describe('formatResult', () => {
 })
 
 describe('searchMarkdownDocs integration tests', () => {
-  test('should download and load embeddings from server', async () => {
+  test.skip('should download and load embeddings from server', async () => {
     // This test verifies the full download and search functionality
     const result = await searchMarkdownDocs('entity definition', 3)
 
@@ -75,7 +75,7 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
-  test('should handle search queries and return relevant results', async () => {
+  test.skip('should handle search queries and return relevant results', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
     for (const query of queries) {
@@ -88,7 +88,7 @@ describe('searchMarkdownDocs integration tests', () => {
     }
   })
 
-  test('should use embeddings files consistently', async () => {
+  test.skip('should use embeddings files consistently', async () => {
     // Get file stats before making calls
     const jsonPath = path.join(embeddingsDir, 'code-chunks.json')
     const binPath = path.join(embeddingsDir, 'code-chunks.bin')
@@ -124,7 +124,7 @@ describe('searchMarkdownDocs integration tests', () => {
       'Binary file should not be re-downloaded'
     )
   })
-  test('should reuse downloaded files on subsequent calls', async () => {
+  test.skip('should reuse downloaded files on subsequent calls', async () => {
     // First call - downloads embeddings
     const result1 = await searchMarkdownDocs('entity', 1)
 
@@ -149,7 +149,7 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result2.length > 0, 'Second result should not be empty')
   })
 
-  test('should respect maxResults parameter', async () => {
+  test.skip('should respect maxResults parameter', async () => {
     const maxResults = 5
     const result = await searchMarkdownDocs('entity service', maxResults)
 

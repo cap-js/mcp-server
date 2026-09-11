@@ -226,11 +226,11 @@ describe('embeddings', () => {
 
   test('createEmbeddings places output under capire.version folder', async () => {
     const chunks = ['chunk about cds init']
-    const capire = { version: '3.0.1', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
+    const capire = { commitId: '__commit_id_1234__', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
     const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'emb-capver-test-'))
     try {
       const { outDir } = await createEmbeddings('test', chunks, tmpDir, { capire })
-      assert.ok(outDir.endsWith('3.0.1'), `outDir should end with version folder, got: ${outDir}`)
+      assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
       const meta = JSON.parse(fs.readFileSync(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.capire, capire)
     } finally {
@@ -268,10 +268,7 @@ describe('embeddings', () => {
 
   test('should handle model corruption and re-download', async () => {
     // Create a temporary test directory to simulate corruption without affecting real models
-    const testModelDir = path.join(__dirname, 'temp_model_test')
-    if (!fs.existsSync(testModelDir)) {
-      fs.mkdirSync(testModelDir, { recursive: true })
-    }
+    const testModelDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-model-test-'))
 
     try {
       // Create a corrupted ONNX model file
@@ -292,19 +289,14 @@ describe('embeddings', () => {
       assert(true, 'Corruption detection logic works')
     } finally {
       // Clean up temp directory
-      if (fs.existsSync(testModelDir)) {
-        fs.rmSync(testModelDir, { recursive: true, force: true })
-      }
+      fs.rmSync(testModelDir, { recursive: true, force: true })
     }
   })
 })
 
 test('should handle tokenizer corruption and re-download', async () => {
   // Create a temporary test directory to simulate corruption
-  const testModelDir = path.join(__dirname, 'temp_tokenizer_test')
-  if (!fs.existsSync(testModelDir)) {
-    fs.mkdirSync(testModelDir, { recursive: true })
-  }
+  const testModelDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-tokenizer-test-'))
 
   try {
     // Create an invalid JSON tokenizer file
@@ -326,8 +318,6 @@ test('should handle tokenizer corruption and re-download', async () => {
     assert(true, 'Tokenizer corruption detection logic works')
   } finally {
     // Clean up temp directory
-    if (fs.existsSync(testModelDir)) {
-      fs.rmSync(testModelDir, { recursive: true, force: true })
-    }
+    fs.rmSync(testModelDir, { recursive: true, force: true })
   }
 })

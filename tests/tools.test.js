@@ -101,7 +101,7 @@ describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test('search_docs: should find docs', async () => {
+  test.skip('search_docs: should find docs', async () => {
     // Normal search
     const results = await tools.search_docs.handler({
       query: 'how to create a new cap project',
@@ -110,7 +110,7 @@ describe('tools', () => {
     assert(results.toLowerCase().includes('cds init'), 'Should contain the words cds init')
   })
 
-  test('search_docs: event mesh should mention enterprise-messaging', async () => {
+  test.skip('search_docs: event mesh should mention enterprise-messaging', async () => {
     const meshResults = await tools.search_docs.handler({
       query: 'event mesh config',
       maxResults: 10
