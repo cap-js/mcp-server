@@ -1,8 +1,4 @@
-const HTML_STUB = /^<[A-Za-z][^>]*\/>\s*$|^<[a-z][a-z0-9]*(?:\s[^>]*)?>?\s*$|^<\/[a-z]+>\s*$|^<([a-z][a-z0-9]*)(?:\s[^>]*)?>[\s]*<\/\1>\s*$/;
-
-function isHtmlStub(line) {
-  return HTML_STUB.test(line.trim());
-}
+import { isHtmlStub, parseBlocks, CONTAINER_CLOSER, HTML_DIV_CLOSE } from './04-parse-blocks.js';
 
 // 'foo\r\nbar\rend' → 'foo\nbar\nend'
 function normalizeLineEndings(text) {
@@ -498,6 +494,16 @@ function normalizeProse(text, source) {
   return flattenLinks(resolveRelativeLinks(spaced, source));
 }
 
+function fallbackParts(block) {
+  // Only reached when block was built without parseBlocks (e.g. hand-crafted in tests).
+  // block.text holds the full raw text in that case.
+  const lines = block.text.split('\n');
+  const isDiv = block.type !== 'container';
+  const closerRe = isDiv ? HTML_DIV_CLOSE : CONTAINER_CLOSER;
+  const hasCloser = closerRe.test(lines[lines.length - 1].trim());
+  return parseBlocks(lines.slice(1, hasCloser ? -1 : undefined).join('\n'));
+}
+
 function transformParts(block, source) {
   const parts = block.parts ?? fallbackParts(block);
   const transformedParts = parts
@@ -514,10 +520,68 @@ export function transformBlocks(block, source) {
   const inner = block.parts?.length > 0 ? transformParts(block, source) : null;
 
   switch (block.type) {
+    case 'container':
+    case 'cols-div': {
+      const opener = block.opener ? normalizeContainerOpener(block.opener, source) : null;
+      if (opener) {
+        block.opener = opener;
+        text = block.closer
+          ? `${opener}\n${inner ?? ''}\n${block.closer.trim()}`
+          : `${opener}\n${inner ?? ''}`;
+      } else {
+        text = inner ?? '';
+      }
+      break;
+    }
+    case 'fence': {
+      const normalized = normalizeFence(block.text);
+      text = LOG_FENCE_OPENER.test(normalized.split('\n')[0])
+        ? collapseLogDump(normalized)
+        : normalized;
+      break;
+    }
     case 'heading':
     case 'redirect':
     case 'paragraph': {
       text = normalizeProse(block.text, source);
+      break;
+    }
+    case 'bullet-item':
+    case 'list-item': {
+      const resolved = normalizeListItem(block.parts?.length > 0 ? block.opener : block.text, source);
+      text = inner ? `${resolved}\n${inner}` : resolved;
+      break;
+    }
+    case 'admonition': {
+      if (inner) {
+        const opener = normalizeAdmonitionOpener(block.opener ?? block.text);
+        const innerLines = inner.split('\n').map(i => '> ' + i);
+        text = `${opener}\n${innerLines.join('\n')}`;
+      } else {
+        const normalized = normalizeStructural(block.text);
+        const noMarkers = stripClassMarkers(normalized);
+        const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers));
+        const noInline = stripInlineHtml(noComponents);
+        text = flattenLinks(resolveRelativeLinks(noInline, source));
+      }
+      break;
+    }
+    case 'md-table': {
+      text = normalizeMdTable(block.text, source);
+      break;
+    }
+    case 'html-table': {
+      const normalized = normalizeStructural(block.text);
+      const unwrapped = convertHtmlToMarkdown(normalized);
+      text = flattenLinks(resolveRelativeLinks(unwrapped, source));
+      break;
+    }
+    case 'java-div':
+    case 'node-div': {
+      if (inner) {
+        const label = IMPL_DIV_LABEL[block.type] ?? null;
+        text = label ? `${label}\n${inner}` : inner;
+      }
       break;
     }
     default: {

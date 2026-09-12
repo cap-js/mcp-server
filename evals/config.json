@@ -1,10 +1,11 @@
 {
   "k": 5,
   "capire_version": "2026.5.0",
+  "model": "sentence-transformers/all-MiniLM-L6-v2",
   "paths": {
     "goldenSet": "data/golden-set.json",
     "runsDir": "runs",
-    "embeddingsSweepDir": null
+    "embeddingsSweepDir": "/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings/xenova"
   },
   "gates": {
     "recall_at_k": 0.8,

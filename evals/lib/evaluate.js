@@ -1,9 +1,13 @@
 import path from 'path'
+import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { loadConfig, EVALS_DIR } from './config.js'
-import { makeSearchDocsRunner } from './search-docs.js'
+import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
+import { setModel } from '../../lib/calculateEmbeddings.js'
+import { createSourceDb } from './createSourceDb/createSourceDb.js'
+import { resolveIds } from './ids.js'
+import tools from '../../lib/tools.js'
 
 async function readJsonOrNull(p) {
   try {
@@ -14,10 +18,28 @@ async function readJsonOrNull(p) {
   }
 }
 
+const MODELS = [
+  { id: 'Xenova/all-MiniLM-L6-v2',              short: 'llm'    },
+  { id: 'Xenova/all-MiniLM-L6-v2',              short: 'xenova'    },
+  { id: 'nomic-ai/nomic-embed-text-v1.5',        short: 'nomic'     },
+  { id: 'perplexity-ai/pplx-embed-v1-0.6b',      short: 'pplx'      },
+  { id: 'sentence-transformers/all-MiniLM-L6-v2', short: 'transMini' },
+]
+
+async function makeSearchDocsRunner(k, sourceDb, logger = console) {
+  const retrieve = async function (q) {
+    const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
+    return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb, logger)
+  }
+  return retrieve
+}
+
 // `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ configPath, overrides, logger = console, deps = {} } = {}) {
+export async function evaluate({ sourceDb, configPath, overrides, logger = console, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
+
+  if (deps.model) setModel(deps.model)
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
@@ -38,17 +60,15 @@ export async function evaluate({ configPath, overrides, logger = console, deps =
     logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
-  const sourceMap = await readJsonOrNull(path.join(EVALS_DIR, 'data', 'sourceMap.json'))
-
   // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
   // and these labels no longer match; they'll score as misses until refreshed.
-  const stale = preflight(golden.questions, sourceMap)
+  const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
     logger.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
     for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
   }
 
-  const retrieve = await makeRetrieverFn(cfg.k, sourceMap)
+  const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const resolvedChunk = await retrieve(q)
@@ -96,6 +116,8 @@ async function findEmbeddingDirs(sweepDir) {
 // Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
 // embeddingsSweepDir is set), then build the comparison report.
 export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
+  const sourceDb = await createSourceDb()
+
   const cfg = await loadConfig({ configPath, overrides })
 
   let code
@@ -104,23 +126,21 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
     const dirs = await findEmbeddingDirs(cfg.paths.embeddingsSweepDir)
     if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.paths.embeddingsSweepDir}`)
     logger.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
-    const embeddingsDir = path.join(EVALS_DIR, '..', 'embeddings')
     const sweepBasename = path.basename(cfg.paths.embeddingsSweepDir)
     let worstCode = 0
     for (const dir of dirs) {
+      process.env.LOCAL_EMBEDDINGS_DIR = dir
+      const model = MODELS.find(m => dir.includes(m.short))
+      if (model) deps.model = model.id
       const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
       const label = [sweepBasename, ...segments.slice(-2)].join('/')
       logger.error(`\n→ ${label}`)
-      if (!deps.makeRetriever) {
-        await fs.copyFile(path.join(dir, 'code-chunks.json'), path.join(embeddingsDir, 'code-chunks.json'))
-        await fs.copyFile(path.join(dir, 'code-chunks.bin'), path.join(embeddingsDir, 'code-chunks.bin'))
-      }
-      const { code: c } = await evaluate({ configPath, overrides: { ...overrides, label }, logger, deps })
+      const { code: c } = await evaluate({ sourceDb, configPath, overrides: { ...overrides, label }, logger, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
   } else {
-    ;({ code, perQuestionRaw } = await evaluate({ configPath, overrides, logger, deps }))
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, configPath, overrides, logger, deps }))
   }
 
   try {
@@ -131,4 +151,14 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
   }
 
   return { code }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  process.env.CDS_MCP_OFFLINE = 'true'
+  evaluateAndCompare()
+  .then(r => process.exit(r.code))
+  .catch(e => {
+    console.error(e)
+    process.exit(3)
+  })
 }

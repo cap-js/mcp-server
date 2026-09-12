@@ -19,17 +19,17 @@ export function isLlmFallbackEnabled() {
 }
 
 // LLM fallback: when resolveIds would push a /placeholder/source/ id, ask the
-// LLM to pick the closest entry from the full sourceMap. Returns a source
+// LLM to pick the closest entry from the full sourceDb. Returns a source
 // string or null when the LLM abstains / errors.
-async function llmResolvePlaceholder(text, sourceMap, logger = console) {
-  if (!sourceMap.length) return null
+async function llmResolvePlaceholder(text, sourceDb, logger = console) {
+  if (!sourceDb.length) return null
 
-  const candidateLines = sourceMap
+  const candidateLines = sourceDb
     .map((c, i) => `${i + 1}. ${c.breadcrumb || c.title || c.source}  ::  ${c.source}`)
     .join('\n')
   const prompt =
     `You are matching a retrieved documentation chunk to its source URL.\n` +
-    `Pick the single best-fitting entry from the candidates below. Reply with ONLY the number (1-${sourceMap.length}) or the word NONE if no candidate fits.\n\n` +
+    `Pick the single best-fitting entry from the candidates below. Reply with ONLY the number (1-${sourceDb.length}) or the word NONE if no candidate fits.\n\n` +
     `Chunk:\n"""\n${text.slice(0, LLM_MAX_CHUNK_CHARS)}\n"""\n\n` +
     `Candidates:\n${candidateLines}`
 
@@ -43,106 +43,19 @@ async function llmResolvePlaceholder(text, sourceMap, logger = console) {
     const out = resp.content?.[0]?.text?.trim() || ''
     if (/^NONE/i.test(out)) return null
     const n = parseInt(out.match(/\d+/)?.[0] || '', 10)
-    if (!Number.isFinite(n) || n < 1 || n > sourceMap.length) return null
-    return sourceMap[n - 1].source
+    if (!Number.isFinite(n) || n < 1 || n > sourceDb.length) return null
+    return sourceDb[n - 1].source
   } catch (err) {
     logger.warn(`LLM fallback failed: ${err.message}`)
     return null
   }
 }
 
-export function buildSourceMapIndex(sourceMap) {
-  const byBreadcrumb = new Map()
-  const byNonTransformed = new Map()
-  const byTitle = new Map()
-  const byTitleDepth = new Map()
-  const bySource = new Map()
-  for (const s of sourceMap) {
-    if (s.breadcrumb) byBreadcrumb.set(s.breadcrumb, s)
-    if (s.nonTransformedBreadcrumb) byNonTransformed.set(s.nonTransformedBreadcrumb, s)
-    const ta = byTitle.get(s.title) || []
-    ta.push(s)
-    byTitle.set(s.title, ta)
-    const key = `${s.title}::${s.depth}`
-    const tda = byTitleDepth.get(key) || []
-    tda.push(s)
-    byTitleDepth.set(key, tda)
-    const sa = bySource.get(s.source) || []
-    sa.push(s)
-    bySource.set(s.source, sa)
-  }
-  return { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth, bySource }
-}
-
-// Extract heading breadcrumb from a chunk. Prefers an explicit
-// "HeadingPath: A > B > C" line; falls back to parsing the first line
-// as a "> "-separated breadcrumb with markdown "#" prefixes stripped.
-function parseHeadings(lines, firstLine) {
-  const breadCrumbLine = lines.find(line => HEADINGPATH.test(line))
-  if (breadCrumbLine) {
-    return breadCrumbLine.replace(HEADINGPATH, '').split(' > ')
-  }
-  return firstLine
-    .split(' > ')
-    .map(h => h.replace(/^#{1,6}\s+/, '').trim())
-    .filter(Boolean)
-}
-
-// Lookup for chunks without an inline "Source:" line. Tries the full
-// breadcrumb (transformed and non-transformed), then falls back to a
-// unique byTitle match on the deepest heading.
-// Returns { source, ambiguous } — ambiguous flags multi-title collisions
-// so the caller can shape the placeholder warning.
-function findByHeadings(headings, idx) {
-  const { byBreadcrumb, byNonTransformed, byTitle } = idx
-  const bc = headings.join(' > ')
-  let found = byBreadcrumb.get(bc) || byNonTransformed.get(bc)
-  const candidates = byTitle.get(headings[headings.length - 1]) || []
-  if (!found && candidates.length === 1) found = candidates[0]
-  return { source: found?.source ?? null, ambiguous: !found && candidates.length > 1 }
-}
-
-// Given a sub-heading at lines[i] with its (heading, depth), walk backward
-// through prior lines picking up every strictly-shallower heading — those
-// are its ancestors within the chunk. Prepends `headings` (the chunk's
-// top-level breadcrumb) so the result is a fully-qualified path suitable
-// for byBreadcrumb lookup.
-function buildSubHeadingBreadcrumb(lines, i, heading, depth, firstHeading, firstHeadingDepth, headings) {
-  const ancestors = [heading]
-  let currDepth = depth
-  for (let j = i - 1; j >= 0; j--) {
-    const em = HEADING.exec(lines[j])
-    if (!em) continue
-    const entryDepth = em[1].length
-    // firstHeading at depth 1 is already covered by `headings`; skip to avoid duplication.
-    if (lines[j] === firstHeading && firstHeadingDepth === 1) continue
-    if (entryDepth < currDepth) {
-      ancestors.unshift(em[2])
-      currDepth = entryDepth
-    }
-    if (entryDepth <= 1) break
-  }
-  return [...headings, ...ancestors].join(' > ')
-}
-
-// Fallback for ambiguous byTitleDepth matches when the breadcrumb misses:
-// scan sourceMap forward from the parent source and pick the first entry
-// with matching title and depth >= target. Order in sourceMap is the
-// implicit document layout, so the first hit past the parent is the
-// nearest sibling.
-function findSubHeadingBySiblingScan(sourceMap, parentSource, heading, depth) {
-  const start = sourceMap.findIndex(entry => entry.source === parentSource)
-  if (start === -1) return null
-  const match = sourceMap.slice(start + 1).find(c => c.depth >= depth && c.title === heading)
-  return match?.source ?? null
-}
-
 // Walk the chunk line-by-line. Every "Source: <url>" pushes an id. Every
 // heading AFTER the first source-bearing heading is treated as a sub-heading
 // and resolved via byTitleDepth → breadcrumb → sibling scan → placeholder.
 async function resolveWithSourceLines(text, lines, firstLine, headings, ctx) {
-  const { q, sourceMap, idx, pushPlaceholderOrLlm } = ctx
-  const { byBreadcrumb, byTitleDepth } = idx
+  const { q, sourceDb, pushPlaceholderOrLlm } = ctx
   const ids = []
   let firstHeading
   let firstHeadingDepth
@@ -185,7 +98,7 @@ async function resolveWithSourceLines(text, lines, firstLine, headings, ctx) {
       continue
     }
 
-    const sibling = findSubHeadingBySiblingScan(sourceMap, ids[0], heading, depth)
+    const sibling = findSubHeadingBySiblingScan(sourceDb, ids[0], heading, depth)
     if (sibling) {
       ids.push(sibling)
       continue
@@ -202,20 +115,19 @@ async function resolveWithSourceLines(text, lines, firstLine, headings, ctx) {
   return ids
 }
 
-export async function resolveIds(results, q, sourceMap, smIndex = null, logger = console) {
-  const idx = smIndex || buildSourceMapIndex(sourceMap)
+export async function resolveIds(results, q, sourceDb, logger = console, binDir) {
   const llmOn = isLlmFallbackEnabled()
 
   async function pushPlaceholderOrLlm(ids, text, placeholderId, warnMsg) {
     if (llmOn) {
-      const picked = await llmResolvePlaceholder(text, sourceMap, logger)
+      const picked = await llmResolvePlaceholder(text, sourceDb, logger)
       if (picked) { logger.warn(`Added source found by llm for ${q.id}`); ids.push(picked); return }
     }
     ids.push(placeholderId)
     logger.warn(warnMsg)
   }
 
-  const ctx = { q, sourceMap, idx, pushPlaceholderOrLlm }
+  const ctx = { q, sourceDb, pushPlaceholderOrLlm }
   const resolvedChunks = []
 
   for (const text of results) {
@@ -233,7 +145,7 @@ export async function resolveIds(results, q, sourceMap, smIndex = null, logger =
       )
     } else if (!/source: /i.test(text)) {
       // old behavior: no inline "Source:" lines — look up by breadcrumb/title
-      const { source, ambiguous } = findByHeadings(headings, idx)
+      const { source, ambiguous } = findByHeadings(headings)
       if (source) {
         ids.push(source)
       } else {

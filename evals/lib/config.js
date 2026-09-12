@@ -46,6 +46,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     configPath: cfgPath,
     k: file.k ?? 5,
     capire_version: file.capire_version || 'unknown',
+    model: file.model || null,
     // Optional human-readable tag to tell runs apart in reports; '' = unset.
     label: envStr('EVAL_LABEL', file.label || ''),
     // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
@@ -71,6 +72,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   // Programmatic overrides (used by tests / bin/compare.js) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
+    if (overrides.model !== undefined) cfg.model = overrides.model
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId

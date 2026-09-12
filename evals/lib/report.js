@@ -1,5 +1,8 @@
+import cds from '@sap/cds'
 import { metricsFor, relevantHitsAtRank, mean, round } from './metrics.js'
 import { METRIC_KEYS } from './config.js'
+
+const { SELECT } = cds.ql
 
 // Normalise an authored relevant_doc_ids list into groups (string[][]). A
 // bare string entry becomes a one-element group; an array entry stays as-is.
@@ -44,17 +47,16 @@ export function validateGolden(questions) {
 // Pre-flight: every relevant_doc_id must exist in the current index. For an
 // OR-group, each alternate is checked independently — a stale alternate is
 // still worth flagging even if the group has valid siblings.
-export function preflight(goldenQuestions, sourceMap) {
-  const stale = []
-  for (const q of goldenQuestions) {
-    for (const entry of q.relevant_doc_ids) {
-      const ids = Array.isArray(entry) ? entry : [entry]
-      for (const id of ids) {
-        if (!sourceMap.some(m => m.source === id)) stale.push({ question: q.id, doc_id: id })
-      }
-    }
-  }
-  return stale
+export async function preflight(goldenQuestions, sourceDb) {
+  const pairs = goldenQuestions.flatMap(q =>
+    q.relevant_doc_ids.flatMap(e =>
+      (Array.isArray(e) ? e : [e]).map(doc_id => ({ question: q.id, doc_id }))
+    )
+  )
+  const allIds = [...new Set(pairs.map(p => p.doc_id))]
+  const found = await sourceDb.run(SELECT('source').from('SourceDocs').where({ source: { in: allIds } }))
+  const foundSources = new Set(found.map(r => r.source))
+  return pairs.filter(p => !foundSources.has(p.doc_id))
 }
 
 // Pure core: build the report object (run_id added by the caller).
