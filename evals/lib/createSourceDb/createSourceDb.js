@@ -34,7 +34,14 @@ export async function createSourceDb() {
   })
   const entries = sections.map(toDb)
   const model = await cds.load(new URL('./source-docs.cds', import.meta.url).pathname)
-  const sourceDb = await cds.connect.to({ kind: 'sqlite', credentials: { url: ':memory:' } })
+  const sourceDb = await cds.connect.to(
+    { 
+      embedding: { model: 'sentence-transformers/all-MiniLM-L6-v2' },
+      impl: '@cap-js/ai/lib/sqlite/AISQLiteService.js',
+      kind: 'sqlite', 
+      credentials: { url: ':memory:' } 
+    }
+  )
   await cds.deploy(model).to(sourceDb)
 
   await sourceDb.run(INSERT.into('SourceDocs').entries(entries))

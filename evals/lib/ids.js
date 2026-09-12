@@ -128,6 +128,14 @@ function splitByHeadings(text) {
   if (currentHeading !== null) {
     sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
   }
+
+  // Legacy chunk format: "A > B > Title\ntags\nbody..."
+  if (sections.length === 0 && lines.length > 0 && !HEADING.test(lines[0]) && lines[0].includes(' > ')) {
+    const title = lines[0].split(' > ').pop().trim()
+    const headingBody = lines.slice(2).join('\n')
+    sections.push({ headingText: title, headingDepth: lines[0].split(' > ').length, headingBody })
+  }
+
   return sections
 }
 
@@ -142,26 +150,26 @@ async function findSource(headingText, headingBody, sourceDb) {
 
   const title = headingText.trim()
 
-  if (sourceDb && typeof sourceDb.run === 'function') {
-    // 4.1: exact title match
-    const resp = await sourceDb.run(SELECT.from('SourceDocs'))
-    const byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${title}`)
-    if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
+  // 4.1: exact title match
+  const resp = await sourceDb.run(SELECT.from('SourceDocs'))
+  const byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${title}`)
+  if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
 
-    // 4.2: subselect on title, fuzzy search with headingBody slice
-    const slice = (headingBody || '').trim().slice(0, 200).replace(/[%_'\\]/g, ' ')
-    let query
-    if (slice.trim() && byTitle.length === 1) {
-      query =  SELECT.from('SourceDocs').where`title = ${title} and chunk like ${'%' + slice + '%'}`
-    } else {
-      query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
-    }
-    const fuzzy = await sourceDb.run(query)
-    if (fuzzy.length > 0) return { source: fuzzy[0].source, ambiguous: false }
-    return { source: null, ambiguous: true }
+  // 4.2: subselect on title, fuzzy search with headingBody slice
+  const slice = (headingBody || '').trim().slice(0, 50).replace(/[%_'\\]/g, ' ')
+  let query
+  if (slice.trim() && byTitle.length === 1) {
+    query =  SELECT.from('SourceDocs').where`title = ${title} and chunk like ${'%' + slice + '%'}`
+  } else {
+    query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
   }
+  const fuzzy = await sourceDb.run(query)
+  if (fuzzy.length > 0) return { source: fuzzy[0].source, ambiguous: false }
 
-  return { source: null, ambiguous: false }
+  // use cose similarity as a fallback for legacy chunks
+  
+
+  return { source: null, ambiguous: true }
 }
 
 // Find source by breadcrumb/headingPath in sourceDb.
