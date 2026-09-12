@@ -1,4 +1,5 @@
 import cds from '@sap/cds'
+import { CONTAINER_OPENER, CONTAINER_CLOSER, HTML_DIV_CLOSE, HTML_ANY_DIV_OPEN, COLS_DIV_OPEN, JAVA_NODE_DIV_OPEN } from './createSourceDb/pipeline/stages/04-parse-blocks.js'
 
 const { SELECT } = cds.ql
 
@@ -61,54 +62,67 @@ async function llmResolvePlaceholder(text, sourceDb, logger = console) {
   }
 }
 
-// Build lookup indexes from a flat sourceMap array.
-export function buildSourceMapIndex(sourceMap) {
-  const byBreadcrumb = new Map()
-  const byNonTransformed = new Map()
-  const byTitle = new Map()
-  const byTitleDepth = new Map()
-  const bySource = new Map()
+const FENCE_OPENER_RE = /^(\s*)(```+|~~~+)/
+const FENCE_CLOSER_RE = /^(\s*)(```+|~~~+)\s*$/
 
-  for (const entry of sourceMap) {
-    if (entry.breadcrumb) byBreadcrumb.set(entry.breadcrumb, entry)
-    if (entry.nonTransformedBreadcrumb) byNonTransformed.set(entry.nonTransformedBreadcrumb, entry)
-
-    const titleArr = byTitle.get(entry.title) || []
-    titleArr.push(entry)
-    byTitle.set(entry.title, titleArr)
-
-    const tdKey = `${entry.title}::${entry.depth}`
-    const tdArr = byTitleDepth.get(tdKey) || []
-    tdArr.push(entry)
-    byTitleDepth.set(tdKey, tdArr)
-
-    const srcArr = bySource.get(entry.source) || []
-    srcArr.push(entry)
-    bySource.set(entry.source, srcArr)
+function isNotInsideFence(lines, lastHeadingIndex, index) {
+  let fenceChar = null, fenceLen = 0
+  for (let i = lastHeadingIndex; i < index; i++) {
+    const m = FENCE_OPENER_RE.exec(lines[i])
+    if (!m) continue
+    if (fenceChar === null) { fenceChar = m[2][0]; fenceLen = m[2].length }
+    else if (FENCE_CLOSER_RE.test(lines[i]) && m[2][0] === fenceChar && m[2].length >= fenceLen) { fenceChar = null; fenceLen = 0 }
   }
-
-  return { byBreadcrumb, byNonTransformed, byTitle, byTitleDepth, bySource }
+  return fenceChar === null
 }
 
-// Split text into sections by markdown heading.
+function isNotInsideContainer(lines, lastHeadingIndex, index) {
+  for (let i = index - 1; i >= lastHeadingIndex; i--) {
+    if (CONTAINER_OPENER.test(lines[i])) return false
+    if (CONTAINER_CLOSER.test(lines[i])) return true
+  }
+  return true
+}
+
+function isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, index) {
+  let closesSeen = 0
+  for (let i = index - 1; i >= lastHeadingIndex; i--) {
+    const line = lines[i]
+    if (HTML_DIV_CLOSE.test(line)) { closesSeen++; continue }
+    if (HTML_ANY_DIV_OPEN.test(line)) {
+      if (closesSeen > 0) { closesSeen--; continue }
+      if (JAVA_NODE_DIV_OPEN.test(line) || COLS_DIV_OPEN.test(line)) return false
+    }
+  }
+  return true
+}
+
+// Split text into sections by markdown heading, skipping headings inside fences/containers/divs.
 // Returns [{ headingText, headingDepth, headingBody }]
 function splitByHeadings(text) {
+  const lines = text.split('\n')
   const sections = []
   let currentHeading = null
   let currentDepth = 0
   const bodyLines = []
+  let lastHeadingIndex = 0
 
-  for (const line of text.split('\n')) {
-    const m = HEADING.exec(line)
-    if (m) {
+  for (let i = 0; i < lines.length; i++) {
+    const m = HEADING.exec(lines[i])
+    if (m &&
+      isNotInsideContainer(lines, lastHeadingIndex, i) &&
+      isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i) &&
+      isNotInsideFence(lines, lastHeadingIndex, i)
+    ) {
       if (currentHeading !== null) {
         sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
         bodyLines.length = 0
       }
-      currentHeading = m[0]
+      currentHeading = m[2]
       currentDepth = m[1].length
+      lastHeadingIndex = i
     } else {
-      bodyLines.push(line)
+      bodyLines.push(lines[i])
     }
   }
   if (currentHeading !== null) {
