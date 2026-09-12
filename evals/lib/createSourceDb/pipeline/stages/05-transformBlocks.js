@@ -154,6 +154,7 @@ function withMaskedInlineCode(line, fn) {
     spans.push(m);
     return `\x00${spans.length - 1}\x00`;
   });
+  // eslint-disable-next-line no-control-regex
   return fn(masked).replace(/\x00(\d+)\x00/g, (_, i) => spans[Number(i)]);
 }
 

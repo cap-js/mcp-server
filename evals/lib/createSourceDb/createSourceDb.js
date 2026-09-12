@@ -12,7 +12,7 @@ export async function createSourceDb() {
     text = await fs.readFile(DEFAULT_SRC, 'utf8')
   } catch (e) {
     const response = await fetch('https://cap.cloud.sap/docs/llms-full.txt');
-    if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    if (!response.ok) throw new Error(`fetch failed: ${response.status} ${response.statusText}`, { cause: e });
     text = await response.text();
   }
   if (!runPipeline) throw Error('Need runPipeline from docs-resources')
@@ -53,6 +53,7 @@ export async function createSourceDb() {
     (await sourceDb.run(SELECT('source').from('SourceDocs'))).map(r => r.source)
   )
   const missing = textSources.filter(s => !indexed.has(s))
+  // eslint-disable-next-line no-console
   if (missing.length) console.log(`${missing.length} sources not in source db`)
   
   return sourceDb

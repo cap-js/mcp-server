@@ -63,8 +63,9 @@ export function isHtmlStub(line) {
 let outputParse
 export function parseBlocks(body, flattenedParse) {
   if (!outputParse) outputParse = flattenedParse
-  return parseBlockLines(body.split('\n'), outputParse);
+  const result = parseBlockLines(body.split('\n'), outputParse);
   outputParse = undefined
+  return result;
 }
 
 function parseBlockLines(lines) {

@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
@@ -126,7 +127,6 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
     const dirs = await findEmbeddingDirs(cfg.paths.embeddingsSweepDir)
     if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.paths.embeddingsSweepDir}`)
     console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
-    const sweepBasename = path.basename(cfg.paths.embeddingsSweepDir)
     let worstCode = 0
     for (const dir of dirs) {
       process.env.LOCAL_EMBEDDINGS_DIR = dir

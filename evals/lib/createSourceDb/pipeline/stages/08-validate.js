@@ -14,7 +14,7 @@ export function validate(chunks, config) {
     throw new Error('[validate] chunks must be an array');
   }
 
-  chunks.forEach((chunk, i) => {
+  chunks.forEach((chunk) => {
 
     if (isMissing(chunk.breadcrumb)) {
       errors.push(`missing breadcrumb: heading=${JSON.stringify(chunk.heading)}`);

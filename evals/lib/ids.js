@@ -115,12 +115,13 @@ async function findSource(headingText, headingBody, sourceDb) {
     )
     if (similar.length > 0) return { source: similar[0].source, ambiguous: false }
   } catch (e) {
+    // eslint-disable-next-line no-console
     console.log(e)
   }
   return { source: null, ambiguous: true }
 }
 
-export async function resolveIds(results, q, sourceDb, _smIndex) {
+export async function resolveIds(results, q, sourceDb) {
   const resolvedChunks = []
 
   for (const text of results) {
@@ -170,12 +171,7 @@ export async function resolveIds(results, q, sourceDb, _smIndex) {
       }
     }
 
-    // Fallback: no ids yet — try first line as title then breadcrumb
-    if (!ids.length) {
-      const firstLine = (text || '').split('\n').find(l => l.trim()) || ''
-    }
-
-    if (!ids.length) throw new Error('No IDs found')
+    if (!ids.length) throw new Error(`No IDs found for ${q.id}`)
     resolvedChunks.push({ ids, text, ...meta })
   }
 

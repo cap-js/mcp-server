@@ -457,15 +457,12 @@ describe('compare tests', () => {
     // Build minimal DOM-like objects to exercise the inline scripts and wiring script.
     // We simulate: each run-detail inline script sets tbl._rebase, then the wiring script
     // fires a radio 'change' event for the base run.
-    const cells = {}  // tblId -> [cell innerHTML by index]
     const tables = {}  // run_id -> fake table
-    const radioListeners = {}
 
     // Build fake table rows from the data-metrics attrs in the HTML.
     for (const [, runId, tableBody] of html.matchAll(/<table[^>]+data-run-id="([^"]+)"[^>]*>([\s\S]*?)<\/table>/g)) {
       const rows = []
       for (const [, qid, metricsRaw] of tableBody.matchAll(/class="rd-pq-row" data-qid="([^"]+)" data-metrics='([^']+)'/g)) {
-        const metrics = JSON.parse(metricsRaw)
         // fake HTMLTableRowElement-like object with cells array
         const fakeCells = [{innerHTML:qid},{innerHTML:'Q?'}]
         // 5 metric cells (indices 2-6), 1 ranks cell (7)
@@ -505,7 +502,7 @@ describe('compare tests', () => {
         },
         window: {}
       })
-      try { vm.runInContext(script, ctx) } catch (e) { /* ignore minor errors */ }
+      try { vm.runInContext(script, ctx) } catch { /* ignore minor errors */ }
       // Copy _rebase that the script set on the fake tbl object
       // The script sets tbl._rebase on the object returned by getElementById
       // which IS our tbl object.

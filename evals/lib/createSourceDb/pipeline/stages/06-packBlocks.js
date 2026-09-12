@@ -1,4 +1,3 @@
-import { isHtmlStub } from './04-parse-blocks.js';
 
 function isCutSuppressed(blocks, i) {
   const prev = blocks[i - 1];

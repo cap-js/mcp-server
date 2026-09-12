@@ -506,7 +506,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
       row.classList.toggle('open',!open);
     });
   });
-})();<\/script>`
+})();</script>`
     : '<div class="rd-sub muted">No per-question data recorded for this run.</div>'
 
   const label = r.config && r.config.label
@@ -819,7 +819,7 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({ configPath, overrides, outPath, logger = console, perQuestionRaw, deps = {} } = {}) {
+export async function compare({ configPath, overrides, outPath, logger = console, perQuestionRaw } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const runs = await collectRuns(cfg)
 

@@ -57,7 +57,7 @@ function isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, index) {
   return true;
 }
 
-export function parse(text, config) {
+export function parse(text) {
   const lines = text.split('\n');
   const roots = [];
   const stack = [];
