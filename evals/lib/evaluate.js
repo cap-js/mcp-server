@@ -35,38 +35,19 @@ async function makeSearchDocsRunner(k, sourceDb) {
   return retrieve
 }
 
-// `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
+// `deps` is a test seam: pass { makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, configPath, overrides, deps = {} } = {}) {
+export async function evaluate({ sourceDb, golden, configPath, overrides, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   if (deps.model) setModel(deps.model)
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
-  const golden = await readJsonOrNull(cfg.paths.goldenSet)
-  if (!golden || !Array.isArray(golden.questions)) {
-    console.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
-    return { code: 3 }
-  }
-  const problems = validateGolden(golden.questions)
-  if (problems.length > 0) {
-    console.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
-    for (const p of problems) console.error(`  ${p}`)
-    return { code: 3 }
-  }
   // Baseline (read before this run is appended): pinned run if set, else oldest.
   const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
     console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
-  }
-
-  // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
-  // and these labels no longer match; they'll score as misses until refreshed.
-  const stale = await preflight(golden.questions, sourceDb)
-  if (stale.length > 0) {
-    console.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
-    for (const s of stale) console.error(`  ${s.question}: ${s.doc_id}`)
   }
 
   const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
@@ -116,10 +97,31 @@ async function findEmbeddingDirs(sweepDir) {
 
 // Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
 // embeddingsSweepDir is set), then build the comparison report.
+// `deps.sourceDb` is a test seam: pass a fake sourceDb to skip the ONNX model load.
 export async function evaluateAndCompare({ configPath, overrides, deps = {} } = {}) {
-  const sourceDb = await createSourceDb()
-
   const cfg = await loadConfig({ configPath, overrides })
+
+  const golden = await readJsonOrNull(cfg.paths.goldenSet)
+  if (!golden || !Array.isArray(golden.questions)) {
+    console.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
+    return { code: 3 }
+  }
+  const problems = validateGolden(golden.questions)
+  if (problems.length > 0) {
+    console.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
+    for (const p of problems) console.error(`  ${p}`)
+    return { code: 3 }
+  }
+
+  const sourceDb = deps.sourceDb ?? await createSourceDb()
+
+  // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
+  // and these labels no longer match; they'll score as misses until refreshed.
+  const stale = await preflight(golden.questions, sourceDb)
+  if (stale.length > 0) {
+    console.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
+    for (const s of stale) console.error(`  ${s.question}: ${s.doc_id}`)
+  }
 
   let code
   let perQuestionRaw
@@ -135,12 +137,12 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
-      const { code: c } = await evaluate({ sourceDb, configPath, overrides: { ...overrides, label }, deps })
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides: { ...overrides, label }, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
   } else {
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, configPath, overrides, deps }))
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, deps }))
   }
 
   try {
