@@ -4,5 +4,5 @@ entity SourceDocs {
       headingPath : LargeString not null;
       title       : String not null;
       source      : String not null;
-      emb         : Vector = VECTOR_EMBEDDING(chunk, 'TEXT') stored;
+      emb         : Vector = VECTOR_EMBEDDING(chunk, 'DOCUMENT') stored;
 }

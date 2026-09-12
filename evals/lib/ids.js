@@ -6,6 +6,7 @@ const { SELECT } = cds.ql
 const HEADING = /^\s*(#{1,6}) (.+)$/
 const SOURCE = /Source:\s*(\S+)/i
 const HEADINGPATH = /^HeadingPath:\s*/i
+const LEGACYHEADINGPATH = /^[\w\s]+(?: > [\w\s]+)+$/
 
 const PLACEHOLDER = '/placeholder/source/'
 const LLM_MODEL = process.env.EVAL_LLM_MODEL || 'claude-sonnet-latest'
@@ -129,19 +130,12 @@ function splitByHeadings(text) {
     sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
   }
 
-  // Legacy chunk format: "A > B > Title\ntags\nbody..."
-  if (sections.length === 0 && lines.length > 0 && !HEADING.test(lines[0]) && lines[0].includes(' > ')) {
-    const title = lines[0].split(' > ').pop().trim()
-    const headingBody = lines.slice(2).join('\n')
-    sections.push({ headingText: title, headingDepth: lines[0].split(' > ').length, headingBody })
-  }
-
   return sections
 }
 
 // Find source by title and body content in sourceDb.
 // Returns { source: string|null, ambiguous: boolean }
-async function findSource(headingText, headingBody, sourceDb) {
+async function findSource(headingText, headingBody, sourceDb, meta) {
   if (!headingText) return { source: null, ambiguous: false }
 
   // Inline Source: line in body takes priority
@@ -151,23 +145,28 @@ async function findSource(headingText, headingBody, sourceDb) {
   const title = headingText.trim()
 
   // 4.1: exact title match
-  const resp = await sourceDb.run(SELECT.from('SourceDocs'))
-  const byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${title}`)
+  const byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${'%' + title + '%'}`)
   if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
 
   // 4.2: subselect on title, fuzzy search with headingBody slice
   const slice = (headingBody || '').trim().slice(0, 50).replace(/[%_'\\]/g, ' ')
   let query
-  if (slice.trim() && byTitle.length === 1) {
-    query =  SELECT.from('SourceDocs').where`title = ${title} and chunk like ${'%' + slice + '%'}`
-  } else {
+  if (slice.trim() && byTitle.length > 1) {
+    query =  SELECT.from('SourceDocs').where`title in ${byTitle.map(r=>r.title)} and chunk like ${'%' + slice + '%'}`
+  } else if (slice.trim()) {
     query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
   }
   const fuzzy = await sourceDb.run(query)
   if (fuzzy.length > 0) return { source: fuzzy[0].source, ambiguous: false }
 
-  // use cose similarity as a fallback for legacy chunks
-  
+  // use cosine similarity as a fallback for legacy chunks
+  let inner = SELECT.from('SourceDocs')
+    .columns`source, cosine_similarity(emb, vector_embedding(${title + ' ' + slice}, 'QUERY', '')) as score`
+  if (byTitle.length > 1) inner = inner.where`title in ${byTitle.map(r=>r.title)}`
+  const similar = await sourceDb.run(
+    SELECT.from(inner).orderBy('score desc')
+  )
+  if (similar.length > 0) return { source: similar[0].source, ambiguous: false }
 
   return { source: null, ambiguous: true }
 }
@@ -194,6 +193,7 @@ export async function resolveIds(results, q, sourceDb, _smIndex, logger = consol
 
   for (const text of results) {
     const ids = []
+    const sections = []
     const meta = {}
     let body = text || ''
 
@@ -210,14 +210,24 @@ export async function resolveIds(results, q, sourceDb, _smIndex, logger = consol
 
       const firstHeadingIdx = lines.findIndex(l => HEADING.test(l))
       body = firstHeadingIdx >= 0 ? lines.slice(firstHeadingIdx + 1).join('\n') : ''
+    } else {
+      const lines = body.split('\n')
+      const hpLine = lines.find(l => LEGACYHEADINGPATH.test(l))
+      if (hpLine) {
+        meta.headingPath = hpLine.trim()
+        body = lines.slice(2).join('\n')
+        const headingDepth = hpLine.split(' > ').length
+        const title = hpLine.split(' > ').pop().trim()
+        sections.push({ headingText: title, headingDepth, headingBody: body })
+      }
     }
 
     // Step 3: split body by headings
-    const sections = splitByHeadings(body)
+    sections.push(...splitByHeadings(body))
 
     // Step 4: for every headingBody, find source in sourceDb
     for (const { headingText, headingBody } of sections) {
-      const { source } = await findSource(headingText, headingBody, sourceDb)
+      const { source } = await findSource(headingText, headingBody, sourceDb, meta)
       if (source) {
         ids.push(source)
       } else if (llmOn) {
