@@ -1,8 +1,8 @@
 import { isHeadingLine, MD_HEADING } from './01-parse.js'
 
 // Regex patterns for block and cut-point detection
-export const CONTAINER_OPENER = /^>?\s*:::\s*\S/;
-export const CONTAINER_CLOSER = /^>?\s*:::+\s*$/;
+export const CONTAINER_OPENER = /^>?\s*:{2,}\s*[^\s:]/;
+export const CONTAINER_CLOSER = /^>?\s*:{2,}\s*$/;
 export const JAVA_NODE_DIV_OPEN = /^<div\s+class="(impl\s+)?(java|node)(\s+[^"]*)?"/i;
 export const COLS_DIV_OPEN = /^<div\s+class="cols-\d+"/i;
 export const HTML_DIV_CLOSE = /^<\/div>/i;
@@ -28,7 +28,7 @@ const BULLET_INDENT = /^(\s*)[-*+]\s/;
 const MARKDOWN_TABLE_ROW = /^\s*\|/;
 const GFM_ADMONITION = /^>\s*\[!(tip|note|warning|important|info|danger|caution)\]/i;
 const BLOCKQUOTE_LINE = /^>/;
-const HTML_STUB = /^<[A-Za-z][^>]*\/>\s*$|^<[a-z][a-z0-9]*(?:\s[^>]*)?>?\s*$|^<\/[a-z]+>\s*$|^<([a-z][a-z0-9]*)(?:\s[^>]*)?>[\s]*<\/\1>\s*$/;
+const HTML_STUB = /^<[A-Za-z][^>]*\/>\s*$|^<[A-Za-z][A-Za-z0-9]*(?:\s[^>]*)?>?\s*$|^<\/[A-Za-z][A-Za-z0-9]*>\s*$|^<([A-Za-z][A-Za-z0-9]*)(?:\s[^>]*)?>[\s]*<\/\1>\s*$/;
 const REDIRECT = /\{\s*\.?\s*learn-more\}\s*$/;
 
 function isLeadInCheck(line) {

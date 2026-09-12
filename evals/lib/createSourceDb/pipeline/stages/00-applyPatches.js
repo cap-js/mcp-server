@@ -4,6 +4,16 @@
 // Delete an entry when the upstream doc is fixed.
 export const PATCHES = [
   {
+    // :: code-group (2 colons) — normalize to ::: for consistent parsing
+    find: 'into CDS data:\n\n:: code-group\n',
+    replace: 'into CDS data:\n\n::: code-group\n',
+  },
+  {
+    // l2distance: indented sub-heading without Source — promote to section boundary
+    find: '\n\n  ### `l2distance` {.method}\n\n  Computes the Euclidean distance',
+    replace: '\n\n### `l2distance`\n\n> Source: /docs/guides/ai/embeddings#l2distance\n\nComputes the Euclidean distance',
+  },
+  {
     // Bug 1: unclosed ::: code-group — closer missing after yaml fence
     find: '```\n\nThe following options are available:',
     replace: '```\n:::\n\nThe following options are available:',
@@ -37,11 +47,6 @@ export const PATCHES = [
     // Bug 21: ::: code-group has stray ``` closer with no opener — remove it
     find: 'entity Zoo : animal.Zoo {}     //> : foo.bar.scoped.nested.Zoo\n```\n\n:::',
     replace: 'entity Zoo : animal.Zoo {}     //> : foo.bar.scoped.nested.Zoo\n\n:::',
-  },
-  {
-    // Bug 23: ::: danger missing closer before next heading
-    find: 'The CI does that in production.',
-    replace: 'The CI does that in production.\n:::',
   },
   {
     // Bug 33: orphan ::: closer with no opener — remove it

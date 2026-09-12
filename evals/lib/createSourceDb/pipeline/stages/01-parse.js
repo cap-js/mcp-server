@@ -1,6 +1,26 @@
 import { CONTAINER_OPENER, CONTAINER_CLOSER, HTML_DIV_CLOSE, HTML_ANY_DIV_OPEN, COLS_DIV_OPEN, JAVA_NODE_DIV_OPEN } from './04-parse-blocks.js';
 
 export const MD_HEADING = /^(\s*#{1,6}) (.+)$/;
+const FENCE_OPENER_RE = /^(\s*)(```+|~~~+)/;
+const FENCE_CLOSER_RE = /^(\s*)(```+|~~~+)\s*$/;
+
+function isNotInsideFence(lines, lastHeadingIndex, index) {
+  let fenceChar = null;
+  let fenceLen = 0;
+  for (let i = lastHeadingIndex; i < index; i++) {
+    const line = lines[i];
+    const m = FENCE_OPENER_RE.exec(line);
+    if (!m) continue;
+    if (fenceChar === null) {
+      fenceChar = m[2][0];
+      fenceLen = m[2].length;
+    } else if (FENCE_CLOSER_RE.test(line) && m[2][0] === fenceChar && m[2].length >= fenceLen) {
+      fenceChar = null;
+      fenceLen = 0;
+    }
+  }
+  return fenceChar === null;
+}
 
 const SOURCE_LINE = /^>?\s*Source:\s/;
 
@@ -62,7 +82,7 @@ export function parse(text, config) {
     const line = lines[i];
     const heading = isHeadingLine(lines, i);
 
-    if (heading && isNotInsideContainer(lines, lastHeadingIndex, i) && isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i)) {
+    if (heading && isNotInsideContainer(lines, lastHeadingIndex, i) && isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i) && isNotInsideFence(lines, lastHeadingIndex, i)) {
       lastHeadingIndex = i
       flushBuffer();
 
