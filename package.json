@@ -25,7 +25,7 @@
   "scripts": {
     "test": "node --test --test-concurrency=1",
     "lint": "npx eslint .",
-    "evals": "node evals/lib/evaluate.js",
+    "evals": "CDS_MCP_OFFLINE=true node evals/lib/evaluate.js",
     "evals:test": "node --test --test-concurrency=1 evals/tests/unit/*.test.js",
     "setup": "rm -rf node_modules package-lock.json && npm i"
   },

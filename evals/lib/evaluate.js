@@ -26,17 +26,17 @@ const MODELS = [
   { id: 'sentence-transformers/all-MiniLM-L6-v2', short: 'transMini' },
 ]
 
-async function makeSearchDocsRunner(k, sourceDb, logger = console) {
+async function makeSearchDocsRunner(k, sourceDb) {
   const retrieve = async function (q) {
     const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
-    return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb, logger)
+    return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
   }
   return retrieve
 }
 
 // `deps` is a test seam: pass { loadIndex, makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, configPath, overrides, logger = console, deps = {} } = {}) {
+export async function evaluate({ sourceDb, configPath, overrides, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   if (deps.model) setModel(deps.model)
@@ -45,27 +45,27 @@ export async function evaluate({ sourceDb, configPath, overrides, logger = conso
 
   const golden = await readJsonOrNull(cfg.paths.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
-    logger.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
+    console.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
     return { code: 3 }
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    logger.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
-    for (const p of problems) logger.error(`  ${p}`)
+    console.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
+    for (const p of problems) console.error(`  ${p}`)
     return { code: 3 }
   }
   // Baseline (read before this run is appended): pinned run if set, else oldest.
   const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
-    logger.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
+    console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
   // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
   // and these labels no longer match; they'll score as misses until refreshed.
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
-    logger.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
-    for (const s of stale) logger.error(`  ${s.question}: ${s.doc_id}`)
+    console.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
+    for (const s of stale) console.error(`  ${s.question}: ${s.doc_id}`)
   }
 
   const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
@@ -95,7 +95,7 @@ export async function evaluate({ sourceDb, configPath, overrides, logger = conso
   const { path: resultsFile, total } = await appendRun(cfg, full)
 
   const status = report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
-  logger.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
+  console.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
 
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
 }
@@ -115,7 +115,7 @@ async function findEmbeddingDirs(sweepDir) {
 
 // Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
 // embeddingsSweepDir is set), then build the comparison report.
-export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
+export async function evaluateAndCompare({ configPath, overrides, deps = {} } = {}) {
   const sourceDb = await createSourceDb()
 
   const cfg = await loadConfig({ configPath, overrides })
@@ -125,7 +125,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
   if (cfg.paths.embeddingsSweepDir) {
     const dirs = await findEmbeddingDirs(cfg.paths.embeddingsSweepDir)
     if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.paths.embeddingsSweepDir}`)
-    logger.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
+    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
     const sweepBasename = path.basename(cfg.paths.embeddingsSweepDir)
     let worstCode = 0
     for (const dir of dirs) {
@@ -134,27 +134,26 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
       if (model) deps.model = model.id
       const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
       const label = [...segments].join('/')
-      logger.error(`\n→ ${label}`)
-      const { code: c } = await evaluate({ sourceDb, configPath, overrides: { ...overrides, label }, logger, deps })
+      console.error(`\n→ ${label}`)
+      const { code: c } = await evaluate({ sourceDb, configPath, overrides: { ...overrides, label }, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
   } else {
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, configPath, overrides, logger, deps }))
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, configPath, overrides, deps }))
   }
 
   try {
     const { compare } = await import('./compare.js')
-    await compare({ configPath, overrides, logger, perQuestionRaw })
+    await compare({ configPath, overrides, perQuestionRaw })
   } catch (err) {
-    logger.error(`(compare step failed: ${err.message})`)
+    console.error(`(compare step failed: ${err.message})`)
   }
 
   return { code }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  process.env.CDS_MCP_OFFLINE = 'true'
   evaluateAndCompare()
   .then(r => process.exit(r.code))
   .catch(e => {

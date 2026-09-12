@@ -6,63 +6,7 @@ const { SELECT } = cds.ql
 const HEADING = /^\s*(#{1,6}) (.+)$/
 const SOURCE = /Source:\s*(\S+)/i
 const HEADINGPATH = /^HeadingPath:\s*/i
-const LEGACYHEADINGPATH = /^[\w\s]+(?: > [\w\s]+)+$/
-
-const PLACEHOLDER = '/placeholder/source/'
-const LLM_MODEL = process.env.EVAL_LLM_MODEL || 'claude-sonnet-latest'
-const LLM_MAX_CHUNK_CHARS = 4000
-
-let _anthropicClient
-async function anthropicClient() {
-  if (_anthropicClient) return _anthropicClient
-  const { default: Anthropic } = await import('@anthropic-ai/sdk')
-  _anthropicClient = new Anthropic()
-  return _anthropicClient
-}
-
-export function isLlmFallbackEnabled() {
-  return process.env.EVAL_LLM_FALLBACK === 'true' && !!process.env.ANTHROPIC_API_KEY
-}
-
-async function getCandidates(sourceDb) {
-  if (sourceDb?.run) {
-    const rows = await sourceDb.run(SELECT.from('SourceDocs').columns('source', 'headingPath', 'title'))
-    return rows.slice(0, 500)
-  }
-  return []
-}
-
-async function llmResolvePlaceholder(text, sourceDb, logger = console) {
-  const candidates = await getCandidates(sourceDb)
-  if (!candidates.length) return null
-
-  const candidateLines = candidates
-    .map((c, i) => `${i + 1}. ${c.breadcrumb || c.headingPath || c.title || c.source}  ::  ${c.source}`)
-    .join('\n')
-  const prompt =
-    `You are matching a retrieved documentation chunk to its source URL.\n` +
-    `Pick the single best-fitting entry from the candidates below. Reply with ONLY the number (1-${candidates.length}) or the word NONE if no candidate fits.\n\n` +
-    `Chunk:\n"""\n${text.slice(0, LLM_MAX_CHUNK_CHARS)}\n"""\n\n` +
-    `Candidates:\n${candidateLines}`
-
-  try {
-    const client = await anthropicClient()
-    const resp = await client.messages.create({
-      model: LLM_MODEL,
-      max_tokens: 16,
-      messages: [{ role: 'user', content: prompt }]
-    })
-    const out = resp.content?.[0]?.text?.trim() || ''
-    if (/^NONE/i.test(out)) return null
-    const n = parseInt(out.match(/\d+/)?.[0] || '', 10)
-    if (!Number.isFinite(n) || n < 1 || n > candidates.length) return null
-    return candidates[n - 1].source
-  } catch (err) {
-    logger.warn(`LLM fallback failed: ${err.message}`)
-    return null
-  }
-}
-
+const LEGACYHEADINGPATH = /^[^>\n]+(?: > [^>\n]+)+$/
 const FENCE_OPENER_RE = /^(\s*)(```+|~~~+)/
 const FENCE_CLOSER_RE = /^(\s*)(```+|~~~+)\s*$/
 
@@ -135,60 +79,48 @@ function splitByHeadings(text) {
 
 // Find source by title and body content in sourceDb.
 // Returns { source: string|null, ambiguous: boolean }
-async function findSource(headingText, headingBody, sourceDb, meta) {
-  if (!headingText) return { source: null, ambiguous: false }
-
-  // Inline Source: line in body takes priority
-  const inlineSource = headingBody?.match?.(SOURCE)
-  if (inlineSource) return { source: inlineSource[1], ambiguous: false }
-
-  const title = headingText.trim()
-
-  // 4.1: exact title match
-  const byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${'%' + title + '%'}`)
-  if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
-
-  // 4.2: subselect on title, fuzzy search with headingBody slice
-  const slice = (headingBody || '').trim().slice(0, 50).replace(/[%_'\\]/g, ' ')
-  let query
-  if (slice.trim() && byTitle.length > 1) {
-    query =  SELECT.from('SourceDocs').where`title in ${byTitle.map(r=>r.title)} and chunk like ${'%' + slice + '%'}`
-  } else if (slice.trim()) {
-    query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
+async function findSource(headingText, headingBody, sourceDb) {
+  try {
+    let byTitle = []
+    // Inline Source: line in body takes priority
+    const inlineSource = headingBody?.match?.(SOURCE)
+    if (inlineSource) return { source: inlineSource[1], ambiguous: false }
+    const title = headingText.trim()
+  
+    if (title) {
+      // 4.1: exact title match
+      byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${'%' + title + '%'}`)
+      if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
+    }
+  
+    // 4.2: subselect on title, like search with headingBody slice
+    const slice = (headingBody || '').trim().slice(0, 50).replace(/[%_'\\]/g, ' ')?.trim()
+    let query
+    if (slice) {
+      if (byTitle.length > 1) {
+        query =  SELECT.from('SourceDocs').where`title in ${byTitle.map(r=>r.title)} and chunk like ${'%' + slice + '%'}`
+      } else {
+        query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
+      }
+      const like = await sourceDb.run(query)
+      if (like.length > 0) return { source: like[0].source, ambiguous: false }
+    }
+  
+    // use cosine similarity as a fallback for legacy chunks
+    let inner = SELECT.from('SourceDocs')
+      .columns`source, cosine_similarity(emb, vector_embedding(${title + ' ' + slice}, 'QUERY', '')) as score`
+    if (byTitle.length > 1) inner = inner.where`title in ${byTitle.map(r=>r.title)}`
+    const similar = await sourceDb.run(
+      SELECT.from(inner).orderBy('score desc').limit(1)
+    )
+    if (similar.length > 0) return { source: similar[0].source, ambiguous: false }
+  } catch (e) {
+    console.log(e)
   }
-  const fuzzy = await sourceDb.run(query)
-  if (fuzzy.length > 0) return { source: fuzzy[0].source, ambiguous: false }
-
-  // use cosine similarity as a fallback for legacy chunks
-  let inner = SELECT.from('SourceDocs')
-    .columns`source, cosine_similarity(emb, vector_embedding(${title + ' ' + slice}, 'QUERY', '')) as score`
-  if (byTitle.length > 1) inner = inner.where`title in ${byTitle.map(r=>r.title)}`
-  const similar = await sourceDb.run(
-    SELECT.from(inner).orderBy('score desc')
-  )
-  if (similar.length > 0) return { source: similar[0].source, ambiguous: false }
-
   return { source: null, ambiguous: true }
 }
 
-// Find source by breadcrumb/headingPath in sourceDb.
-async function findSourceByBreadcrumb(breadcrumb, sourceDb) {
-  if (!breadcrumb) return null
-
-  if (sourceDb && typeof sourceDb.run === 'function') {
-    const results = await sourceDb.run(SELECT.from('SourceDocs').where`headingPath = ${breadcrumb}`)
-    if (results.length === 1) return results[0].source
-    return null
-  }
-
-  return null
-}
-
-export async function resolveIds(results, q, sourceDb, _smIndex, logger = console) {
-  // Backward compat: some callers pass logger as 4th arg (no smIndex)
-  if (_smIndex && typeof _smIndex.warn === 'function') logger = _smIndex
-
-  const llmOn = isLlmFallbackEnabled()
+export async function resolveIds(results, q, sourceDb, _smIndex) {
   const resolvedChunks = []
 
   for (const text of results) {
@@ -219,6 +151,11 @@ export async function resolveIds(results, q, sourceDb, _smIndex, logger = consol
         const headingDepth = hpLine.split(' > ').length
         const title = hpLine.split(' > ').pop().trim()
         sections.push({ headingText: title, headingDepth, headingBody: body })
+      } else {
+        const title = lines[0].trim()
+        body = lines.slice(1).join('\n')
+        const headingDepth = 1
+        sections.push({ headingText: title, headingDepth, headingBody: body })
       }
     }
 
@@ -230,37 +167,12 @@ export async function resolveIds(results, q, sourceDb, _smIndex, logger = consol
       const { source } = await findSource(headingText, headingBody, sourceDb, meta)
       if (source) {
         ids.push(source)
-      } else if (llmOn) {
-        // 4.3: LLM fallback
-        const picked = await llmResolvePlaceholder(headingBody || text, sourceDb, logger)
-        if (picked) { logger.warn(`Added source found by llm for ${q.id}`); ids.push(picked) }
       }
     }
 
     // Fallback: no ids yet — try first line as title then breadcrumb
     if (!ids.length) {
       const firstLine = (text || '').split('\n').find(l => l.trim()) || ''
-      const title = firstLine.replace(HEADINGPATH, '').trim()
-      const { source, ambiguous } = await findSource(title, text, sourceDb)
-      if (source) {
-        ids.push(source)
-      } else {
-        const bySrc = await findSourceByBreadcrumb(title, sourceDb)
-        if (bySrc) {
-          ids.push(bySrc)
-        } else {
-          if (llmOn) {
-            const picked = await llmResolvePlaceholder(text, sourceDb, logger)
-            if (picked) { logger.warn(`Added source found by llm for ${q.id}`); ids.push(picked) }
-          }
-          if (!ids.length) {
-            ids.push(`${PLACEHOLDER}${firstLine}`)
-            logger.warn(ambiguous
-              ? `Multiple sources found for ${q.id}: ${firstLine}`
-              : `No breadcrumb found for ${q.id}: ${text}`)
-          }
-        }
-      }
     }
 
     if (!ids.length) throw new Error('No IDs found')
