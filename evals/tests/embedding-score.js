@@ -1,4 +1,5 @@
 /* eslint-disable no-console */
+// ONLY FOR TESTING. REMOVE BEFORE MERGING
 // Usage: node evals/tests/embedding-score.js
 import { getEmbeddings } from '../../lib/embeddings.js'
 

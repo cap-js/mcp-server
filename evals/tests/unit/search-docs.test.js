@@ -1,7 +1,16 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { makeSearchDocsRunner } from '../../lib/search-docs.js'
+import { resolveIds } from '../../lib/ids.js'
 import tools from '../../../lib/tools.js'
+
+// Inlined from evaluate.js (makeSearchDocsRunner is not exported; search-docs.js not yet extracted)
+async function makeSearchDocsRunner(k, sourceDb) {
+  const retrieve = async function (q) {
+    const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
+    return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
+  }
+  return retrieve
+}
 
 const SOURCE_MAP = [
   { source: '/docs/a', title: 'A', depth: 1 },

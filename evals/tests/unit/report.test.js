@@ -37,9 +37,9 @@ function fixtureRaw(ret1, ret2) {
 }
 
 describe('eval tests', () => {
-  test('pre-flight detects stale relevant ids', () => {
-    const sourceMap = [{ source: 'a' }, { source: 'c' }]
-    const stale = preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], sourceMap)
+  test('pre-flight detects stale relevant ids', async () => {
+    const fakeDb = { run: async () => [{ source: 'a' }, { source: 'c' }] }
+    const stale = await preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], fakeDb)
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'b' }])
   })
 
@@ -265,11 +265,11 @@ describe('eval tests', () => {
     assert.ok(problems.some(p => /q-003.*empty OR-group/.test(p)))
   })
 
-  test('preflight: flags a stale alternate inside an OR-group, keeps valid siblings clean', () => {
-    const sourceMap = [{ source: 'a' }, { source: 'y1' }]
-    const stale = preflight(
+  test('preflight: flags a stale alternate inside an OR-group, keeps valid siblings clean', async () => {
+    const fakeDb = { run: async () => [{ source: 'y1' }] }
+    const stale = await preflight(
       [{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }],
-      sourceMap
+      fakeDb
     )
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'y2-stale' }])
   })

@@ -44,7 +44,7 @@ async function loadGolden() {
 function baseOverrides(extra = {}) {
   return {
     k: 5,
-    paths: { goldenSet: goldenPath, runsDir },
+    paths: { goldenSet: goldenPath, runsDir, embeddingsSweepDir: null },
     capire_version: '2026.5.0',
     ...extra
   }
@@ -366,11 +366,11 @@ describe('evaluateSweep tests', () => {
     const rows = await readResults()
     assert.equal(rows.length, 2)
     const labels = rows.map(r => r.config.label).sort()
-    assert.deepEqual(labels, ['sweep/model-a/cfg-1', 'sweep/model-a/cfg-2'])
+    assert.deepEqual(labels, ['model-a/cfg-1', 'model-a/cfg-2'])
     assert.ok(res.code === 0 || res.code === 1)
   })
 
-  test('label uses last 2 path segments relative to sweepDir', async () => {
+  test('label uses all path segments relative to sweepDir', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const dir = path.join(sweepDir, 'group', 'subgroup', 'variant')
     await fs.mkdir(dir, { recursive: true })
@@ -379,7 +379,7 @@ describe('evaluateSweep tests', () => {
     await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger, deps: fakeDeps })
 
     const rows = await readResults()
-    assert.equal(rows[0].config.label, 'sweep/subgroup/variant')
+    assert.equal(rows[0].config.label, 'group/subgroup/variant')
   })
 
   test('discover: only dirs with code-chunks.json are included', async () => {
