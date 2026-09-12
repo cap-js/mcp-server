@@ -133,7 +133,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
       const model = MODELS.find(m => dir.includes(m.short))
       if (model) deps.model = model.id
       const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
-      const label = [sweepBasename, ...segments.slice(-2)].join('/')
+      const label = [...segments].join('/')
       logger.error(`\n→ ${label}`)
       const { code: c } = await evaluate({ sourceDb, configPath, overrides: { ...overrides, label }, logger, deps })
       if (c > worstCode) worstCode = c

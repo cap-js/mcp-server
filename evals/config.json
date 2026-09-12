@@ -5,7 +5,7 @@
   "paths": {
     "goldenSet": "data/golden-set.json",
     "runsDir": "runs",
-    "embeddingsSweepDir": "/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings/xenova"
+    "embeddingsSweepDir": "/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings"
   },
   "gates": {
     "recall_at_k": 0.8,
