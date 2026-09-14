@@ -13,12 +13,11 @@ and the determinism guarantees.
 
 ```
 evals/
-  config.json          # single source of all config (committed) — see "Configuration"
   bin/                 # thin CLI entry files invoked by the npm scripts
     eval.js            #   `npm run evals`         → evaluateAndCompare()
     compare.js         #   `npm run evals:compare` → compare()
   lib/                 # implementation (imported by bin/ and the tests)
-    config.js          #   config loader (config.json + EVAL_* env overrides)
+    config.js          #   DEFAULT_CONFIG (edit here) + config loader (EVAL_* env overrides)
     evaluate.js        #   evaluate(): orchestration — load → preflight → retrieve → score → append
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
@@ -61,7 +60,7 @@ weakest questions; `evals:compare` charts all runs. There is no per-run folder a
 ### Compare runs (`evals:compare`)
 
 Reads every run in `runs/result.jsonl`, ordered chronologically by run_id, and writes a
-comparison report whose format is set by `output.compareFormat` in `config.json`:
+comparison report whose format is set by `output.compareFormat` in `DEFAULT_CONFIG` (`config.js`):
 
 - **`html`** (default) → `runs/compare.html`: one line chart per metric (Recall@K,
   Precision@K, MRR, Hit-Rate@K, nDCG@K) plotting its aggregate value across all runs (gate
@@ -74,7 +73,7 @@ comparison report whose format is set by `output.compareFormat` in `config.json`
   per-run drill-down section each with aggregate + per-question tables.
 
 ```sh
-npm run evals:compare   # format from config.json (html default; set output.compareFormat: "md" for markdown)
+npm run evals:compare   # format from DEFAULT_CONFIG in config.js (html default; set output.compareFormat: "md" for markdown)
 ```
 
 It reads only `result.jsonl` — running it never triggers an eval.
@@ -87,34 +86,27 @@ determinism). So the cache (`embeddings/code-chunks.*` and the ONNX model under
 
 ## Configuration
 
-All behaviour lives in [`config.json`](../config.json) — edit it in one place. Two
-env vars are honoured for day-to-day runs, and everything is also overridable
+All behaviour is configured in `DEFAULT_CONFIG` at the top of [`lib/config.js`](../lib/config.js) — edit it in one place. One
+env var is honoured for day-to-day runs, and everything is also overridable
 programmatically via `evaluate({ overrides })` in `lib/evaluate.js` (overrides win last).
 
-| `config.json` key | Default | Meaning |
+| `DEFAULT_CONFIG` key | Default | Meaning |
 |---|---|---|
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
 | `capire_version` | `2026.5.0` | capire docs version, recorded in the report for provenance. |
-| `label` | _(unset)_ | Human-readable tag shown in reports to tell runs apart. Also settable via `EVAL_LABEL`. Display-only. |
-| `baselineRunId` | _(unset)_ | Pin the baseline to a specific `run_id`. Unset → baseline is the oldest run on file. |
 | `paths.goldenSet` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
 | `paths.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
-| `paths.embeddingsDir` | `../embeddings` | Directory containing `code-chunks.json` + `code-chunks.bin`. Relative paths resolve against `evals/`. Change this to score against a different embedding set. |
-| `paths.embeddingsSweepDir` | _(unset)_ | Parent directory to sweep. When set, the eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically as `<sweepDir name>/<last 2 path segments>`. |
+| `paths.embeddingsSweepDir` | _(unset)_ | Parent directory to sweep. When set, the eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to the sweep dir. |
 | `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
-| `output.keepRuns` | `20` (file ships `100`) | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
+| `output.keepRuns` | `100` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
 | `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
-Only `EVAL_LABEL` and `EVAL_RUNS_DIR` are read from the environment (they're what
-multi-corpus experiments vary run-to-run). Everything else is edited in `config.json`.
+Only `EVAL_RUNS_DIR` is read from the environment. Everything else is edited in `DEFAULT_CONFIG`.
 
 ### Useful commands
 
 ```sh
-# Run with a human-readable label (shows in compare.html leaderboard)
-EVAL_LABEL="my-experiment" npm run evals
-
 # Point at a different corpus' results directory
 EVAL_RUNS_DIR=runs-xenova npm run evals
 EVAL_RUNS_DIR=runs-pplx  npm run evals
@@ -126,49 +118,36 @@ node evals/bin/compare.js --runs runs-xenova/result.jsonl --out runs-xenova/comp
 
 ### Evaluating custom embeddings
 
-Set `paths.embeddingsDir` in `config.json` to score against a different set of chunk
+Set the `LOCAL_EMBEDDINGS_DIR` env var to score against a specific set of chunk
 embeddings. The directory must contain `code-chunks.json` and `code-chunks.bin`.
-Relative paths resolve against `evals/`; absolute paths are used as-is.
 
-```json
-{
-  "paths": {
-    "embeddingsDir": "/path/to/All Embeddings/xenova_w_meta/256-d4"
-  }
-}
+```sh
+LOCAL_EMBEDDINGS_DIR=/path/to/All\ Embeddings/xenova_w_meta/256-d4 npm run evals
 ```
 
-Set a `label` too so the run is identifiable in the comparison report:
-
-```json
-{
-  "label": "xenova_w_meta/256-d4",
-  "paths": {
-    "embeddingsDir": "/path/to/All Embeddings/xenova_w_meta/256-d4"
-  }
-}
-```
+The run label is derived automatically from the path relative to the project root
+(e.g. `All Embeddings/xenova_w_meta/256-d4`), so runs are identifiable in the comparison report
+without any manual configuration.
 
 To compare multiple embedding sets, run `npm run evals` once per set (updating
-`paths.embeddingsDir` and `label` between runs), then `npm run evals:compare` to chart
+`LOCAL_EMBEDDINGS_DIR` between runs), then `npm run evals:compare` to chart
 them all together.
 
 ### Sweeping multiple embedding sets
 
-Set `paths.embeddingsSweepDir` to a parent directory to score all embedding sets in one
+Set `paths.embeddingsSweepDir` in `DEFAULT_CONFIG` to a parent directory to score all embedding sets in one
 shot. The eval discovers every descendant directory that contains `code-chunks.json`,
 runs once per directory, and appends all results to `result.jsonl`. A single
 `compare.html` is built at the end.
 
-```json
-{
-  "paths": {
-    "embeddingsSweepDir": "/path/to/All Embeddings/xenova_w_meta"
-  }
+```js
+// In lib/config.js DEFAULT_CONFIG:
+paths: {
+  embeddingsSweepDir: '/path/to/All Embeddings/xenova_w_meta'
 }
 ```
 
-Labels are derived automatically from the path: `<sweepDir name>/<last 2 segments relative to sweepDir>`.
+Labels are derived automatically from the path relative to the sweep dir.
 
 Given this layout:
 
@@ -184,7 +163,7 @@ xenova_w_meta/
 Labels produced: `xenova_w_meta/256-d4/no-meta`, `xenova_w_meta/256-d4/with-meta`,
 `xenova_w_meta/512-d4/no-meta`.
 
-`paths.embeddingsSweepDir` takes precedence over `paths.embeddingsDir` when both are set.
+`paths.embeddingsSweepDir` takes precedence over `LOCAL_EMBEDDINGS_DIR` when both are set.
 
 
 > **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the

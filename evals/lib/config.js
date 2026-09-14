@@ -4,11 +4,8 @@ import fs from 'fs/promises'
 
 // ── Run configuration --
 export const DEFAULT_CONFIG = {
-  k: 5,
+  k: 5, // how many results should search_docs return
   capire_version: '2026.5.0',
-  label: '',           // human-readable tag shown in reports
-  baselineRunId: null, // pin a specific run as Δ baseline; null = oldest on file
-  model: null,
   paths: {
     goldenSet: 'data/golden-set.json',
     runsDir: 'runs',
@@ -70,9 +67,8 @@ export async function loadConfig({ configPath, overrides } = {}) {
   const cfg = {
     k: file.k ?? 5,
     capire_version: file.capire_version || 'unknown',
-    model: file.model || null,
-    label: envStr('EVAL_LABEL', file.label || ''),
-    baselineRunId: file.baselineRunId || null,
+    label: envStr('EVAL_LABEL', ''),
+    baselineRunId: null,
     paths: {
       goldenSet: resolve(paths.goldenSet || 'data/golden-set.json'),
       runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs')),
@@ -92,7 +88,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
-    if (overrides.model !== undefined) cfg.model = overrides.model
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId

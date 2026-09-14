@@ -2,7 +2,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { loadConfig } from './config.js'
+import { loadConfig, EVALS_DIR } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
@@ -129,7 +129,14 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
     }
     code = worstCode
   } else {
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, deps }))
+    const localEmbDir = process.env.LOCAL_EMBEDDINGS_DIR
+    let derivedLabel
+    if (localEmbDir) {
+      const projectRoot = path.resolve(EVALS_DIR, '..', '..')
+      derivedLabel = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
+    }
+    const effectiveOverrides = derivedLabel ? { ...overrides, label: derivedLabel } : overrides
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides: effectiveOverrides, deps }))
   }
 
   try {
