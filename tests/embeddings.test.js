@@ -271,17 +271,17 @@ describe('embeddings', () => {
     const text = 'test query for model param'
     const withoutModel = await calculateEmbeddings(text)
     const withModel = await calculateEmbeddings(text, MODEL)
-    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return same dim as default')
+    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return different dim than default')
   })
 
   test('calculateEmbeddings reuses cache when called twice with same model', async () => {
     const MODEL = 'nomic-ai/nomic-embed-text-v1.5'
     const text = 'cache reuse test'
     await calculateEmbeddings(text, MODEL)
-    const dbBefore = await getQueryDb()
+    const dbBefore = await getQueryDb(MODEL)
     dbBefore.cached = true
     await calculateEmbeddings(text, MODEL)
-    const dbAfter = await getQueryDb()
+    const dbAfter = await getQueryDb(MODEL)
     assert.ok(dbAfter.cached, 'repeated call with same model must succeed')
   })
 
