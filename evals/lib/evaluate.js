@@ -18,14 +18,6 @@ async function readJsonOrNull(p) {
   }
 }
 
-const MODELS = [
-  { id: 'Xenova/all-MiniLM-L6-v2',              short: 'llm'    },
-  { id: 'Xenova/all-MiniLM-L6-v2',              short: 'xenova'    },
-  { id: 'nomic-ai/nomic-embed-text-v1.5',        short: 'nomic'     },
-  { id: 'perplexity-ai/pplx-embed-v1-0.6b',      short: 'pplx'      },
-  { id: 'sentence-transformers/all-MiniLM-L6-v2', short: 'transMini' },
-]
-
 async function makeSearchDocsRunner(k, sourceDb) {
   const retrieve = async function (q) {
     const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
