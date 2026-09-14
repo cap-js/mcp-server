@@ -58,7 +58,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     },
     gates: {},
     output: {
-      keepRuns: output.keepRuns ?? 20,
+      keepRuns: output.keepRuns ?? 100,
       resultsName: output.resultsName || 'result.jsonl',
       compareFormat: output.compareFormat || 'html'
     }

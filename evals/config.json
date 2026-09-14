@@ -1,7 +1,6 @@
 {
   "k": 5,
   "capire_version": "2026.5.0",
-  "model": "sentence-transformers/all-MiniLM-L6-v2",
   "paths": {
     "goldenSet": "data/golden-set.json",
     "runsDir": "runs",
@@ -15,7 +14,7 @@
     "ndcg_at_k": null
   },
   "output": {
-    "keepRuns": 100,
+    "keepRuns": 600,
     "resultsName": "result.jsonl",
     "compareFormat": "html"
   }

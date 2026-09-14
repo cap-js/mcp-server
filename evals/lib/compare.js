@@ -294,9 +294,10 @@ function renderPerQuestionSection(runs) {
 
   const blob = { runShorts, runIds: runs.map(r => r.run_id), gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
 
-  return `<h2 class="section-h">Per-question metric trends
+  return `<details class="pq-section">
+  <summary class="section-h section-summary">Per-question metric trends
     <span class="section-hint">${data.length} questions · sorted by MRR drop then lowest MRR · click a row for its charts</span>
-  </h2>
+  </summary>
   <div class="pq-controls">
     <input id="pq-search" type="search" placeholder="filter ${data.length} questions by id or text…" autocomplete="off"/>
     <span id="pq-count" class="pq-count"></span>
@@ -306,7 +307,8 @@ function renderPerQuestionSection(runs) {
     <tbody></tbody>
   </table>
   <script id="pq-data" type="application/json">${JSON.stringify(blob).replace(/</g, '\\u003c')}</script>
-  <script>${PQ_SCRIPT}</script>`
+  <script>${PQ_SCRIPT}</script>
+</details>`
 }
 
 // short run id for chart tooltips / x-axis (time-of-day)
@@ -327,53 +329,83 @@ function shortLabel(r) {
 
 // Rank each run for each metric (1 = best). Returns Map<run_id, Map<metric_key, rank>>.
 function buildRanks(runs) {
+  const overallValue = r => METRIC_KEYS.reduce((s, k) => s + r.aggregate[k].value, 0)
   const ranks = new Map(runs.map(r => [r.run_id, {}]))
   for (const key of METRIC_KEYS) {
-    const sorted = [...runs].sort((a, b) => b.aggregate[key].value - a.aggregate[key].value)
+    const sorted = [...runs].sort((a, b) => {
+      const vd = b.aggregate[key].value - a.aggregate[key].value
+      if (vd !== 0) return vd
+      return overallValue(b) - overallValue(a)
+    })
     sorted.forEach((r, i) => { ranks.get(r.run_id)[key] = i + 1 })
   }
   return ranks
 }
 
-// Leaderboard table: gated metrics as rows, runs as columns sorted by each metric's rank.
-// Gold / silver / bronze cells make the winner instantly obvious.
+// Leaderboard table: rows = runs (top 15), cols = metrics. Sorted by total rank
+// score on gated metrics. Collapsible via <details>.
 function renderLeaderboard(runs) {
   if (runs.length < 2) return ''
   const ranks = buildRanks(runs)
   const gated = METRIC_KEYS.filter(k => runs[runs.length - 1].aggregate[k].gate !== null)
   if (!gated.length) return ''
 
-  // Order columns by total rank score (lower = better) across gated metrics only.
-  // Show ALL metrics in the table; ungated ones have no gate threshold but still rank.
+  const LB_MAX = 15
   const totalScore = r => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
-  const cols = [...runs].sort((a, b) => totalScore(a) - totalScore(b))
+  const totalValue = r => gated.reduce((s, k) => s + r.aggregate[k].value, 0)
+  const sorted = [...runs].sort((a, b) => {
+    const sd = totalScore(a) - totalScore(b)
+    if (sd !== 0) return sd
+    return totalValue(b) - totalValue(a)
+  })
+  const shown = sorted
 
   const medalClass = rank => rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : ''
   const medal = rank => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
 
-  const headerCells = cols.map((r, i) =>
-    `<th class="${medalClass(i + 1)}" title="${escHtml(runDisplay(r))}">${medal(i + 1)} ${escHtml(shortLabel(r))}</th>`
-  ).join('')
-
-  const rows = METRIC_KEYS.map(key => {
-    const isGated = runs[runs.length - 1].aggregate[key].gate !== null
-    const cells = cols.map(r => {
-      const rk = ranks.get(r.run_id)[key]
-      return `<td class="${medalClass(rk)}">${r.aggregate[key].value.toFixed(2)}</td>`
-    }).join('')
-    const label = `${METRIC_LABEL[key]}@K${isGated ? '' : ' <span class="tag muted">reported</span>'}`
-    return `<tr><td>${label}</td>${cells}</tr>`
+  const headCols = METRIC_KEYS.map(k => {
+    const isGated = runs[runs.length - 1].aggregate[k].gate !== null
+    return `<th>${METRIC_LABEL[k]}@K${isGated ? '' : ' <span class="tag muted">reported</span>'}</th>`
   }).join('')
 
-  return `<section class="leaderboard-wrap">
-  <h2 class="section-h">Leaderboard <span class="section-hint">(🥇 = best per metric · columns sorted by total rank on gated metrics)</span></h2>
+  const rows = shown.map((r, i) => {
+    const rank = i + 1
+    const cells = METRIC_KEYS.map(k => {
+      const rk = ranks.get(r.run_id)[k]
+      return `<td class="${medalClass(rk)}">${r.aggregate[k].value.toFixed(2)}</td>`
+    }).join('')
+    const searchStr = escHtml(runDisplay(r).toLowerCase())
+    return `<tr data-search="${searchStr}"><td class="lb-rank">${medal(rank)}</td><td class="mono lb-run" title="${escHtml(runDisplay(r))}">${escHtml(shortLabel(r))}</td>${cells}</tr>`
+  }).join('')
+
+  const hint = `${runs.length} runs · ranked by total score on gated metrics · scrollable`
+
+  return `<details class="lb-section" open>
+  <summary class="section-h section-summary">Leaderboard <span class="section-hint">(${hint})</span></summary>
+  <div class="pq-controls">
+    <input id="lb-search" type="search" placeholder="filter ${runs.length} runs by label or id…" autocomplete="off"/>
+    <span id="lb-count" class="pq-count"></span>
+  </div>
   <div class="lb-scroll">
   <table class="lb-table">
-    <thead><tr><th>metric</th>${headerCells}</tr></thead>
-    <tbody>${rows}</tbody>
+    <thead><tr><th>rank</th><th>run</th>${headCols}</tr></thead>
+    <tbody id="lb-tbody">${rows}</tbody>
   </table>
   </div>
-</section>`
+  <script>(function(){
+    var inp=document.getElementById('lb-search');
+    var cnt=document.getElementById('lb-count');
+    var rows=Array.from(document.querySelectorAll('#lb-tbody tr'));
+    function apply(){
+      var term=inp.value.trim().toLowerCase();
+      var shown=0;
+      rows.forEach(function(r){ var m=!term||r.dataset.search.indexOf(term)>=0; r.style.display=m?'':'none'; if(m)shown++; });
+      cnt.textContent=shown+(shown===rows.length?'':' / '+rows.length)+' shown';
+    }
+    inp.addEventListener('input',apply);
+    apply();
+  })();</script>
+</details>`
 }
 
 // A click-to-expand card for one run: summary row + aggregate table +
@@ -510,7 +542,8 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
     : '<div class="rd-sub muted">No per-question data recorded for this run.</div>'
 
   const label = r.config && r.config.label
-  return `<details class="run-detail">
+  const searchStr = escHtml(((label || '') + ' ' + r.run_id).toLowerCase())
+  return `<details class="run-detail" data-search="${searchStr}">
   <summary><label class="baseline-label" title="Set as baseline for Δ column" onclick="event.stopPropagation()"><input type="radio" name="pq-baseline" class="baseline-radio" data-run-id="${r.run_id}" value="${r.run_id}"> baseline</label>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
     <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
@@ -580,7 +613,7 @@ function renderHtml(runs, textById) {
   header { padding:24px 28px 8px; }
   h1 { font-size:18px; margin:0 0 4px; }
   .meta { color:var(--ink2); font-size:13px; }
-  .grid-wrap { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; padding:16px 28px 28px; }
+  .grid-wrap { display:grid; grid-template-columns:repeat(2,1fr); gap:18px; padding:8px 28px 20px; }
   .chart { margin:0; background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 12px 6px; }
   .chart figcaption { font-size:13px; font-weight:600; margin:2px 4px 6px; }
   .chart-avg { float:right; font-size:11px; font-weight:600; color:var(--ink2); font-variant-numeric:tabular-nums; }
@@ -605,6 +638,11 @@ function renderHtml(runs, textById) {
   #pq-search { flex:0 0 360px; max-width:60%; padding:6px 10px; font-size:13px; border-radius:6px;
     border:1px solid var(--border); background:var(--surface); color:var(--ink); }
   .pq-count { font-size:12px; color:var(--muted); }
+  .section-summary { display:block; cursor:pointer; user-select:none; }
+  .section-summary::-webkit-details-marker { display:none; }
+  .section-summary::marker { content:none; }
+  .section-summary::before { content:"▾"; color:var(--muted); display:inline-block; width:14px; margin-right:2px; }
+  details:not([open]) > .section-summary::before { content:"▸"; }
   #pq-table { border-collapse:collapse; width:calc(100% - 56px); margin:0 28px 28px; font-size:12px; }
   #pq-table th, #pq-table td { text-align:right; padding:5px 9px; border-bottom:1px solid var(--grid); font-variant-numeric:tabular-nums; }
   #pq-table th:first-child, #pq-table td:first-child, #pq-table th.q-cell, #pq-table td.q-cell { text-align:left; }
@@ -668,11 +706,15 @@ function renderHtml(runs, textById) {
   .chunk-text { margin:4px 0 6px 14px; padding:8px 10px; background:var(--page); border:1px solid var(--grid);
     border-radius:6px; font-size:11px; white-space:pre-wrap; word-break:break-word; max-height:320px; overflow:auto; }
   .leaderboard-wrap { padding:0 28px 20px; }
-  .lb-scroll { overflow-x:auto; }
-  .lb-table { border-collapse:collapse; font-size:13px; }
-  .lb-table th, .lb-table td { padding:7px 14px; border-bottom:1px solid var(--grid); text-align:center; font-variant-numeric:tabular-nums; white-space:nowrap; }
-  .lb-table th:first-child, .lb-table td:first-child { text-align:left; font-weight:600; padding-right:20px; }
-  .lb-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+  .lb-section { }
+  .lb-scroll { overflow:auto; padding:0 28px 20px; max-height:480px; }
+  .lb-table { border-collapse:collapse; font-size:12px; min-width:400px; }
+  .lb-table th, .lb-table td { padding:6px 12px; border-bottom:1px solid var(--grid); text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .lb-table th:first-child, .lb-table td:first-child { text-align:center; width:40px; padding-right:8px; }
+  .lb-table th:nth-child(2), .lb-table td:nth-child(2) { text-align:left; max-width:260px; overflow:hidden; text-overflow:ellipsis; }
+  .lb-table thead th { color:var(--ink2); border-bottom:1.5px solid var(--axis); position:sticky; top:0; background:var(--page); }
+  .lb-rank { font-size:14px; }
+  .lb-run { font-size:11px; }
   .rank-1 { background:rgba(255,200,0,0.18); font-weight:700; }
   .rank-2 { background:rgba(180,180,180,0.15); font-weight:600; }
   .rank-3 { background:rgba(180,110,50,0.13); }
@@ -687,14 +729,36 @@ function renderHtml(runs, textById) {
   <div class="meta">${runs.length} run${runs.length === 1 ? '' : 's'} · dashed red = gate threshold · red dot = below gate</div>
 </header>
 ${leaderboard}
-<section class="grid-wrap">
+<details class="charts-section">
+<summary class="section-h section-summary">Metric trends <span class="section-hint">(all ${runs.length} runs · dashed red = gate · red dot = below gate)</span></summary>
+<div class="grid-wrap">
 ${charts}
-</section>
+</div>
+</details>
 ${perQuestion}
-<h2 class="section-h">Inspect each run <span class="section-hint">(newest first — click to expand · select baseline radio to rebase Δ column)</span></h2>
-<div class="run-list">
+<details class="runs-section" open>
+<summary class="section-h section-summary">Inspect each run <span class="section-hint">(newest first — click to expand · select baseline radio to rebase Δ column)</span></summary>
+<div class="pq-controls">
+  <input id="rd-search" type="search" placeholder="filter ${runs.length} runs by label or id…" autocomplete="off"/>
+  <span id="rd-count" class="pq-count"></span>
+</div>
+<div class="run-list" id="run-list">
 ${runDetails}
 </div>
+<script>(function(){
+  var inp=document.getElementById('rd-search');
+  var cnt=document.getElementById('rd-count');
+  var items=Array.from(document.querySelectorAll('#run-list .run-detail'));
+  function apply(){
+    var term=inp.value.trim().toLowerCase();
+    var shown=0;
+    items.forEach(function(el){ var m=!term||el.dataset.search.indexOf(term)>=0; el.style.display=m?'':'none'; if(m)shown++; });
+    cnt.textContent=shown+(shown===items.length?'':' / '+items.length)+' shown';
+  }
+  inp.addEventListener('input',apply);
+  apply();
+})();</script>
+</details>
 <script>
 (function(){
   document.querySelectorAll('.baseline-radio').forEach(function(radio){
