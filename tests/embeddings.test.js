@@ -278,10 +278,10 @@ describe('embeddings', () => {
     const MODEL = 'nomic-ai/nomic-embed-text-v1.5'
     const text = 'cache reuse test'
     await calculateEmbeddings(text, MODEL)
-    const dbBefore = await getQueryDb()
+    const dbBefore = await getQueryDb(MODEL)
     dbBefore.cached = true
     await calculateEmbeddings(text, MODEL)
-    const dbAfter = await getQueryDb()
+    const dbAfter = await getQueryDb(MODEL)
     assert.ok(dbAfter.cached, 'repeated call with same model must succeed')
   })
 
