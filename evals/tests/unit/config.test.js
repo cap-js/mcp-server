@@ -24,16 +24,6 @@ describe('config tests', () => {
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
 
-  test('label is set via EVAL_LABEL / override (empty by default in code)', async () => {
-    clearEnv()
-    // Code default is '' (config.json may set its own value, so don't assume '').
-    assert.equal((await loadConfig({ configPath: '/no/such/config.json' })).label, '')
-    process.env.EVAL_LABEL = 'tuned chunker'
-    assert.equal((await loadConfig()).label, 'tuned chunker') // env
-    const cfg = await loadConfig({ overrides: { label: 'baseline v1' } })
-    assert.equal(cfg.label, 'baseline v1') // override wins over env
-  })
-
   test('EVAL_RUNS_DIR points at another corpus\' results (absolute respected)', async () => {
     clearEnv()
     process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'

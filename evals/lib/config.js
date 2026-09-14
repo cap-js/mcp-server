@@ -4,7 +4,8 @@ import fs from 'fs/promises'
 
 // ── Run configuration --
 export const DEFAULT_CONFIG = {
-  k: 5, // how many results should search_docs return
+  // how many results should search_docs return
+  k: 5,
   // do evaluate for all embeddings found in
   embeddingsSweepDir: '/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings',
   gates: {
@@ -62,8 +63,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
   const cfg = {
     k: file.k ?? 5,
-    capire_version: file.capire_version || 'unknown',
-    label: envStr('EVAL_LABEL', ''),
     baselineRunId: null,
     embeddingsSweepDir: file.embeddingsSweepDir ? resolve(file.embeddingsSweepDir) : null,
     goldenSet: resolve(file.goldenSet ?? 'data/golden-set.json'),
@@ -82,8 +81,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
-    if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
-    if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
     if (overrides.embeddingsSweepDir !== undefined) cfg.embeddingsSweepDir = overrides.embeddingsSweepDir ? resolve(overrides.embeddingsSweepDir) : null
     if (overrides.goldenSet !== undefined) cfg.goldenSet = resolve(overrides.goldenSet)

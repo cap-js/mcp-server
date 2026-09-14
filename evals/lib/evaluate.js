@@ -28,7 +28,7 @@ async function makeSearchDocsRunner(k, sourceDb) {
 
 // `deps` is a test seam: pass { makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, golden, configPath, overrides, deps = {} } = {}) {
+export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
@@ -52,11 +52,11 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, deps =
   }
 
   const config = {
-    capire_version: cfg.capire_version,
+    capire_version,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
-    label: cfg.label
+    label
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
@@ -134,20 +134,19 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
       const capire_version = await readCapireVersion(dir)
-      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides: { ...overrides, label, ...(capire_version && { capire_version }) }, deps })
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
   } else {
     const localEmbDir = process.env.LOCAL_EMBEDDINGS_DIR
-    let derivedLabel
+    let label = process.env.EVAL_LABEL || ''
     if (localEmbDir) {
       const projectRoot = path.resolve(EVALS_DIR, '..', '..')
-      derivedLabel = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
+      label = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
     }
     const capire_version = await readCapireVersion(localEmbDir)
-    const effectiveOverrides = { ...overrides, ...(derivedLabel && { label: derivedLabel }), ...(capire_version && { capire_version }) }
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides: effectiveOverrides, deps }))
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps }))
   }
 
   try {

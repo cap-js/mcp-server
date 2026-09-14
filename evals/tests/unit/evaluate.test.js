@@ -47,7 +47,6 @@ function baseOverrides(extra = {}) {
     goldenSet: goldenPath,
     output: { runsDir },
     embeddingsSweepDir: null,
-    capire_version: '2026.5.0',
   }
   return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
 }
@@ -85,7 +84,7 @@ describe('evaluate tests', () => {
     const rows = await readResults()
     assert.equal(rows.length, 1)
     assert.equal(rows[0].run_id, res.report.run_id)
-    assert.equal(rows[0].config.capire_version, '2026.5.0')
+    assert.equal(rows[0].config.capire_version, 'unknown')
     assert.equal(rows[0].config.golden_set, 'test-golden')
 
     // no per-run folders, no report.md, only result.jsonl in runsDir
@@ -97,7 +96,8 @@ describe('evaluate tests', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ label: 'tuned chunker' }),
+      overrides: baseOverrides(),
+      label: 'tuned chunker',
       logger: silentLogger,
       deps: { loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
@@ -331,7 +331,6 @@ describe('evaluateSweep tests', () => {
       goldenSet: goldenPath,
       output: { runsDir },
       embeddingsSweepDir: sweepDir,
-      capire_version: '2026.5.0',
     }
     return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
   }
