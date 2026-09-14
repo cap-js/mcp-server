@@ -729,6 +729,41 @@
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/tools/cds-editors#github-integration"
       ]
+    },
+    {
+      "id": "capire-h1",
+      "question": "What is the purpose of the CDL Compilation to Database-Specific DDLs guide in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl"
+      ]
+    },
+    {
+      "id": "capire-h2",
+      "question": "What types of database constraints can CAP generate from CDS model definitions?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#keys-constraints"
+      ]
+    },
+    {
+      "id": "capire-h3",
+      "question": "How does CAP automatically generate foreign key constraints for managed to-one associations?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#foreign-key-constraints"
+      ]
+    },
+    {
+      "id": "capire-h4",
+      "question": "When is referential integrity enforced for foreign key constraints in CAP databases?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#deferred-enforcement"
+      ]
+    },
+    {
+      "id": "capire-h6",
+      "question": "Why should CAP database constraints not be used for end user-facing input validation?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#database-constraints"
+      ]
     }
   ]
 }
