@@ -129,11 +129,6 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
     let worstCode = 0
     for (const dir of dirs) {
       process.env.LOCAL_EMBEDDINGS_DIR = dir
-
-      // replace with detect model by parameter in json
-      const model = MODELS.find(m => dir.includes(m.short))
-      if (model) deps.model = model.id
-
       const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
