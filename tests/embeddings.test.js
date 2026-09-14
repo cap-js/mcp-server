@@ -5,7 +5,7 @@ import os from 'os'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, { getQueryDb } from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -264,6 +264,30 @@ describe('embeddings', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true })
     }
+  })
+
+  test('calculateEmbeddings with explicit model returns different dimensions as default', async () => {
+    const MODEL = 'nomic-ai/nomic-embed-text-v1.5'
+    const text = 'test query for model param'
+    const withoutModel = await calculateEmbeddings(text)
+    const withModel = await calculateEmbeddings(text, MODEL)
+    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return same dim as default')
+  })
+
+  test('calculateEmbeddings reuses cache when called twice with same model', async () => {
+    const MODEL = 'nomic-ai/nomic-embed-text-v1.5'
+    const text = 'cache reuse test'
+    await calculateEmbeddings(text, MODEL)
+    const dbBefore = await getQueryDb()
+    dbBefore.cached = true
+    await calculateEmbeddings(text, MODEL)
+    const dbAfter = await getQueryDb()
+    assert.ok(dbAfter.cached, 'repeated call with same model must succeed')
+  })
+
+  test('calculateEmbeddings with undefined model falls back to default', async () => {
+    const result = await calculateEmbeddings('no model param test', undefined)
+    assert.strictEqual(result.length, 384, 'undefined model must use default and return 384-dim')
   })
 
   test('should handle model corruption and re-download', async () => {
