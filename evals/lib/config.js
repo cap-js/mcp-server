@@ -2,9 +2,34 @@ import { fileURLToPath } from 'url'
 import path from 'path'
 import fs from 'fs/promises'
 
+// ── Run configuration --
+export const DEFAULT_CONFIG = {
+  k: 5,
+  capire_version: '2026.5.0',
+  label: '',           // human-readable tag shown in reports
+  baselineRunId: null, // pin a specific run as Δ baseline; null = oldest on file
+  model: null,
+  paths: {
+    goldenSet: 'data/golden-set.json',
+    runsDir: 'runs',
+    embeddingsSweepDir: '/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings'
+  },
+  gates: {
+    recall_at_k: 0.8,
+    mrr: 0.5,
+    hit_rate_at_k: 0.8,
+    precision_at_k: null,
+    ndcg_at_k: null
+  },
+  output: {
+    keepRuns: 600,
+    resultsName: 'result.jsonl',
+    compareFormat: 'html'
+  }
+}
+
 // evals/ root (this file lives in evals/lib/)
 export const EVALS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-
 export const METRIC_KEYS = ['recall_at_k', 'mrr', 'precision_at_k', 'hit_rate_at_k', 'ndcg_at_k']
 export const GATED_KEYS = ['recall_at_k', 'mrr', 'hit_rate_at_k']
 export const METRIC_LABEL = {
@@ -21,18 +46,18 @@ function envStr(name, fallback) {
 }
 
 // Load and resolve the effective configuration.
-// Everything lives in config.json. Two env vars are honoured for day-to-day
-// runs — EVAL_LABEL (tag a run) and EVAL_RUNS_DIR (point at another corpus'
-// results) — plus programmatic overrides used by tests and bin/compare.js.
+// Default values come from DEFAULT_CONFIG above. An external JSON file at
+// configPath (used by tests) overrides them. Env vars and programmatic
+// overrides win last.
 export async function loadConfig({ configPath, overrides } = {}) {
-  const cfgPath = configPath ? path.resolve(configPath) : path.join(EVALS_DIR, 'config.json')
+  let file = DEFAULT_CONFIG
 
-  let file = {}
-  try {
-    file = JSON.parse(await fs.readFile(cfgPath, 'utf8'))
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err
-    // No config.json → pure defaults.
+  if (configPath) {
+    try {
+      file = JSON.parse(await fs.readFile(path.resolve(configPath), 'utf8'))
+    } catch (err) {
+      if (err.code !== 'ENOENT') throw err
+    }
   }
 
   const paths = file.paths || {}
@@ -43,13 +68,10 @@ export async function loadConfig({ configPath, overrides } = {}) {
   const resolve = p => (path.isAbsolute(p) ? p : path.join(EVALS_DIR, p))
 
   const cfg = {
-    configPath: cfgPath,
     k: file.k ?? 5,
     capire_version: file.capire_version || 'unknown',
     model: file.model || null,
-    // Optional human-readable tag to tell runs apart in reports; '' = unset.
     label: envStr('EVAL_LABEL', file.label || ''),
-    // Pinned baseline run_id; empty/absent → baseline is the oldest run on file.
     baselineRunId: file.baselineRunId || null,
     paths: {
       goldenSet: resolve(paths.goldenSet || 'data/golden-set.json'),
@@ -64,12 +86,10 @@ export async function loadConfig({ configPath, overrides } = {}) {
     }
   }
 
-  // Gates: file value if present, else default (0 for gated metrics, null otherwise).
   for (const key of METRIC_KEYS) {
     cfg.gates[key] = key in gatesFile ? gatesFile[key] : GATED_KEYS.includes(key) ? 0 : null
   }
 
-  // Programmatic overrides (used by tests / bin/compare.js) win last.
   if (overrides) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.model !== undefined) cfg.model = overrides.model
@@ -87,7 +107,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
 function validateConfig(cfg) {
   if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
-  // keepRuns: -1 (keep all) or a positive integer; 0 would wipe the just-appended run.
   const keep = cfg.output.keepRuns
   if (keep !== -1 && (!Number.isInteger(keep) || keep <= 0)) {
     throw new Error(`config: keepRuns must be -1 (keep all) or a positive integer (got ${keep})`)
