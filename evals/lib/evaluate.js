@@ -5,7 +5,6 @@ import fs from 'fs/promises'
 import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
-import { setModel } from '../../lib/calculateEmbeddings.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
 import { resolveIds } from './ids.js'
 import tools from '../../lib/tools.js'
@@ -39,8 +38,6 @@ async function makeSearchDocsRunner(k, sourceDb) {
 // fixture without loading the ONNX model. Production omits it.
 export async function evaluate({ sourceDb, golden, configPath, overrides, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
-
-  if (deps.model) setModel(deps.model)
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
