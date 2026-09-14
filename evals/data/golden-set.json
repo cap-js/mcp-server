@@ -77,8 +77,16 @@
       ]
     },
     {
-      "id": "capire-10",
-      "question": "What is the difference between IAS and XSUAA authentication in CAP and how do I set it up?",
+      "id": "capire-10a",
+      "question": "What is the difference between IAS and XSUAA authentication in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/node.js/authentication#ias",
+        "https://cap.cloud.sap/docs/node.js/authentication#xsuaa"
+      ]
+    },
+    {
+      "id": "capire-10b",
+      "question": "How do I set up IAS or XSUAA authentication in CAP?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/authentication#ias",
         "https://cap.cloud.sap/docs/node.js/authentication#xsuaa",
@@ -86,10 +94,17 @@
       ]
     },
     {
-      "id": "capire-11",
-      "question": "How does cds watch react when I save a domain model and what is the inner development loop in CAP?",
+      "id": "capire-11a",
+      "question": "How does cds watch react when I save a domain model?",
       "relevant_doc_ids": [
         ["https://cap.cloud.sap/docs/get-started/bookshop#databases", "https://cap.cloud.sap/docs/get-started/bookshop#inner-loop"]
+      ]
+    },
+    {
+      "id": "capire-11b",
+      "question": "What is the inner development loop in CAP?",
+      "relevant_doc_ids": [
+        "https://cap.cloud.sap/docs/get-started/bookshop#inner-loop"
       ]
     },
     {
