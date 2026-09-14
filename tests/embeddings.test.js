@@ -271,7 +271,7 @@ describe('embeddings', () => {
     const text = 'test query for model param'
     const withoutModel = await calculateEmbeddings(text)
     const withModel = await calculateEmbeddings(text, MODEL)
-    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return same dim as default')
+    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return different dim than default')
   })
 
   test('calculateEmbeddings reuses cache when called twice with same model', async () => {
