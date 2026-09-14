@@ -99,14 +99,14 @@ async function findEmbeddingDirs(sweepDir) {
 export async function evaluateAndCompare({ configPath, overrides, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
-  const golden = await readJsonOrNull(cfg.paths.goldenSet)
+  const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
-    console.error(`Golden set missing or malformed at ${cfg.paths.goldenSet}`)
+    console.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
     return { code: 3 }
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    console.error(`Golden set at ${cfg.paths.goldenSet} has ${problems.length} problem(s):`)
+    console.error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s):`)
     for (const p of problems) console.error(`  ${p}`)
     return { code: 3 }
   }

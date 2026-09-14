@@ -17,7 +17,7 @@ describe('config tests', () => {
     assert.equal(cfg.k, 5)
     assert.equal(cfg.gates.recall_at_k, 0.8)
     assert.equal(cfg.gates.precision_at_k, null)
-    assert.ok(cfg.paths.goldenSet.endsWith('data/golden-set.json'))
+    assert.ok(cfg.goldenSet.endsWith('data/golden-set.json'))
     assert.ok(cfg.output.runsDir.endsWith('runs'))
     assert.ok(cfg.embeddingsSweepDir === null || typeof cfg.embeddingsSweepDir === 'string')
     // all metric keys present in gates

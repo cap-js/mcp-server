@@ -13,10 +13,7 @@ and the determinism guarantees.
 
 ```
 evals/
-  bin/                 # thin CLI entry files invoked by the npm scripts
-    eval.js            #   `npm run evals`         → evaluateAndCompare()
-    compare.js         #   `npm run evals:compare` → compare()
-  lib/                 # implementation (imported by bin/ and the tests)
+  lib/                 # implementation (imported by the tests and npm run evals)
     config.js          #   DEFAULT_CONFIG (edit here) + config loader (EVAL_* env overrides)
     evaluate.js        #   evaluate(): orchestration — load → preflight → retrieve → score → append
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
@@ -24,7 +21,6 @@ evals/
     report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
     ids.js             #   parse doc id (the Source: URL) from a chunk's first line
-    search-docs.js     #   retriever factories; makeSearchDocsRunner (tools.search_docs), makeCustomEmbeddingsRunner (direct loadChunks)
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
   docs/
@@ -35,7 +31,8 @@ evals/
     compare.html       #   metric-trend dashboard (or compare.md if compareFormat=md)
   tests/
     unit/              # unit tests
-      metrics.test.js  runner.test.js  config.test.js  ids.test.js  cli.test.js  compare.test.js
+      metrics.test.js  config.test.js  ids.test.js  evaluate.test.js  store.test.js
+      compare.test.js  report.test.js  search-docs.test.js
 ```
 
 ## Run
@@ -43,40 +40,33 @@ evals/
 From the repo root (`@cap-js/mcp-server`):
 
 ```sh
-npm run evals            # run the eval → appends to result.jsonl, then compares
-npm run evals:compare    # (re)build the comparison report from result.jsonl
-npm run evals:test       # unit + determinism + config tests
+npm run evals        # run the eval → appends to result.jsonl, then builds compare report
+npm run evals:test   # unit + determinism + config tests
 ```
 
-`npm run evals` runs the eval once (each run appended to
+`npm run evals` runs the eval (each run appended to
 `runs/result.jsonl`) and **always builds the comparison report afterwards**
 (`runs/compare.html`, or `compare.md` when `compareFormat: md`). Each run appends one line (its JSON report) to
 **`runs/result.jsonl`**, which is capped
 to the most recent `output.keepRuns` runs. Every run is compared against the **oldest
 run on file** (the baseline) — the first run has no baseline and becomes the reference.
 The terminal shows the summary + the 3
-weakest questions; `evals:compare` charts all runs. There is no per-run folder and no markdown report.
+weakest questions.
 
-### Compare runs (`evals:compare`)
+### Comparison report
 
-Reads every run in `runs/result.jsonl`, ordered chronologically by run_id, and writes a
-comparison report whose format is set by `output.compareFormat` in `DEFAULT_CONFIG` (`config.js`):
+Built automatically at the end of every `npm run evals`. The format is controlled by
+`output.compareFormat` in `DEFAULT_CONFIG` (`config.js`):
 
-- **`html`** (default) → `runs/compare.html`: one line chart per metric (Recall@K,
-  Precision@K, MRR, Hit-Rate@K, nDCG@K) plotting its aggregate value across all runs (gate
-  threshold as a dashed line on gated metrics, below-gate points in red), a per-question
-  sparkline grid (all 5 metrics per question across runs), and a per-run drill-down
-  (click a run to expand its aggregate + per-question tables). Self-contained, no
-  dependencies, dark-mode aware, hover for exact values.
+- **`html`** (default) → `runs/compare.html`: leaderboard (all runs ranked by gated
+  metrics), one line chart per metric (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
+  plotting aggregate values across all runs (gate threshold as a dashed line on gated
+  metrics, below-gate points in red), a per-question sparkline grid, and a per-run
+  drill-down (click a run to expand its aggregate + per-question tables). Self-contained,
+  no dependencies, dark-mode aware, hover for exact values.
 - **`md`** → `runs/compare.md`: the same data as GitHub-flavored markdown tables (no
   charts) — an aggregate metric×run matrix, a per-question×run matrix per metric, and a
   per-run drill-down section each with aggregate + per-question tables.
-
-```sh
-npm run evals:compare   # format from DEFAULT_CONFIG in config.js (html default; set output.compareFormat: "md" for markdown)
-```
-
-It reads only `result.jsonl` — running it never triggers an eval.
 
 The eval **always runs the retriever offline** — it scores against the already-downloaded
 chunk embeddings + model and never re-fetches the corpus during a run (that would break
@@ -108,10 +98,6 @@ Only `EVAL_RUNS_DIR` is read from the environment. Everything else is edited in 
 # Point at a different corpus' results directory
 EVAL_RUNS_DIR=runs-xenova npm run evals
 EVAL_RUNS_DIR=runs-pplx  npm run evals
-
-# Build compare.html from any result.jsonl
-node evals/bin/compare.js --runs runs-xenova/result.jsonl
-node evals/bin/compare.js --runs runs-xenova/result.jsonl --out runs-xenova/compare.html
 ```
 
 ### Evaluating custom embeddings
@@ -128,8 +114,8 @@ The run label is derived automatically from the path relative to the project roo
 without any manual configuration.
 
 To compare multiple embedding sets, run `npm run evals` once per set (updating
-`LOCAL_EMBEDDINGS_DIR` between runs), then `npm run evals:compare` to chart
-them all together.
+`LOCAL_EMBEDDINGS_DIR` between runs) — the comparison report is rebuilt automatically
+after each run, charting all runs together.
 
 ### Sweeping multiple embedding sets
 
@@ -156,8 +142,7 @@ xenova_w_meta/
     no-meta/     ← code-chunks.json here
 ```
 
-Labels produced: `xenova_w_meta/256-d4/no-meta`, `xenova_w_meta/256-d4/with-meta`,
-`xenova_w_meta/512-d4/no-meta`.
+Labels produced: `256-d4/no-meta`, `256-d4/with-meta`, `512-d4/no-meta`.
 
 `embeddingsSweepDir` takes precedence over `LOCAL_EMBEDDINGS_DIR` when both are set.
 
@@ -181,5 +166,5 @@ code-derived `diagnosis`, `per_question` sorted by `id`). Aggregate values are r
 to 2 dp; per-question to 3 dp.
 
 The **console** prints a summary (header, metrics table with trend arrows and
-gate/status icons, diagnosis, result line, and the 3 weakest questions). Chart all
-runs (including per-question trends) with `evals:compare`.
+gate/status icons, diagnosis, result line, and the 3 weakest questions). The comparison
+report (`compare.html` or `compare.md`) is built automatically afterwards.

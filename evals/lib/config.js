@@ -7,7 +7,6 @@ export const DEFAULT_CONFIG = {
   k: 5, // how many results should search_docs return
   // do evaluate for all embeddings found in
   embeddingsSweepDir: '/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings',
-  paths: {},
   gates: {
     recall_at_k: 0.8,
     mrr: 0.5,
@@ -55,7 +54,6 @@ export async function loadConfig({ configPath, overrides } = {}) {
     }
   }
 
-  const paths = file.paths || {}
   const gatesFile = { ...(file.gates || {}) }
   delete gatesFile.$comment
   const output = file.output || {}
@@ -68,9 +66,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     label: envStr('EVAL_LABEL', ''),
     baselineRunId: null,
     embeddingsSweepDir: file.embeddingsSweepDir ? resolve(file.embeddingsSweepDir) : null,
-    paths: {
-      goldenSet: resolve(paths.goldenSet ?? 'data/golden-set.json'),
-    },
+    goldenSet: resolve(file.goldenSet ?? 'data/golden-set.json'),
     gates: {},
     output: {
       runsDir: resolve(envStr('EVAL_RUNS_DIR', output.runsDir || 'runs')),
@@ -90,8 +86,8 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
     if (overrides.embeddingsSweepDir !== undefined) cfg.embeddingsSweepDir = overrides.embeddingsSweepDir ? resolve(overrides.embeddingsSweepDir) : null
+    if (overrides.goldenSet !== undefined) cfg.goldenSet = resolve(overrides.goldenSet)
     if (overrides.gates) Object.assign(cfg.gates, overrides.gates)
-    if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
   }
 

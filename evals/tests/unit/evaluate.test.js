@@ -44,7 +44,7 @@ async function loadGolden() {
 function baseOverrides(extra = {}) {
   const base = {
     k: 5,
-    paths: { goldenSet: goldenPath },
+    goldenSet: goldenPath,
     output: { runsDir },
     embeddingsSweepDir: null,
     capire_version: '2026.5.0',
@@ -328,7 +328,7 @@ describe('evaluateSweep tests', () => {
   function sweepOverrides(extra = {}) {
     const base = {
       k: 5,
-      paths: { goldenSet: goldenPath },
+      goldenSet: goldenPath,
       output: { runsDir },
       embeddingsSweepDir: sweepDir,
       capire_version: '2026.5.0',
