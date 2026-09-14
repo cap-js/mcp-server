@@ -18,8 +18,8 @@ describe('config tests', () => {
     assert.equal(cfg.gates.recall_at_k, 0.8)
     assert.equal(cfg.gates.precision_at_k, null)
     assert.ok(cfg.paths.goldenSet.endsWith('data/golden-set.json'))
-    assert.ok(cfg.paths.runsDir.endsWith('runs'))
-    assert.ok(cfg.paths.embeddingsSweepDir === null || typeof cfg.paths.embeddingsSweepDir === 'string')
+    assert.ok(cfg.output.runsDir.endsWith('runs'))
+    assert.ok(cfg.embeddingsSweepDir === null || typeof cfg.embeddingsSweepDir === 'string')
     // all metric keys present in gates
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
@@ -37,7 +37,7 @@ describe('config tests', () => {
   test('EVAL_RUNS_DIR points at another corpus\' results (absolute respected)', async () => {
     clearEnv()
     process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'
-    assert.equal((await loadConfig()).paths.runsDir, '/tmp/eval-runs-abs')
+    assert.equal((await loadConfig()).output.runsDir, '/tmp/eval-runs-abs')
   })
 
   test('programmatic overrides win last', async () => {
@@ -99,15 +99,15 @@ describe('config tests', () => {
     assert.equal(cfg.output.keepRuns, -1)
   })
 
-  test('paths.embeddingsSweepDir resolves absolute path via override', async () => {
+  test('embeddingsSweepDir resolves absolute path via override', async () => {
     clearEnv()
-    const cfg = await loadConfig({ overrides: { paths: { embeddingsSweepDir: '/abs/sweep' } } })
-    assert.equal(cfg.paths.embeddingsSweepDir, '/abs/sweep')
+    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: '/abs/sweep' } })
+    assert.equal(cfg.embeddingsSweepDir, '/abs/sweep')
   })
 
-  test('paths.embeddingsSweepDir is null when not set', async () => {
+  test('embeddingsSweepDir is null when overridden to null', async () => {
     clearEnv()
-    const cfg = await loadConfig({ configPath: '/no/such/config.json' })
-    assert.equal(cfg.paths.embeddingsSweepDir, null)
+    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: null } })
+    assert.equal(cfg.embeddingsSweepDir, null)
   })
 })

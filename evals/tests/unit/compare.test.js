@@ -52,7 +52,7 @@ describe('compare tests', () => {
     await fs.appendFile(p, JSON.stringify(report) + '\n')
   }
 
-  const overrides = () => ({ paths: { runsDir } })
+  const overrides = () => ({ output: { runsDir } })
 
   test('no runs → exit 3, no file written', async () => {
     const res = await compare({ overrides: overrides(), logger: silentLogger })
@@ -70,7 +70,7 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     // one chart per metric, one expandable run-detail card per run
     assert.equal((html.match(/<figure class="chart">/g) || []).length, 5)
-    assert.equal((html.match(/<details class="run-detail">/g) || []).length, 2)
+    assert.equal((html.match(/<details class="run-detail"/g) || []).length, 2)
     // gated metrics draw a gate line (recall, mrr, hit_rate = 3)
     assert.equal((html.match(/class="gate"/g) || []).length, 3)
   })
@@ -86,7 +86,7 @@ describe('compare tests', () => {
 
   test('label shows in the md aggregate matrix header', async () => {
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
-    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
     const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
     assert.ok(md.includes('| metric | gate | tuned chunker |')) // column header = label
     assert.ok(md.includes('tuned chunker — `2026-07-30T10:00:00Z_aaa`')) // drill-down heading keeps run_id
@@ -94,7 +94,7 @@ describe('compare tests', () => {
 
   test('md format: writes compare.md with tables (no svg)', async () => {
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [pq('cap-001', 'How do I define X?', { mrr: 0.5 })] }))
-    const res = await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    const res = await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
     assert.equal(res.code, 0)
     assert.equal(res.format, 'md')
     assert.ok(res.outPath.endsWith('compare.md'))
@@ -113,7 +113,7 @@ describe('compare tests', () => {
 
   test('md format: escapes backslashes and pipes in question text', async () => {
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [pq('cap-001', 'a\\b | c', { mrr: 0.5 })] }))
-    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
     const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
     // backslash doubled, pipe escaped → renders as one table cell
     assert.ok(md.includes('a\\\\b \\| c'))
@@ -130,7 +130,7 @@ describe('compare tests', () => {
     }
     await writeRun(null, mk('2026-07-30T10:00:00Z_a', 0))
     await writeRun(null, mk('2026-07-30T11:00:00Z_b', 2))
-    await compare({ overrides: { paths: { runsDir }, output: { compareFormat: 'md' } }, logger: silentLogger })
+    await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
     const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
     assert.ok(md.includes('Showing the 50 most-attention-worthy of 120 questions'))
     // per-question section table rows are capped (count '| cap-' lines in that section)
@@ -145,7 +145,7 @@ describe('compare tests', () => {
     await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     // one card, two rd-tables (aggregate + per-question)
-    assert.equal((html.match(/<details class="run-detail">/g) || []).length, 1)
+    assert.equal((html.match(/<details class="run-detail"/g) || []).length, 1)
     assert.equal((html.match(/class="rd-table"/g) || []).length, 2)
     // per-question row present with the question id + its MRR (3dp)
     assert.ok(html.includes('cap-001') && html.includes('How do I define X?'))
@@ -265,11 +265,10 @@ describe('compare tests', () => {
     assert.ok(html.includes('Precision@K'))
     assert.ok(html.includes('Hit-Rate@K'))
     assert.ok(html.includes('nDCG@K'))
-    // gated = no "reported" tag; ungated precision/ndcg have the tag
-    assert.ok(html.includes('Precision@K'))
-    const lbSection = html.slice(html.indexOf('class="lb-table"'), html.indexOf('</table>', html.indexOf('class="lb-table"')))
-    const rows = (lbSection.match(/<tr>/g) || []).length - 1 // exclude header
-    assert.equal(rows, 5)
+    // leaderboard has one row per run (2 runs = 2 rows in tbody)
+    const lbBody = html.slice(html.indexOf('id="lb-tbody"'), html.indexOf('</tbody>', html.indexOf('id="lb-tbody"')))
+    const runRows = (lbBody.match(/<tr /g) || []).length
+    assert.equal(runRows, 2)
   })
 
   test('leaderboard ranks best run first (gold medal column)', async () => {
@@ -279,11 +278,10 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     // best run (aaa with higher scores) should appear as 🥇 column
     assert.ok(html.includes('🥇'))
-    // the best run's label should appear before the worse run in the leaderboard header
-    const lbStart = html.indexOf('class="lb-table"')
-    const lbHeader = html.slice(lbStart, html.indexOf('</thead>', lbStart))
-    const iGold = lbHeader.indexOf('🥇')
-    const iSilver = lbHeader.indexOf('🥈')
+    // the best run (aaa with higher scores) should be the first row in tbody = 🥇 before 🥈
+    const lbBody = html.slice(html.indexOf('id="lb-tbody"'), html.indexOf('</tbody>', html.indexOf('id="lb-tbody"')))
+    const iGold = lbBody.indexOf('🥇')
+    const iSilver = lbBody.indexOf('🥈')
     assert.ok(iGold < iSilver)
   })
 

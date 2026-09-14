@@ -71,6 +71,15 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, deps =
   return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
 }
 
+async function readCapireVersion(dir) {
+  if (!dir) return undefined
+  try {
+    return (await fs.readFile(path.join(dir, '_capire_version'), 'utf8')).trim() || undefined
+  } catch {
+    return undefined
+  }
+}
+
 async function findEmbeddingDirs(sweepDir) {
   const results = []
   async function walk(dir) {
@@ -114,17 +123,18 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
 
   let code
   let perQuestionRaw
-  if (cfg.paths.embeddingsSweepDir) {
-    const dirs = await findEmbeddingDirs(cfg.paths.embeddingsSweepDir)
-    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.paths.embeddingsSweepDir}`)
-    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.paths.embeddingsSweepDir}`)
+  if (cfg.embeddingsSweepDir) {
+    const dirs = await findEmbeddingDirs(cfg.embeddingsSweepDir)
+    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsSweepDir}`)
+    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsSweepDir}`)
     let worstCode = 0
     for (const dir of dirs) {
       process.env.LOCAL_EMBEDDINGS_DIR = dir
-      const segments = path.relative(cfg.paths.embeddingsSweepDir, dir).split(path.sep)
+      const segments = path.relative(cfg.embeddingsSweepDir, dir).split(path.sep)
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
-      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides: { ...overrides, label }, deps })
+      const capire_version = await readCapireVersion(dir)
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides: { ...overrides, label, ...(capire_version && { capire_version }) }, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
@@ -135,7 +145,8 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       const projectRoot = path.resolve(EVALS_DIR, '..', '..')
       derivedLabel = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
     }
-    const effectiveOverrides = derivedLabel ? { ...overrides, label: derivedLabel } : overrides
+    const capire_version = await readCapireVersion(localEmbDir)
+    const effectiveOverrides = { ...overrides, ...(derivedLabel && { label: derivedLabel }), ...(capire_version && { capire_version }) }
     ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides: effectiveOverrides, deps }))
   }
 

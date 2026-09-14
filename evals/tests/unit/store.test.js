@@ -5,7 +5,7 @@ import path from 'path'
 import os from 'os'
 import { readRuns, resultsPath } from '../../lib/store.js'
 
-const cfg = dir => ({ paths: { runsDir: dir }, output: { resultsName: 'result.jsonl' } })
+const cfg = dir => ({ output: { runsDir: dir, resultsName: 'result.jsonl' } })
 
 describe('store tests', () => {
   let tmpDir

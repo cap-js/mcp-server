@@ -350,7 +350,6 @@ function renderLeaderboard(runs) {
   const gated = METRIC_KEYS.filter(k => runs[runs.length - 1].aggregate[k].gate !== null)
   if (!gated.length) return ''
 
-  const LB_MAX = 15
   const totalScore = r => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
   const totalValue = r => gated.reduce((s, k) => s + r.aggregate[k].value, 0)
   const sorted = [...runs].sort((a, b) => {
@@ -888,7 +887,7 @@ export async function compare({ configPath, overrides, outPath, logger = console
   const runs = await collectRuns(cfg)
 
   if (runs.length === 0) {
-    logger.error(`No runs found under ${path.relative(process.cwd(), cfg.paths.runsDir)}. Run the eval first.`)
+    logger.error(`No runs found under ${path.relative(process.cwd(), cfg.output.runsDir)}. Run the eval first.`)
     return { code: 3 }
   }
 
@@ -910,7 +909,7 @@ export async function compare({ configPath, overrides, outPath, logger = console
     }
     content = renderHtml(runs, textById)
   }
-  const out = outPath ? path.resolve(outPath) : path.join(cfg.paths.runsDir, `compare.${fmt}`)
+  const out = outPath ? path.resolve(outPath) : path.join(cfg.output.runsDir, `compare.${fmt}`)
   await fs.writeFile(out, content)
 
   const rel = path.relative(process.cwd(), out)

@@ -93,11 +93,9 @@ programmatically via `evaluate({ overrides })` in `lib/evaluate.js` (overrides w
 | `DEFAULT_CONFIG` key | Default | Meaning |
 |---|---|---|
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
-| `capire_version` | `2026.5.0` | capire docs version, recorded in the report for provenance. |
-| `paths.goldenSet` | `data/golden-set.json` | Path to the golden set (relative to `evals/`, or absolute). |
-| `paths.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
-| `paths.embeddingsSweepDir` | _(unset)_ | Parent directory to sweep. When set, the eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to the sweep dir. |
+| `embeddingsSweepDir` | _(unset)_ | Parent directory to sweep. When set, the eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to the sweep dir. |
 | `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
+| `output.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
 | `output.keepRuns` | `100` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
 | `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
@@ -135,16 +133,14 @@ them all together.
 
 ### Sweeping multiple embedding sets
 
-Set `paths.embeddingsSweepDir` in `DEFAULT_CONFIG` to a parent directory to score all embedding sets in one
+Set `embeddingsSweepDir` in `DEFAULT_CONFIG` to a parent directory to score all embedding sets in one
 shot. The eval discovers every descendant directory that contains `code-chunks.json`,
 runs once per directory, and appends all results to `result.jsonl`. A single
 `compare.html` is built at the end.
 
 ```js
 // In lib/config.js DEFAULT_CONFIG:
-paths: {
-  embeddingsSweepDir: '/path/to/All Embeddings/xenova_w_meta'
-}
+embeddingsSweepDir: '/path/to/All Embeddings/xenova_w_meta'
 ```
 
 Labels are derived automatically from the path relative to the sweep dir.
@@ -163,7 +159,7 @@ xenova_w_meta/
 Labels produced: `xenova_w_meta/256-d4/no-meta`, `xenova_w_meta/256-d4/with-meta`,
 `xenova_w_meta/512-d4/no-meta`.
 
-`paths.embeddingsSweepDir` takes precedence over `LOCAL_EMBEDDINGS_DIR` when both are set.
+`embeddingsSweepDir` takes precedence over `LOCAL_EMBEDDINGS_DIR` when both are set.
 
 
 > **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the

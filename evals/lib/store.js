@@ -3,7 +3,7 @@ import fs from 'fs/promises'
 
 // The append-only results file: one JSON run report per line (JSONL).
 export function resultsPath(cfg) {
-  return path.join(cfg.paths.runsDir, cfg.output.resultsName)
+  return path.join(cfg.output.runsDir, cfg.output.resultsName)
 }
 
 // All run reports (write order). Skips blank/corrupt lines; [] if no file.
@@ -54,7 +54,7 @@ export function baselineRun(runs, pinnedId) {
 // Append one run, then cap the file to the most recent `keep` runs (keep < 0 =
 // keep all). Rewrites the whole file so the cap is enforced deterministically.
 export async function appendRun(cfg, report) {
-  await fs.mkdir(cfg.paths.runsDir, { recursive: true })
+  await fs.mkdir(cfg.output.runsDir, { recursive: true })
   const runs = await readRuns(cfg)
   runs.push(report)
   let kept = sortByRunId(runs)

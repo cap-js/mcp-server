@@ -42,12 +42,14 @@ async function loadGolden() {
 }
 
 function baseOverrides(extra = {}) {
-  return {
+  const base = {
     k: 5,
-    paths: { goldenSet: goldenPath, runsDir, embeddingsSweepDir: null },
+    paths: { goldenSet: goldenPath },
+    output: { runsDir },
+    embeddingsSweepDir: null,
     capire_version: '2026.5.0',
-    ...extra
   }
+  return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
 }
 
 // Read result.jsonl as an array of parsed run reports.
@@ -324,12 +326,14 @@ describe('evaluateSweep tests', () => {
   }
 
   function sweepOverrides(extra = {}) {
-    return {
+    const base = {
       k: 5,
-      paths: { goldenSet: goldenPath, runsDir, embeddingsSweepDir: sweepDir },
+      paths: { goldenSet: goldenPath },
+      output: { runsDir },
+      embeddingsSweepDir: sweepDir,
       capire_version: '2026.5.0',
-      ...extra
     }
+    return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
   }
 
   async function readResults() {

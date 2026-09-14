@@ -5,12 +5,9 @@ import fs from 'fs/promises'
 // ── Run configuration --
 export const DEFAULT_CONFIG = {
   k: 5, // how many results should search_docs return
-  capire_version: '2026.5.0',
-  paths: {
-    goldenSet: 'data/golden-set.json',
-    runsDir: 'runs',
-    embeddingsSweepDir: '/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings'
-  },
+  // do evaluate for all embeddings found in
+  embeddingsSweepDir: '/Users/i543501/SAPDevelop/Issue-Reproducer-Examples/cap-mcp-evals/All Embeddings',
+  paths: {},
   gates: {
     recall_at_k: 0.8,
     mrr: 0.5,
@@ -19,6 +16,7 @@ export const DEFAULT_CONFIG = {
     ndcg_at_k: null
   },
   output: {
+    runsDir: 'runs',
     keepRuns: 600,
     resultsName: 'result.jsonl',
     compareFormat: 'html'
@@ -69,13 +67,13 @@ export async function loadConfig({ configPath, overrides } = {}) {
     capire_version: file.capire_version || 'unknown',
     label: envStr('EVAL_LABEL', ''),
     baselineRunId: null,
+    embeddingsSweepDir: file.embeddingsSweepDir ? resolve(file.embeddingsSweepDir) : null,
     paths: {
-      goldenSet: resolve(paths.goldenSet || 'data/golden-set.json'),
-      runsDir: resolve(envStr('EVAL_RUNS_DIR', paths.runsDir || 'runs')),
-      embeddingsSweepDir: paths.embeddingsSweepDir ? resolve(paths.embeddingsSweepDir) : null
+      goldenSet: resolve(paths.goldenSet ?? 'data/golden-set.json'),
     },
     gates: {},
     output: {
+      runsDir: resolve(envStr('EVAL_RUNS_DIR', output.runsDir || 'runs')),
       keepRuns: output.keepRuns ?? 100,
       resultsName: output.resultsName || 'result.jsonl',
       compareFormat: output.compareFormat || 'html'
@@ -91,6 +89,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.capire_version !== undefined) cfg.capire_version = overrides.capire_version
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
+    if (overrides.embeddingsSweepDir !== undefined) cfg.embeddingsSweepDir = overrides.embeddingsSweepDir ? resolve(overrides.embeddingsSweepDir) : null
     if (overrides.gates) Object.assign(cfg.gates, overrides.gates)
     if (overrides.paths) Object.assign(cfg.paths, overrides.paths)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
