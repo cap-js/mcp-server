@@ -41,7 +41,6 @@
     "prettier": "^3.9.6"
   },
   "overrides": {
-    "onnxruntime-node": "1.20.1",
     "@huggingface/transformers": {
       "onnxruntime-node": "1.20.1"
     }

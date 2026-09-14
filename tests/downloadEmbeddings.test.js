@@ -1,4 +1,4 @@
-import { test, describe, after, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
@@ -12,11 +12,24 @@ const cds = (await import('@sap/cds')).default
 const originalFetch = globalThis.fetch
 const manifestEtagPath = path.join(DEFAULT_DIR, 'etags', cds.version, 'manifest.etag')
 
+// Snapshot the real etag for the installed cds version before any test runs,
+// restore it after all tests complete so no pre-existing files are lost.
+let _savedEtag = null
+before(async () => { _savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null) })
+after(async () => {
+  if (_savedEtag !== null) {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, _savedEtag)
+  } else {
+    await fs.rm(path.dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
+  }
+})
+
 async function clearBundleState() {
   await fs.rm(path.join(DEFAULT_DIR, 'etags', cds.version), { recursive: true, force: true }).catch(() => {})
 }
 
-function stubBundle({ version = '__test_bundle__', body = { dim: 0, count: 0, chunks: [] }, bin = 'BIN' } = {}) {
+function stubBundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
   const seen = []
   globalThis.fetch = async (url, init = {}) => {
     seen.push({ url: String(url), headers: init.headers || {} })
@@ -155,14 +168,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /network down/)
   })
 
-  test('when detection misses, etag lands under "newestCdsNode" pseudo-version, never "unknown"', async () => {
+  test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
     stubBundle({ version: testVer })
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
-    const newestEtag = path.join(DEFAULT_DIR, 'etags', 'newestCds', 'manifest.etag')
+    const newestEtag = path.join(DEFAULT_DIR, 'etags', 'latest', 'manifest.etag')
     const unknownEtag = path.join(DEFAULT_DIR, 'etags', 'unknown', 'manifest.etag')
-    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+    await fs.rm(path.join(DEFAULT_DIR, 'etags', 'latest'), { recursive: true, force: true }).catch(() => {})
     await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
 
     try {
@@ -173,14 +186,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.strictEqual(unknownExists, false, 'no etag file may be created under <DEFAULT_DIR>/etags/unknown/')
 
       const newestExists = await fs.access(newestEtag).then(() => true).catch(() => false)
-      assert.ok(newestExists, `etag must be written under "etags/newestCds" pseudo-version dir: ${newestEtag}`)
+      assert.ok(newestExists, `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
 
       const saved = JSON.parse(await fs.readFile(newestEtag, 'utf-8'))
       assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
       assert.strictEqual(saved.commitId, testVer, 'stored commitId must be the x-embeddings-version returned by the server')
     } finally {
       process.chdir(originalCwd)
-      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'newestCds'), { recursive: true, force: true }).catch(() => {})
+      await fs.rm(path.join(DEFAULT_DIR, 'etags', 'latest'), { recursive: true, force: true }).catch(() => {})
       await fs.rm(path.join(DEFAULT_DIR, 'etags', 'unknown'), { recursive: true, force: true }).catch(() => {})
     }
   })
@@ -329,15 +342,14 @@ describe('resolveLocalVersion', () => {
       await fs.writeFile(ep, JSON.stringify({ etag: 'W/"x"', commitId: testCommits[i] }))
     }
     const now = Date.now() / 1000
-    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[0], 'manifest.etag'), now - 100, now - 100)
-    await fs.utimes(path.join(DEFAULT_DIR, 'etags', dirs[1], 'manifest.etag'), now, now)
-    // both dirs have non-semver names → semver.coerce returns null for all → fall through to mtime
+    // control mtime on the embed dirs themselves — last-resort uses those, not etag dirs
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]), now - 100, now - 100)
+    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]), now, now)
+    // both etag dirs have non-semver names → semver scan skips them → fall through to mtime last-resort
     try {
       const local = await resolveLocalVersion()
-      // non-semver dirs are skipped entirely in new impl → returns null (they don't coerce)
-      // This test now documents that non-semver cds dirs are ignored.
-      // If both dirs are non-semver, result is null since primary path needs semver cds dirs.
-      assert.strictEqual(local, null, 'non-semver cds dirs are skipped; no semver etag → returns null')
+      assert.ok(local, 'last-resort must find a complete embed dir')
+      assert.strictEqual(local.commitId, testCommits[1], 'must pick newer embed dir by mtime')
     } finally {
       for (const v of dirs) await fs.rm(path.join(DEFAULT_DIR, 'etags', v), { recursive: true, force: true }).catch(() => {})
     }
