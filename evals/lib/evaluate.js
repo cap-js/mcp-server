@@ -76,7 +76,11 @@ async function readCapireVersion(dir) {
   try {
     return (await fs.readFile(path.join(dir, '_capire_version'), 'utf8')).trim() || undefined
   } catch {
-    return undefined
+    try {
+      return (await fs.readFile(path.join(dir, '..', '..', '_capire_version'), 'utf8')).trim() || undefined
+    } catch {
+      return undefined
+    }
   }
 }
 
