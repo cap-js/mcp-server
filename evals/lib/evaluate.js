@@ -3,11 +3,12 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import { loadConfig, EVALS_DIR } from './config.js'
-import { preflight, checkResolvedIdInJSON, validateGolden, buildReport, makeRunId } from './report.js'
+import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
 import { resolveIds } from './ids.js'
 import tools from '../../lib/tools.js'
+import { getModelMemoryMb } from '../../lib/calculateEmbeddings.js'
 
 async function readJsonOrNull(p) {
   try {
@@ -19,16 +20,15 @@ async function readJsonOrNull(p) {
 }
 
 async function makeSearchDocsRunner(k, sourceDb) {
-  const retrieve = async function (q) {
+  return async function (q) {
     const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
     return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
   }
-  return retrieve
 }
 
 // `deps` is a test seam: pass { makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
+export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
@@ -43,11 +43,6 @@ export async function evaluate({ jsonMetadata, sourceDb, golden, configPath, ove
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const resolvedChunk = await retrieve(q)
-    const stale = await checkResolvedIdInJSON(resolvedChunk, jsonMetadata)
-    if (stale.length > 0) {
-      console.error(`WARNING: ${stale.length} search_docs ids not found in code-chunks json:`)
-      for (const s of stale) console.error(`  ${s.headingPath}: ${s.doc_id}`)
-    }
     perQuestionRaw.push({
       id: q.id,
       question: q.question,
@@ -61,7 +56,8 @@ export async function evaluate({ jsonMetadata, sourceDb, golden, configPath, ove
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
-    label
+    label,
+    model_memory_mb: getModelMemoryMb()
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
@@ -110,14 +106,11 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
 
   const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
-    console.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
-    return { code: 3 }
+    throw new Error(`Golden set missing or malformed at ${cfg.goldenSet}`)
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    console.error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s):`)
-    for (const p of problems) console.error(`  ${p}`)
-    return { code: 3 }
+    throw new Error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`)
   }
 
   const sourceDb = deps.sourceDb ?? await createSourceDb()
@@ -141,8 +134,7 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
       const capire_version = await readCapireVersion(dir)
-      const jsonMetadata = (await readJsonOrNull(path.join(dir, 'code-chunks.json')))?.metadata ?? null
-      const { code: c } = await evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label, capire_version, deps })
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
@@ -154,8 +146,7 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       label = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
     }
     const capire_version = await readCapireVersion(localEmbDir)
-    const jsonMetadata = localEmbDir ? (await readJsonOrNull(path.join(localEmbDir, 'code-chunks.json')))?.metadata ?? null : null
-    ;({ code, perQuestionRaw } = await evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label, capire_version, deps }))
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps }))
   }
 
   try {
