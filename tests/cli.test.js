@@ -48,7 +48,8 @@ function runCliCommand(args, options = {}) {
 
 const noFetchEnv = {
   ...process.env,
-  NODE_OPTIONS: '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
+  NODE_OPTIONS:
+    '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
 }
 
 before(async () => {
@@ -91,6 +92,35 @@ describe('CLI usage', () => {
     assert(Array.isArray(output), 'Output should be an array')
     assert(output.length > 0, 'Should find at least one result')
     assert(output[0].name, 'Result should have a name property')
+  })
+
+  test('search_model accepts an explicit project path outside the CLI working directory', async () => {
+    const result = await runCliCommand(['--offline', 'search_model', sampleProjectPath, 'Books', 'entity'], {
+      cwd: os.tmpdir()
+    })
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(JSON.parse(result.stdout)[0].name, 'AdminService.Books')
+  })
+
+  test('search_model accepts sibling model imports for an explicitly trusted CLI project', async t => {
+    const monorepo = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-cli-monorepo-'))
+    const cwd = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-cli-cwd-'))
+    t.after(() =>
+      Promise.all([fs.rm(monorepo, { recursive: true, force: true }), fs.rm(cwd, { recursive: true, force: true })])
+    )
+    const project = join(monorepo, 'app')
+    await Promise.all([fs.mkdir(join(project, 'srv'), { recursive: true }), fs.mkdir(join(monorepo, 'shared'))])
+    await fs.writeFile(join(monorepo, 'shared', 'model.cds'), 'entity SharedBooks { key ID: Integer; }')
+    await fs.writeFile(
+      join(project, 'srv', 'service.cds'),
+      "using { SharedBooks } from '../../shared/model'; service MonorepoService { entity Books as projection on SharedBooks; }"
+    )
+
+    const result = await runCliCommand(['--offline', 'search_model', project, 'SharedBooks', 'entity'], { cwd })
+
+    assert.equal(result.code, 0, result.stderr)
+    assert.equal(JSON.parse(result.stdout)[0].name, 'SharedBooks')
   })
 
   test('search_docs subcommand works', async () => {
