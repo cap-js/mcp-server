@@ -66,7 +66,7 @@ test('keeps models isolated across sequential project calls and failures', async
   assert(!modelA.definitions.ServiceB)
   assert(modelB.definitions.ServiceB)
   assert(!modelB.definitions.ServiceA)
-  await assert.rejects(getModel(missingProject), /No CDS files|Couldn't find a CDS model/)
+  await assert.rejects(getModel(missingProject), /Failed to compile CDS model/)
 })
 
 test('terminates compiler workers after success and failure when project configuration leaves an active handle', async () => {
@@ -176,6 +176,187 @@ test('refreshes on request and retries a failed refresh', async () => {
   assert(!refreshedModel.definitions.RefreshService)
 })
 
+test('refreshes cached models when CAP project configuration changes', async () => {
+  const packageProject = await createDraftProject('PackageConfigService', 'newItem', '/first')
+  const packagePath = path.join(packageProject, 'package.json')
+  const packageModel = await getModel(packageProject)
+
+  assert.equal(packageModel.definitions.PackageConfigService.endpoints[0].path, 'first/package-config/')
+
+  await writeFile(
+    packagePath,
+    JSON.stringify({ cds: { fiori: { draft_new_action: 'newItem' }, protocols: { 'odata-v4': { path: '/second' } } } })
+  )
+  await utimes(packagePath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  const refreshedPackageModel = await getModel(packageProject)
+  assert.notStrictEqual(refreshedPackageModel, packageModel)
+  assert.equal(refreshedPackageModel.definitions.PackageConfigService.endpoints[0].path, 'second/package-config/')
+
+  const cdsrcProject = await createProject('CdsrcConfigService', 'CdsrcConfigBooks')
+  const cdsrcPath = path.join(cdsrcProject, '.cdsrc.js')
+  await writeFile(cdsrcPath, "module.exports = { protocols: { 'odata-v4': { path: '/first' } } }")
+  const cdsrcModel = await getModel(cdsrcProject)
+
+  assert.equal(cdsrcModel.definitions.CdsrcConfigService.endpoints[0].path, 'first/cdsrc-config/')
+
+  await writeFile(cdsrcPath, "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }")
+  await utimes(cdsrcPath, new Date(Date.now() + 4000), new Date(Date.now() + 4000))
+
+  const refreshedCdsrcModel = await getModel(cdsrcProject)
+  assert.notStrictEqual(refreshedCdsrcModel, cdsrcModel)
+  assert.equal(refreshedCdsrcModel.definitions.CdsrcConfigService.endpoints[0].path, 'second/cdsrc-config/')
+})
+
+test('refreshes cached models when transitive CAP configuration dependencies change', async () => {
+  const project = await createProject('TransitiveConfigService', 'TransitiveConfigBooks')
+  const configPath = path.join(project, 'cds-config.js')
+  await writeFile(path.join(project, '.cdsrc.js'), "module.exports = require('./cds-config')")
+  await writeFile(configPath, "module.exports = { protocols: { 'odata-v4': { path: '/first' } } }")
+
+  const model = await getModel(project)
+  assert.equal(model.definitions.TransitiveConfigService.endpoints[0].path, 'first/transitive-config/')
+
+  await writeFile(configPath, "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }")
+  await utimes(configPath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  const refreshedModel = await getModel(project)
+  assert.notStrictEqual(refreshedModel, model)
+  assert.equal(refreshedModel.definitions.TransitiveConfigService.endpoints[0].path, 'second/transitive-config/')
+})
+
+test('refreshes cached models when directory-valued CDS_CONFIG files change', async () => {
+  const project = await createProject('DirectoryConfigService', 'DirectoryConfigBooks')
+  const configDirectory = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-config-'))
+  projects.push(configDirectory)
+  const protocolDirectory = path.join(configDirectory, 'protocols', 'odata-v4')
+  const protocolPath = path.join(protocolDirectory, 'path')
+  await mkdir(protocolDirectory, { recursive: true })
+  await writeFile(protocolPath, '/first')
+  const previousConfig = process.env.CDS_CONFIG
+  process.env.CDS_CONFIG = configDirectory
+
+  try {
+    const model = await getModel(project)
+    assert.equal(model.definitions.DirectoryConfigService.endpoints[0].path, 'first/directory-config/')
+
+    await writeFile(protocolPath, '/second')
+    await utimes(protocolPath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+    const refreshedModel = await getModel(project)
+    assert.notStrictEqual(refreshedModel, model)
+    assert.equal(refreshedModel.definitions.DirectoryConfigService.endpoints[0].path, 'second/directory-config/')
+  } finally {
+    if (previousConfig === undefined) delete process.env.CDS_CONFIG
+    else process.env.CDS_CONFIG = previousConfig
+  }
+})
+
+test('refreshes cached models when pom.xml changes CAP project nature', async () => {
+  const project = await createProject('JavaProfileService', 'JavaProfileBooks')
+  await writeFile(
+    path.join(project, '.cdsrc.json'),
+    JSON.stringify({ '[java]': { features: { compat_texts_entities: true } } })
+  )
+  const model = await getModel(project)
+
+  assert.equal(model._compat_texts_entities, undefined)
+
+  const pomPath = path.join(project, 'pom.xml')
+  await writeFile(pomPath, '<project/>')
+  await utimes(pomPath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  const refreshedModel = await getModel(project)
+  assert.notStrictEqual(refreshedModel, model)
+  assert.equal(refreshedModel._compat_texts_entities, true)
+})
+
+test('recompiles when project files change between compilation and snapshotting', async () => {
+  const project = await createProject('InitialRaceService', 'RaceBooks')
+  const servicePath = path.join(project, 'srv', 'service.cds')
+  const markerPath = path.join(project, 'compile-started')
+  await writeFile(
+    path.join(project, '.cdsrc.js'),
+    `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, ''); module.exports = {}`
+  )
+  await getModel(project)
+  await rm(markerPath)
+  await writeFile(
+    servicePath,
+    "using { RaceBooks } from '../db/schema'; service IntermediateRaceService { entity Items as projection on RaceBooks; }"
+  )
+  await utimes(servicePath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  const originalLstat = fs.promises.lstat
+  let changedDuringSnapshot = false
+  fs.promises.lstat = async (file, ...args) => {
+    if (!changedDuringSnapshot && path.resolve(file) === servicePath && fs.existsSync(markerPath)) {
+      changedDuringSnapshot = true
+      fs.writeFileSync(
+        servicePath,
+        "using { RaceBooks } from '../db/schema'; service LatestRaceService { entity Items as projection on RaceBooks; }"
+      )
+      const latestMtime = new Date(Date.now() + 4000)
+      fs.utimesSync(servicePath, latestMtime, latestMtime)
+    }
+    return originalLstat.call(fs.promises, file, ...args)
+  }
+
+  let model
+  try {
+    model = await getModel(project)
+  } finally {
+    fs.promises.lstat = originalLstat
+  }
+
+  assert(changedDuringSnapshot)
+  assert(model.definitions.LatestRaceService)
+  assert(!model.definitions.IntermediateRaceService)
+})
+
+test('recompiles when a newly discovered external source changes during compilation', async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-race-workspace-'))
+  projects.push(workspace)
+  const project = path.join(workspace, 'project')
+  const sharedDirectory = path.join(workspace, 'shared')
+  const sharedModelPath = path.join(sharedDirectory, 'model.cds')
+  const markerPath = path.join(project, 'compile-started')
+  await Promise.all([mkdir(path.join(project, 'srv'), { recursive: true }), mkdir(sharedDirectory)])
+  await writeFile(
+    path.join(project, '.cdsrc.js'),
+    `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, ''); module.exports = {}`
+  )
+  await writeFile(sharedModelPath, 'entity SharedBooks { key ID: Integer; initial: String; }')
+  await writeFile(
+    path.join(project, 'srv', 'service.cds'),
+    "using { SharedBooks } from '../../shared/model'; service ExternalRaceService { entity Books as projection on SharedBooks; }"
+  )
+  const canonicalSharedModelPath = await fs.promises.realpath(sharedModelPath)
+
+  const originalLstat = fs.promises.lstat
+  let changedDuringSnapshot = false
+  fs.promises.lstat = async (file, ...args) => {
+    if (!changedDuringSnapshot && path.resolve(file) === canonicalSharedModelPath && fs.existsSync(markerPath)) {
+      changedDuringSnapshot = true
+      fs.writeFileSync(sharedModelPath, 'entity SharedBooks { key ID: Integer; latest: String; }')
+      const latestMtime = new Date(Date.now() + 2000)
+      fs.utimesSync(sharedModelPath, latestMtime, latestMtime)
+    }
+    return originalLstat.call(fs.promises, file, ...args)
+  }
+
+  let model
+  try {
+    model = await getModel(project, [workspace])
+  } finally {
+    fs.promises.lstat = originalLstat
+  }
+
+  assert(changedDuringSnapshot)
+  assert(model.definitions.SharedBooks.elements.latest)
+  assert(!model.definitions.SharedBooks.elements.initial)
+})
+
 test('preserves the cached model when an unrelated workspace root changes during a failed refresh', async () => {
   const project = await createProject('RootChangeService', 'RootChangeBooks')
   const additionalRoot = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-additional-root-'))
@@ -273,6 +454,27 @@ test('rejects transitive CDS sources outside the workspace roots', async () => {
   })
 })
 
+test('does not expose compiler diagnostics from outside workspace roots', async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-workspace-'))
+  projects.push(workspace)
+  const project = path.join(workspace, 'project')
+  const outside = path.join(workspace, 'private')
+  const outsideModel = path.join(outside, 'model.cds')
+  await Promise.all([mkdir(path.join(project, 'srv'), { recursive: true }), mkdir(outside)])
+  await writeFile(outsideModel, 'entity SECRET_CUSTOMER_TABLE { key ID Integer; }')
+  await writeFile(
+    path.join(project, 'srv', 'service.cds'),
+    "using { SECRET_CUSTOMER_TABLE } from '../../private/model'; service LeakingService { entity Items as projection on SECRET_CUSTOMER_TABLE; }"
+  )
+
+  await assert.rejects(getModel(project), error => {
+    assert.equal(error.message, 'Failed to compile CDS model')
+    assert(!error.message.includes(outsideModel))
+    assert(!error.message.includes('SECRET_CUSTOMER_TABLE'))
+    return true
+  })
+})
+
 async function createProject(serviceName, entityName, compatTextsEntities) {
   const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-'))
   projects.push(project)
@@ -299,7 +501,9 @@ async function createDraftProject(serviceName, draftNewAction, protocolPath) {
   await mkdir(path.join(project, 'srv'))
   await writeFile(
     path.join(project, 'package.json'),
-    JSON.stringify({ cds: { fiori: { draft_new_action: draftNewAction }, protocols: { 'odata-v4': { path: protocolPath } } } })
+    JSON.stringify({
+      cds: { fiori: { draft_new_action: draftNewAction }, protocols: { 'odata-v4': { path: protocolPath } } }
+    })
   )
   await writeFile(path.join(project, 'db', 'schema.cds'), '')
   await writeFile(

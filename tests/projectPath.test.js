@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, realpath, rm, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { test } from 'node:test'
-import { createMcpProjectPathResolver, resolveProjectPath } from '../lib/projectPath.js'
+import { createMcpProjectPathResolver, resolvePathsWithinRoots, resolveProjectPath } from '../lib/projectPath.js'
 
 test.describe('project path authorization', () => {
   test('accepts projects inside a canonical workspace root', async t => {
@@ -36,6 +36,20 @@ test.describe('project path authorization', () => {
     await symlink(outside, link)
 
     await assert.rejects(resolveProjectPath(link, [root]), /outside the configured workspace roots/)
+  })
+
+  test('does not expose rejected source paths in workspace errors', async t => {
+    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
+    t.after(() => rm(directory, { recursive: true, force: true }))
+    const root = join(directory, 'workspace')
+    const outside = join(directory, 'private-model.cds')
+    await Promise.all([mkdir(root), writeFile(outside, 'entity Private { key ID: Integer; }')])
+
+    await assert.rejects(resolvePathsWithinRoots([outside], [root]), error => {
+      assert.match(error.message, /outside the configured workspace roots/)
+      assert(!error.message.includes(outside))
+      return true
+    })
   })
 
   test('uses MCP file roots when the client advertises them', async t => {
@@ -81,7 +95,11 @@ test.describe('project path authorization', () => {
     }
 
     const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
-    await assert.rejects(resolver(directory), /Unable to determine MCP workspace roots: client unavailable/)
+    await assert.rejects(resolver(directory), error => {
+      assert.equal(error.message, 'Unable to determine MCP workspace roots')
+      assert.equal(error.cause.message, 'client unavailable')
+      return true
+    })
   })
 
   test('fails closed with a specific error when all advertised roots are invalid', async t => {

@@ -6,9 +6,16 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## Unreleased
 
+### Changed
+
+- Replaced background model polling and `CDS_MCP_REFRESH_MS` with request-driven model and configuration refresh
+
 ### Fixed
 
 - Isolated project model caches and CAP compiler/global state across requests
+- Preserved transitive model imports for explicitly trusted direct CLI projects
+- Prevented rejected MCP model compilations from exposing out-of-root diagnostics
+- Refreshed cached models after changes to CAP project configuration
 - Restricted MCP model access to advertised workspace roots, including symlink and resolved-source validation
 
 ## Version 0.0.5 - 2026-04-27

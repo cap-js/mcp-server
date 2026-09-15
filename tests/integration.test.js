@@ -179,4 +179,37 @@ test.describe('integration', () => {
     // Step 5: Clean up
     await transport.close()
   })
+
+  test('does not return out-of-root compiler diagnostics to MCP clients', async t => {
+    const workspace = await mkdtemp(join(tmpdir(), 'cds-mcp-diagnostics-'))
+    t.after(() => rm(workspace, { recursive: true, force: true }))
+    const project = join(workspace, 'project')
+    const privateDirectory = join(workspace, 'private')
+    const privateModel = join(privateDirectory, 'model.cds')
+    await Promise.all([mkdir(join(project, 'srv'), { recursive: true }), mkdir(privateDirectory)])
+    await writeFile(privateModel, 'entity SECRET_CUSTOMER_TABLE { key ID Integer; }')
+    await writeFile(
+      join(project, 'srv', 'service.cds'),
+      "using { SECRET_CUSTOMER_TABLE } from '../../private/model'; service LeakingService { entity Items as projection on SECRET_CUSTOMER_TABLE; }"
+    )
+
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [cdsMcpPath],
+      cwd: project,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+    const client = new Client({ name: 'integration-test-diagnostics', version: '1.0.0' })
+    await client.connect(transport)
+    t.after(() => transport.close())
+
+    const result = await client.callTool({
+      name: 'search_model',
+      arguments: { projectPath: project, kind: 'service', topN: 1 }
+    })
+
+    assert.equal(result.content[0].text, 'Failed to compile CDS model')
+    assert(!result.content[0].text.includes(privateModel))
+    assert(!result.content[0].text.includes('SECRET_CUSTOMER_TABLE'))
+  })
 })
