@@ -8,9 +8,17 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Added
 
+- Capire-versioned embeddings with local manifest resolution (#149)
+- Per-chunk metadata in `searchMarkdownDocs` output (#145)
+
 ### Changed
 
+- Switched to CAP AI SQLite `VECTOR_EMBEDDING` (#147)
+- Improved `search_docs` query param description (#157)
+
 ### Fixed
+
+- Blank `Cache-Control`/`Pragma` so conditional GET can 304, avoiding a full re-download of the embeddings bundle on every startup (#155)
 
 ### Removed
 
