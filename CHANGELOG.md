@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.6 - tbd
+
+### Added
+
+- Capire-versioned embeddings with local manifest resolution (#149)
+- Per-chunk metadata in `searchMarkdownDocs` output (#145)
+
+### Changed
+
+- Switched to CAP AI SQLite `VECTOR_EMBEDDING` (#147)
+- Improved `search_docs` query param description (#157)
+
+### Fixed
+
+- Blank `Cache-Control`/`Pragma` so conditional GET can 304, avoiding a full re-download of the embeddings bundle on every startup (#155)
+
+### Removed
+
 ## Version 0.0.5 - 2026-04-27
 
 ### Added
