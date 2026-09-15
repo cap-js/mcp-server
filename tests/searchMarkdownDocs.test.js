@@ -12,7 +12,7 @@ const embeddingsDir = path.join(__dirname, '..', 'embeddings', MODEL_FOLDER)
 // Use dynamic import to ensure environment variable is set before module evaluation
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
-const { formatResult } = searchModule
+const { formatResult, getDocContext } = searchModule
 
 describe('formatResult', () => {
   test('returns content unchanged when meta is absent', () => {
@@ -162,5 +162,59 @@ describe('searchMarkdownDocs integration tests', () => {
       const limitedChunks = limitedResult.split('\n---\n')
       assert(limitedChunks.length <= max, `Should return at most ${max} chunks`)
     }
+  })
+})
+
+describe('getDocContext integration tests', () => {
+  test('after: returns neighbor chunks that differ from anchor', async () => {
+    const seed = await searchMarkdownDocs('entity definition', 1)
+    assert(seed.length > 0, 'seed search must produce a chunk')
+
+    const after = await getDocContext(seed, 'after', 2)
+    assert.strictEqual(typeof after, 'string')
+    assert(after.length > 0, 'after result should not be empty')
+    const parts = after.split('\n---\n')
+    assert(parts.length <= 2, 'at most 2 neighbors for count=2')
+    for (const p of parts) {
+      assert.notStrictEqual(p, seed, 'neighbor must not equal anchor')
+    }
+  })
+
+  test('before: returns chunks before anchor', async () => {
+    const seed = await searchMarkdownDocs('service implementation', 1)
+    const before = await getDocContext(seed, 'before', 1)
+    assert.strictEqual(typeof before, 'string')
+    // may be empty if anchor is chunk 0 — assert only shape
+    if (before.length > 0) {
+      assert.notStrictEqual(before, seed)
+    }
+  })
+
+  test('both: up to 2*count neighbors, none equal anchor', async () => {
+    const seed = await searchMarkdownDocs('database schema', 1)
+    const both = await getDocContext(seed, 'both', 2)
+    const parts = both.split('\n---\n').filter(Boolean)
+    assert(parts.length <= 4, 'at most 4 for count=2 both directions')
+    for (const p of parts) assert.notStrictEqual(p, seed)
+  })
+
+  test('count=0 returns empty string', async () => {
+    const seed = await searchMarkdownDocs('entity', 1)
+    const out = await getDocContext(seed, 'both', 0)
+    assert.strictEqual(out, '')
+  })
+
+  test('validates inputs', async () => {
+    await assert.rejects(() => getDocContext('', 'after', 1), /non-empty/)
+    await assert.rejects(() => getDocContext('x', 'sideways', 1), /direction/)
+    await assert.rejects(() => getDocContext('x', 'after', -1), /count/)
+    await assert.rejects(() => getDocContext('x', 'after', 1.5), /count/)
+  })
+
+  test('slightly modified chunk still matches same anchor', async () => {
+    const seed = await searchMarkdownDocs('authentication', 1)
+    const clean = await getDocContext(seed, 'after', 2)
+    const noisy = await getDocContext(seed + '\n\nextra trailing whitespace', 'after', 2)
+    assert.strictEqual(clean, noisy, 'cosine match should be tolerant to trivial edits')
   })
 })

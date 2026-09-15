@@ -120,4 +120,23 @@ describe('tools', () => {
       'Should mention enterprise-messaging in the results'
     )
   })
+
+  test('get_doc_context: returns neighbors distinct from anchor', async () => {
+    const seed = await tools.search_docs.handler({ query: 'sqlite production', maxResults: 1 })
+    assert(seed && seed.length > 0, 'seed chunk required')
+
+    const ctx = await tools.get_doc_context.handler({ chunk: seed, direction: 'after', count: 2 })
+    assert.strictEqual(typeof ctx, 'string')
+    assert(ctx.length > 0, 'context should not be empty')
+    const parts = ctx.split('\n---\n')
+    assert(parts.length <= 2, 'at most 2 chunks for count=2')
+    for (const p of parts) assert.notStrictEqual(p, seed)
+  })
+
+  test('get_doc_context: default direction is after', async () => {
+    const seed = await tools.search_docs.handler({ query: 'entity definition', maxResults: 1 })
+    const withDefault = await tools.get_doc_context.handler({ chunk: seed, count: 1 })
+    const withExplicit = await tools.get_doc_context.handler({ chunk: seed, direction: 'after', count: 1 })
+    assert.strictEqual(withDefault, withExplicit)
+  })
 })
