@@ -1,0 +1,169 @@
+/* eslint-disable no-console */
+import path from 'path'
+import { fileURLToPath } from 'url'
+import fs from 'fs/promises'
+import { loadConfig, EVALS_DIR } from './config.js'
+import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
+import { appendRun, readRuns, baselineRun } from './store.js'
+import { createSourceDb } from './createSourceDb/createSourceDb.js'
+import { resolveIds } from './ids.js'
+import tools from '../../lib/tools.js'
+import { getModelMemoryMb } from '../../lib/calculateEmbeddings.js'
+
+async function readJsonOrNull(p) {
+  try {
+    return JSON.parse(await fs.readFile(p, 'utf8'))
+  } catch (err) {
+    if (err.code === 'ENOENT') return null
+    throw err
+  }
+}
+
+async function makeSearchDocsRunner(k, sourceDb) {
+  return async function (q) {
+    const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
+    return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
+  }
+}
+
+// `deps` is a test seam: pass { makeRetriever } to score against a
+// fixture without loading the ONNX model. Production omits it.
+export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
+  const cfg = await loadConfig({ configPath, overrides })
+
+  const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
+
+  // Baseline (read before this run is appended): pinned run if set, else oldest.
+  const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
+  if (cfg.baselineRunId && !baseline) {
+    console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
+  }
+
+  const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
+  const perQuestionRaw = []
+  for (const q of golden.questions) {
+    const resolvedChunk = await retrieve(q)
+    perQuestionRaw.push({
+      id: q.id,
+      question: q.question,
+      relevant_doc_ids: q.relevant_doc_ids,
+      retrievedIds: resolvedChunk
+    })
+  }
+
+  const config = {
+    capire_version,
+    golden_set: golden.golden_set,
+    golden_set_size: golden.questions.length,
+    k: cfg.k,
+    label,
+    model_memory_mb: getModelMemoryMb()
+  }
+
+  const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
+  const run_id = makeRunId()
+  const full = { run_id, ...report }
+
+  const { path: resultsFile, total } = await appendRun(cfg, full)
+
+  const status = report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
+  console.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
+
+  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
+}
+
+async function readCapireVersion(dir) {
+  if (!dir) return undefined
+  try {
+    return (await fs.readFile(path.join(dir, '_capire_version'), 'utf8')).trim() || undefined
+  } catch {
+    try {
+      return (await fs.readFile(path.join(dir, '..', '..', '_capire_version'), 'utf8')).trim() || undefined
+    } catch {
+      return undefined
+    }
+  }
+}
+
+async function findEmbeddingDirs(sweepDir) {
+  const results = []
+  async function walk(dir) {
+    const entries = await fs.readdir(dir, { withFileTypes: true })
+    if (entries.some(e => e.isFile() && e.name === 'code-chunks.json')) { results.push(dir); return }
+    for (const e of entries) {
+      if (e.isDirectory()) await walk(path.join(dir, e.name))
+    }
+  }
+  await walk(sweepDir)
+  return results.sort()
+}
+
+// Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
+// embeddingsSweepDir is set), then build the comparison report.
+// `deps.sourceDb` is a test seam: pass a fake sourceDb to skip the ONNX model load.
+export async function evaluateAndCompare({ configPath, overrides, deps = {} } = {}) {
+  const cfg = await loadConfig({ configPath, overrides })
+
+  const golden = await readJsonOrNull(cfg.goldenSet)
+  if (!golden || !Array.isArray(golden.questions)) {
+    throw new Error(`Golden set missing or malformed at ${cfg.goldenSet}`)
+  }
+  const problems = validateGolden(golden.questions)
+  if (problems.length > 0) {
+    throw new Error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`)
+  }
+
+  const sourceDb = deps.sourceDb ?? await createSourceDb()
+
+  // preflight golden doc ids in source db
+  const stale = await preflight(golden.questions, sourceDb)
+  if (stale.length > 0) {
+    throw new Error(`${stale.length} golden doc id(s) not in the source db: ${JSON.stringify(stale)}`)
+  }
+
+  let code
+  let perQuestionRaw
+  if (cfg.embeddingsSweepDir) {
+    const dirs = await findEmbeddingDirs(cfg.embeddingsSweepDir)
+    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsSweepDir}`)
+    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsSweepDir}`)
+    let worstCode = 0
+    for (const dir of dirs) {
+      process.env.LOCAL_EMBEDDINGS_DIR = dir
+      const segments = path.relative(cfg.embeddingsSweepDir, dir).split(path.sep)
+      const label = [...segments].join('/')
+      console.error(`\n→ ${label}`)
+      const capire_version = await readCapireVersion(dir)
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
+      if (c > worstCode) worstCode = c
+    }
+    code = worstCode
+  } else {
+    const localEmbDir = process.env.LOCAL_EMBEDDINGS_DIR
+    let label = process.env.EVAL_LABEL || ''
+    if (localEmbDir) {
+      const projectRoot = path.resolve(EVALS_DIR, '..', '..')
+      label = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
+    }
+    const capire_version = await readCapireVersion(localEmbDir)
+    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps }))
+  }
+
+  try {
+    const { compare } = await import('./compare.js')
+    await compare({ configPath, overrides, perQuestionRaw })
+  } catch (err) {
+    console.error(`(compare step failed: ${err.message})`)
+  }
+
+  return { code }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  evaluateAndCompare()
+  .then(r => process.exit(r.code))
+  .catch(e => {
+    console.error(e)
+    process.exit(3)
+  })
+}
