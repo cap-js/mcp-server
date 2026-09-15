@@ -176,6 +176,19 @@ test('refreshes on request and retries a failed refresh', async () => {
   assert(!refreshedModel.definitions.RefreshService)
 })
 
+test('preserves the cached model when an unrelated workspace root changes during a failed refresh', async () => {
+  const project = await createProject('RootChangeService', 'RootChangeBooks')
+  const additionalRoot = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-additional-root-'))
+  projects.push(additionalRoot)
+  const servicePath = path.join(project, 'srv', 'service.cds')
+  const originalModel = await getModel(project, [project])
+
+  await writeFile(servicePath, 'this is not valid CDS')
+  await utimes(servicePath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  assert.strictEqual(await getModel(project, [project, additionalRoot]), originalModel)
+})
+
 test('keeps a successful compilation when timestamp collection remains unavailable', async () => {
   const project = await createProject('SnapshotService', 'SnapshotBooks')
   const unreadableDirectory = path.join(project, 'unrelated')
@@ -252,6 +265,7 @@ test('rejects transitive CDS sources outside the workspace roots', async () => {
 
   const model = await getModel(project, [workspace])
   assert(model.definitions.EscapingService)
+  await writeFile(path.join(outside, 'model.cds'), 'this is not valid CDS')
   await assert.rejects(getModel(project, [project]), error => {
     assert.equal(error.name, 'WorkspaceAccessError')
     assert.match(error.message, /CDS model source is outside the configured workspace roots/)
