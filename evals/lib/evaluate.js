@@ -3,7 +3,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import { loadConfig, EVALS_DIR } from './config.js'
-import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
+import { preflight, checkResolvedIdInJSON, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
 import { resolveIds } from './ids.js'
@@ -28,7 +28,7 @@ async function makeSearchDocsRunner(k, sourceDb) {
 
 // `deps` is a test seam: pass { makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
+export async function evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
@@ -43,6 +43,11 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, label 
   const perQuestionRaw = []
   for (const q of golden.questions) {
     const resolvedChunk = await retrieve(q)
+    const stale = await checkResolvedIdInJSON(resolvedChunk, jsonMetadata)
+    if (stale.length > 0) {
+      console.error(`WARNING: ${stale.length} search_docs ids not found in code-chunks json:`)
+      for (const s of stale) console.error(`  ${s.headingPath}: ${s.doc_id}`)
+    }
     perQuestionRaw.push({
       id: q.id,
       question: q.question,
@@ -117,12 +122,10 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
 
   const sourceDb = deps.sourceDb ?? await createSourceDb()
 
-  // Warn (don't abort) on stale relevant_doc_ids — the corpus likely re-indexed
-  // and these labels no longer match; they'll score as misses until refreshed.
+  // preflight golden doc ids in source db
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
-    console.error(`PRE-FLIGHT WARNING: ${stale.length} golden doc id(s) not in the current index (will score as misses — refresh the golden set, see docs/README.md):`)
-    for (const s of stale) console.error(`  ${s.question}: ${s.doc_id}`)
+    throw new Error(`${stale.length} golden doc id(s) not in the source db: ${JSON.stringify(stale)}`)
   }
 
   let code
@@ -138,7 +141,8 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       const label = [...segments].join('/')
       console.error(`\n→ ${label}`)
       const capire_version = await readCapireVersion(dir)
-      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
+      const jsonMetadata = (await readJsonOrNull(path.join(dir, 'code-chunks.json')))?.metadata ?? null
+      const { code: c } = await evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label, capire_version, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
@@ -150,7 +154,8 @@ export async function evaluateAndCompare({ configPath, overrides, deps = {} } = 
       label = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
     }
     const capire_version = await readCapireVersion(localEmbDir)
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps }))
+    const jsonMetadata = localEmbDir ? (await readJsonOrNull(path.join(localEmbDir, 'code-chunks.json')))?.metadata ?? null : null
+    ;({ code, perQuestionRaw } = await evaluate({ jsonMetadata, sourceDb, golden, configPath, overrides, label, capire_version, deps }))
   }
 
   try {

@@ -59,6 +59,18 @@ export async function preflight(goldenQuestions, sourceDb) {
   return pairs.filter(p => !foundSources.has(p.doc_id))
 }
 
+export async function checkResolvedIdInJSON(searchDocsResults, jsonMetadata) {
+  const pairs = searchDocsResults.flatMap(q =>
+    q.ids.flatMap(e =>
+      (Array.isArray(e) ? e : [e]).map(doc_id => ({ headingPath: q.headingPath, doc_id }))
+    )
+  )
+  const allIds = [...new Set(pairs.map(p => p.doc_id))]
+  const found = (jsonMetadata ?? []).filter(r => allIds.includes(r.source))
+  const foundSources = new Set(found.map(r => r.source))
+  return pairs.filter(p => !foundSources.has(p.doc_id))
+}
+
 // Pure core: build the report object (run_id added by the caller).
 export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   const k = config.k

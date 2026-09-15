@@ -507,13 +507,6 @@
       ]
     },
     {
-      "id": "capire-69",
-      "question": "How do I convert a CSN file to an AsyncAPI document in SAP CAP?",
-      "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/node.js/cds-compile#asyncapi"
-      ]
-    },
-    {
       "id": "capire-70",
       "question": "What are the convenient shortcuts for accessing entity definitions in CAP?",
       "relevant_doc_ids": [
