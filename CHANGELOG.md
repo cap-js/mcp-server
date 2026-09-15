@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.6 - tbd
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
 ## Version 0.0.5 - 2026-04-27
 
 ### Added
