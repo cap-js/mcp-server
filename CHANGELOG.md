@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 ### Fixed
 
 - Isolated project model caches and CAP compiler/global state across requests
+- Restricted MCP model access to advertised workspace roots, including symlink and resolved-source validation
 
 ## Version 0.0.5 - 2026-04-27
 

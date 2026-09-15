@@ -1,6 +1,6 @@
 import assert from 'node:assert'
 import fs from 'node:fs'
-import { mkdtemp, mkdir, rm, utimes, writeFile } from 'node:fs/promises'
+import { mkdtemp, mkdir, rm, symlink, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
@@ -176,6 +176,19 @@ test('refreshes on request and retries a failed refresh', async () => {
   assert(!refreshedModel.definitions.RefreshService)
 })
 
+test('preserves the cached model when an unrelated workspace root changes during a failed refresh', async () => {
+  const project = await createProject('RootChangeService', 'RootChangeBooks')
+  const additionalRoot = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-additional-root-'))
+  projects.push(additionalRoot)
+  const servicePath = path.join(project, 'srv', 'service.cds')
+  const originalModel = await getModel(project, [project])
+
+  await writeFile(servicePath, 'this is not valid CDS')
+  await utimes(servicePath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
+
+  assert.strictEqual(await getModel(project, [project, additionalRoot]), originalModel)
+})
+
 test('keeps a successful compilation when timestamp collection remains unavailable', async () => {
   const project = await createProject('SnapshotService', 'SnapshotBooks')
   const unreadableDirectory = path.join(project, 'unrelated')
@@ -198,6 +211,66 @@ test('keeps a successful compilation when timestamp collection remains unavailab
   const modelWithSnapshot = await getModel(project)
   assert.notStrictEqual(modelWithSnapshot, model)
   assert(modelWithSnapshot.definitions.SnapshotService)
+})
+
+test('rejects a CDS source reached through an escaping symlink', async () => {
+  const project = await createProject('SymlinkService', 'SymlinkBooks')
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-outside-'))
+  projects.push(outside)
+  const outsideModel = path.join(outside, 'outside.cds')
+  await writeFile(outsideModel, 'entity Outside { key ID: Integer; }')
+  await symlink(outsideModel, path.join(project, 'srv', 'linked.cds'))
+
+  await assert.rejects(getModel(project), error => {
+    assert.equal(error.name, 'WorkspaceAccessError')
+    assert.match(error.message, /CDS model source is outside the configured workspace roots/)
+    return true
+  })
+})
+
+test('revalidates a newly added symlink source across the compiler worker boundary', async () => {
+  const project = await createProject('CachedSymlinkService', 'CachedSymlinkBooks')
+  const model = await getModel(project)
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-outside-'))
+  projects.push(outside)
+  const outsideModel = path.join(outside, 'outside.cds')
+  await writeFile(outsideModel, 'entity Outside { key ID: Integer; }')
+  await symlink(outsideModel, path.join(project, 'srv', 'linked.cds'))
+
+  assert(model.definitions.CachedSymlinkService)
+  await assert.rejects(getModel(project), error => {
+    assert.equal(error.name, 'WorkspaceAccessError')
+    assert.match(error.message, /CDS model source is outside the configured workspace roots/)
+    return true
+  })
+})
+
+test('rejects transitive CDS sources outside the workspace roots', async () => {
+  const workspace = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-workspace-'))
+  projects.push(workspace)
+  const project = path.join(workspace, 'project')
+  const outside = path.join(workspace, 'outside')
+  await Promise.all([mkdir(path.join(project, 'srv'), { recursive: true }), mkdir(outside)])
+  await writeFile(path.join(outside, 'model.cds'), 'entity Outside { key ID: Integer; }')
+  await writeFile(
+    path.join(project, 'srv', 'service.cds'),
+    "using { Outside } from '../../outside/model'; service EscapingService { entity Items as projection on Outside; }"
+  )
+
+  await assert.rejects(getModel(project), error => {
+    assert.equal(error.name, 'WorkspaceAccessError')
+    assert.match(error.message, /CDS model source is outside the configured workspace roots/)
+    return true
+  })
+
+  const model = await getModel(project, [workspace])
+  assert(model.definitions.EscapingService)
+  await writeFile(path.join(outside, 'model.cds'), 'this is not valid CDS')
+  await assert.rejects(getModel(project, [project]), error => {
+    assert.equal(error.name, 'WorkspaceAccessError')
+    assert.match(error.message, /CDS model source is outside the configured workspace roots/)
+    return true
+  })
 })
 
 async function createProject(serviceName, entityName, compatTextsEntities) {
