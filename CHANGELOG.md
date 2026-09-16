@@ -8,17 +8,23 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Added
 
-- Capire-versioned embeddings with local manifest resolution (#149)
-- Per-chunk metadata in `searchMarkdownDocs` output (#145)
+- Capire-versioned embeddings with local manifest resolution
+- Per-chunk metadata in `searchMarkdownDocs` output
 
 ### Changed
 
-- Switched to CAP AI SQLite `VECTOR_EMBEDDING` (#147)
-- Improved `search_docs` query param description (#157)
+- Switched to CAP AI SQLite `VECTOR_EMBEDDING`
+- Improved `search_docs` query param description
+- Replaced background model polling and `CDS_MCP_REFRESH_MS` with request-driven model and configuration refresh
 
 ### Fixed
 
-- Blank `Cache-Control`/`Pragma` so conditional GET can 304, avoiding a full re-download of the embeddings bundle on every startup (#155)
+- Blank `Cache-Control`/`Pragma` so conditional GET can 304, avoiding a full re-download of the embeddings bundle on every startup
+- Isolated project model caches and CAP compiler/global state across requests
+- Preserved transitive model imports for explicitly trusted direct CLI projects
+- Prevented rejected MCP model compilations from exposing out-of-root diagnostics
+- Refreshed cached models after changes to CAP project configuration
+- Restricted MCP model access to advertised workspace roots, including symlink and resolved-source validation
 
 ### Removed
 
