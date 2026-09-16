@@ -10,7 +10,7 @@ const silentLogger = { log() {}, error() {} }
 
 // Minimal valid report object for a given run_id + metric values.
 // `perQuestion` (optional) is an array of { id, question, metrics{...} }.
-function fakeReport(run_id, { recall = 1, mrr = 1, precision = 0.4, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}) {
+function fakeReport(run_id, { recall = 1, mrr = 1, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}) {
   const agg = (value, gate) => ({ value, baseline: null, delta: null, gate, status: gate === null ? 'info' : value >= gate ? 'pass' : 'fail' })
   return {
     run_id,
@@ -19,7 +19,6 @@ function fakeReport(run_id, { recall = 1, mrr = 1, precision = 0.4, hit = 1, ndc
     aggregate: {
       recall_at_k: agg(recall, 0.8),
       mrr: agg(mrr, 0.5),
-      precision_at_k: agg(precision, null),
       hit_rate_at_k: agg(hit, 0.8),
       ndcg_at_k: agg(ndcg, null)
     },
@@ -31,8 +30,8 @@ function fakeReport(run_id, { recall = 1, mrr = 1, precision = 0.4, hit = 1, ndc
 }
 
 // Build a per-question entry with all five metrics.
-function pq(id, question, { recall = 1, precision = 0.4, mrr = 1, hit = 1, ndcg = 1 } = {}) {
-  return { id, question, relevant_doc_ids: [], retrieved_ids: [], relevant_hits_at_rank: [], metrics: { recall_at_k: recall, precision_at_k: precision, mrr, hit_rate_at_k: hit, ndcg_at_k: ndcg } }
+function pq(id, question, { recall = 1, mrr = 1, hit = 1, ndcg = 1 } = {}) {
+  return { id, question, relevant_doc_ids: [], retrieved_ids: [], relevant_hits_at_rank: [], metrics: { recall_at_k: recall, mrr, hit_rate_at_k: hit, ndcg_at_k: ndcg } }
 }
 
 describe('compare tests', () => {
@@ -69,7 +68,7 @@ describe('compare tests', () => {
 
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     // one chart per metric, one expandable run-detail card per run
-    assert.equal((html.match(/<figure class="chart">/g) || []).length, 5)
+    assert.equal((html.match(/<figure class="chart">/g) || []).length, 4)
     assert.equal((html.match(/<details class="run-detail"/g) || []).length, 2)
     // gated metrics draw a gate line (recall, mrr, hit_rate = 3)
     assert.equal((html.match(/class="gate"/g) || []).length, 3)
@@ -140,7 +139,7 @@ describe('compare tests', () => {
   })
 
   test('run-detail card includes aggregate + per-question tables', async () => {
-    const q = pq('cap-001', 'How do I define X?', { recall: 1, mrr: 0.5, precision: 0.4, hit: 1, ndcg: 0.65 })
+    const q = pq('cap-001', 'How do I define X?', { recall: 1, mrr: 0.5, hit: 1, ndcg: 0.65 })
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
@@ -161,7 +160,7 @@ describe('compare tests', () => {
         { ids: ['https://x/b#miss'], text: 'snapshot body B' }
       ],
       relevant_hits_at_rank: [1],
-      metrics: { recall_at_k: 1, precision_at_k: 0.5, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
+      metrics: { recall_at_k: 1, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
     }
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })
@@ -174,7 +173,7 @@ describe('compare tests', () => {
     const q = {
       id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
       retrieved_ids: [{ ids: ['https://x/gone#stale'], text: '' }], relevant_hits_at_rank: [],
-      metrics: { recall_at_k: 0, precision_at_k: 0, mrr: 0, hit_rate_at_k: 0, ndcg_at_k: 0 }
+      metrics: { recall_at_k: 0, mrr: 0, hit_rate_at_k: 0, ndcg_at_k: 0 }
     }
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })
@@ -235,8 +234,8 @@ describe('compare tests', () => {
     // a searchable table + search box (not a chart per question)
     assert.ok(html.includes('id="pq-table"'))
     assert.ok(html.includes('id="pq-search"'))
-    // only the 5 overall charts are baked as SVG; per-question charts are lazy (JS)
-    assert.equal((html.match(/<figure class="chart">/g) || []).length, 5)
+    // only the 4 overall charts are baked as SVG; per-question charts are lazy (JS)
+    assert.equal((html.match(/<figure class="chart">/g) || []).length, 4)
     // the questions live in the embedded JSON data blob, regressed-first
     const m = html.match(/id="pq-data"[^>]*>(.*?)<\/script>/s)
     assert.ok(m, 'pq-data blob present')
@@ -262,7 +261,7 @@ describe('compare tests', () => {
     assert.ok(html.includes('class="lb-table"'))
     assert.ok(html.includes('Recall@K'))
     assert.ok(html.includes('MRR@K'))
-    assert.ok(html.includes('Precision@K'))
+    assert.ok(!html.includes('Precision@K'))
     assert.ok(html.includes('Hit-Rate@K'))
     assert.ok(html.includes('nDCG@K'))
     // leaderboard has one row per run (2 runs = 2 rows in tbody)
@@ -306,7 +305,7 @@ describe('compare tests', () => {
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
     // each chart has 2 xtick labels (one per run, no skipping)
     const tickCount = (html.match(/class="axis xtick"/g) || []).length
-    assert.equal(tickCount, 5 * 2) // 5 charts × 2 runs
+    assert.equal(tickCount, 4 * 2) // 4 charts × 2 runs
     // long label is truncated with ellipsis in the xtick text
     assert.ok(html.includes('…'))
     // the xtick element itself uses the short (truncated) form, not the full label
@@ -328,8 +327,8 @@ describe('compare tests', () => {
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
-    // all 5 metric columns (indices 2–6) must have class="sortable" and data-col
-    for (let col = 2; col <= 6; col++) {
+    // all 4 metric columns (indices 2–5) must have class="sortable" and data-col
+    for (let col = 2; col <= 5; col++) {
       assert.ok(html.includes(`class="sortable" data-col="${col}"`), `data-col="${col}" missing`)
     }
     // id and question columns (0, 1) must NOT be sortable
@@ -356,7 +355,7 @@ describe('compare tests', () => {
       id: 'cap-001', question: 'Q?', relevant_doc_ids: ['https://x/a#hit'],
       retrieved_ids: [{ ids: ['https://x/a#hit'], text: 'chunk body text' }],
       relevant_hits_at_rank: [1],
-      metrics: { recall_at_k: 1, precision_at_k: 1, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
+      metrics: { recall_at_k: 1, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
     }
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })

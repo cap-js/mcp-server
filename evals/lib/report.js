@@ -77,7 +77,6 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
         relevant_hits_at_rank: relevantHitsAtRank(groups, q.retrievedIds, k),
         metrics: {
           recall_at_k: round(m.recall_at_k, 3),
-          precision_at_k: round(m.precision_at_k, 3),
           mrr: round(m.mrr, 3),
           hit_rate_at_k: m.hit_rate_at_k,
           ndcg_at_k: round(m.ndcg_at_k, 3)
@@ -134,12 +133,10 @@ export function diagnose(aggregate) {
   const recall = d('recall_at_k')
   const mrrD = d('mrr')
   const ndcg = d('ndcg_at_k')
-  const prec = d('precision_at_k')
 
   const causes = []
   if (down(recall)) causes.push('recall_down → chunking/embedding regression')
   if (down(mrrD) || down(ndcg)) causes.push('recall_stable_mrr_down → ranking/scoring regression')
-  if (down(prec)) causes.push('precision_down → top-K padded with noise')
   return causes.length ? causes.join('; ') : 'no_regression'
 }
 

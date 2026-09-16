@@ -16,7 +16,6 @@ describe('config tests', () => {
     const cfg = await loadConfig()
     assert.equal(cfg.k, 5)
     assert.equal(cfg.gates.recall_at_k, 0.8)
-    assert.equal(cfg.gates.precision_at_k, null)
     assert.ok(cfg.goldenSet.endsWith('data/golden-set.json'))
     assert.ok(cfg.output.runsDir.endsWith('runs'))
     assert.ok(cfg.embeddingsSweepDir === null || typeof cfg.embeddingsSweepDir === 'string')
@@ -62,14 +61,6 @@ describe('config tests', () => {
     await assert.rejects(
       () => loadConfig({ overrides: { gates: { recall_at_k: 1.5 } } }),
       /must be null or a number in \[0,1\]/
-    )
-  })
-
-  test('validates gates on non-default metrics too (precision_at_k)', async () => {
-    clearEnv()
-    await assert.rejects(
-      () => loadConfig({ overrides: { gates: { precision_at_k: 1.5 } } }),
-      /gate precision_at_k must be null or a number in \[0,1\]/
     )
   })
 

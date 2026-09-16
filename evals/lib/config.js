@@ -12,7 +12,6 @@ export const DEFAULT_CONFIG = {
     recall_at_k: 0.8,
     mrr: 0.5,
     hit_rate_at_k: 0.8,
-    precision_at_k: null,
     ndcg_at_k: null
   },
   output: {
@@ -25,12 +24,11 @@ export const DEFAULT_CONFIG = {
 
 // evals/ root (this file lives in evals/lib/)
 export const EVALS_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-export const METRIC_KEYS = ['recall_at_k', 'mrr', 'precision_at_k', 'hit_rate_at_k', 'ndcg_at_k']
+export const METRIC_KEYS = ['recall_at_k', 'mrr', 'hit_rate_at_k', 'ndcg_at_k']
 export const GATED_KEYS = ['recall_at_k', 'mrr', 'hit_rate_at_k']
 export const METRIC_LABEL = {
   recall_at_k: 'Recall',
   mrr: 'MRR',
-  precision_at_k: 'Precision',
   hit_rate_at_k: 'Hit-Rate',
   ndcg_at_k: 'nDCG'
 }

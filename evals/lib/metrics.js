@@ -58,24 +58,6 @@ export function recallAtK(relevant, retrieved, k) {
   return found.size / relevant.length
 }
 
-// Distinct relevant groups found in top-K / k. Each OR-group counts at most
-// once regardless of how many of its alternates (or duplicate slots) show up.
-// Signals "how much of the top-K is unique relevant answers", complementing
-// recall which normalises by the size of the relevant set.
-export function precisionAtK(relevant, retrieved, k) {
-  if (k <= 0) return 0
-  const idx = indexGroups(relevant)
-  const top = topK(retrieved, k)
-  const credited = new Set()
-  for (const t of top) {
-    for (const id of t.ids) {
-      const g = idx.get(id)
-      if (g !== undefined) credited.add(g)
-    }
-  }
-  return credited.size / k
-}
-
 export function mrr(relevant, retrieved, k) {
   const idx = indexGroups(relevant)
   const top = topK(retrieved, k)
@@ -122,7 +104,6 @@ export function ndcgAtK(relevant, retrieved, k) {
 export function metricsFor(relevant, retrieved, k) {
   return {
     recall_at_k: recallAtK(relevant, retrieved, k),
-    precision_at_k: precisionAtK(relevant, retrieved, k),
     mrr: mrr(relevant, retrieved, k),
     hit_rate_at_k: hitRateAtK(relevant, retrieved, k),
     ndcg_at_k: ndcgAtK(relevant, retrieved, k)

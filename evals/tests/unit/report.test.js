@@ -12,7 +12,6 @@ const GATES = {
   recall_at_k: 0.8,
   mrr: 0.5,
   hit_rate_at_k: 0.8,
-  precision_at_k: null,
   ndcg_at_k: null
 }
 
@@ -90,7 +89,6 @@ describe('eval tests', () => {
     assert.equal(r.overall_status, 'pass')
     assert.deepEqual(r.gated_failures, [])
     assert.equal(r.aggregate.recall_at_k.status, 'pass')
-    assert.equal(r.aggregate.precision_at_k.status, 'info') // gate null
   })
 
   test('MRR regression → gated failure + ranking diagnosis', () => {
@@ -160,22 +158,11 @@ describe('eval tests', () => {
     assert.equal(r.overall_status, 'fail')
   })
 
-  test('diagnose(): precision-only drop', () => {
-    const agg = {
-      recall_at_k: { delta: 0 },
-      mrr: { delta: 0 },
-      ndcg_at_k: { delta: 0 },
-      precision_at_k: { delta: -0.1 }
-    }
-    assert.match(diagnose(agg), /top-K padded with noise/)
-  })
-
   test('diagnose(): no regression', () => {
     const agg = {
       recall_at_k: { delta: 0.02 },
       mrr: { delta: 0.01 },
-      ndcg_at_k: { delta: 0 },
-      precision_at_k: { delta: 0 }
+      ndcg_at_k: { delta: 0 }
     }
     assert.equal(diagnose(agg), 'no_regression')
   })
@@ -185,23 +172,21 @@ describe('eval tests', () => {
     const agg = {
       recall_at_k: { delta: -0.02 },
       mrr: { delta: -0.01 },
-      ndcg_at_k: { delta: -0.02 },
-      precision_at_k: { delta: -0.02 }
+      ndcg_at_k: { delta: -0.02 }
     }
     assert.equal(diagnose(agg), 'no_regression')
   })
 
   test('diagnose(): reports ALL causes above dead-band, not first-match-wins', () => {
-    // recall AND precision both drop meaningfully → both reported.
+    // recall AND mrr/ndcg both drop meaningfully → both reported.
     const agg = {
       recall_at_k: { delta: -0.1 },
       mrr: { delta: 0 },
-      ndcg_at_k: { delta: 0 },
-      precision_at_k: { delta: -0.1 }
+      ndcg_at_k: { delta: -0.1 }
     }
     const d = diagnose(agg)
     assert.match(d, /chunking\/embedding regression/)
-    assert.match(d, /top-K padded with noise/)
+    assert.match(d, /ranking\/scoring regression/)
     assert.ok(d.includes(';')) // multiple causes joined
   })
 
