@@ -1,12 +1,22 @@
 // CLI test for cds-mcp command-line usage
 import assert from 'node:assert'
-import { test } from 'node:test'
+import { test, describe, before, after } from 'node:test'
 import { spawn } from 'node:child_process'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import fs from 'fs/promises'
+import os from 'os'
+import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
+import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
+const mockFetchUrl = new URL('./helpers/mock-fetch.mjs', import.meta.url).href
+
+const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
+const manifestEtagPath = getManifestEtagPath()
+const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
+let savedEtag = null
 
 function runCliCommand(args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -41,7 +51,36 @@ const noFetchEnv = {
   NODE_OPTIONS: '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
 }
 
-test.describe('CLI usage', () => {
+before(async () => {
+  // Save any real etag that exists before our subprocess tests overwrite it.
+  savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
+
+  // Build real bundle, write to temp file for subprocess mock-fetch.mjs.
+  const frame = await buildTestBundle()
+  await fs.writeFile(bundlePath, frame)
+
+  // Pre-seed versioned embeddings dir for offline tests.
+  // resolveLocalVersion() last-resort scan will find this dir.
+  await fs.mkdir(testBundleDir, { recursive: true })
+  const metaLen = frame.readUInt32BE(0)
+  const metaBytes = frame.subarray(4, 4 + metaLen)
+  const binBytes = frame.subarray(4 + metaLen)
+  await fs.writeFile(join(testBundleDir, 'code-chunks.json'), metaBytes)
+  await fs.writeFile(join(testBundleDir, 'code-chunks.bin'), binBytes)
+})
+
+after(async () => {
+  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
+  await fs.unlink(bundlePath).catch(() => {})
+  if (savedEtag !== null) {
+    await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, savedEtag)
+  } else {
+    await fs.rm(dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
+  }
+})
+
+describe('CLI usage', () => {
   test('search_model subcommand works', async () => {
     const result = await runCliCommand(['search_model', sampleProjectPath, 'Books', 'entity'])
 
@@ -54,14 +93,18 @@ test.describe('CLI usage', () => {
     assert(output[0].name, 'Result should have a name property')
   })
 
-  // TODO mock docs-resources endpoint for testing
-  test.skip('search_docs subcommand works', async () => {
-    const result = await runCliCommand(['search_docs', 'select statement'])
+  test('search_docs subcommand works', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'], {
+      env: {
+        ...process.env,
+        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+      }
+    })
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert(result.stdout.length > 0, 'Should produce output')
-
-    // search_docs returns plain text, not JSON
     assert(typeof result.stdout === 'string', 'Output should be a string')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
@@ -104,18 +147,23 @@ test.describe('CLI usage', () => {
     assert(result.stderr.includes('must be the only argument'), 'Should show error message')
   })
 
-  // TODO mock docs-resources endpoint for testing
-  test.skip('--download returns etag info', async () => {
-    const result = await runCliCommand(['--download'])
+  test('--download returns commitId info', async () => {
+    const result = await runCliCommand(['--download'], {
+      env: {
+        ...process.env,
+        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+      }
+    })
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     const output = JSON.parse(result.stdout)
-    assert(typeof output.etag === 'string', 'Should return an etag string')
+    assert(typeof output.commitId === 'string', 'Should return a commitId string')
     assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
   })
 
-  // TODO mock docs-resources endpoint for testing
-  test.skip('--offline search_docs works without downloading', async () => {
+  test('--offline search_docs works without downloading', async () => {
     const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
       env: noFetchEnv
     })
@@ -132,8 +180,7 @@ test.describe('CLI usage', () => {
     assert(result.stderr.includes('must be the only argument'), 'Should show error message')
   })
 
-  // TODO mock docs-resources endpoint for testing
-  test.skip('CDS_MCP_OFFLINE=true search_docs works without downloading', async () => {
+  test('CDS_MCP_OFFLINE=true search_docs works without downloading', async () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
       env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true' }
     })
@@ -158,5 +205,65 @@ test.describe('CLI usage', () => {
     await new Promise(resolve => child.on('close', resolve))
 
     assert(true, 'MCP server should start and be killable')
+  })
+
+  test('--model flag routes bundle download under model-scoped dir', async () => {
+    const altModel = 'test-org/test-model'
+    const altFolder = 'test-org--test-model'
+    const altDir = join(DEFAULT_DIR, altFolder)
+    await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+
+    try {
+      const result = await runCliCommand(['--model', altModel, '--download'], {
+        env: {
+          ...process.env,
+          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        }
+      })
+
+      assert.equal(result.code, 0, 'Command should exit with code 0')
+      const output = JSON.parse(result.stdout)
+      assert.strictEqual(output.commitId, TEST_COMMIT_ID)
+
+      // Bundle written under the alt model dir
+      const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
+      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      assert.ok(exists, `bundle must land under ${altDir}`)
+
+      // Etag written under alt model's own etags subdir
+      const etagFile = join(altDir, 'etags')
+      const etagExists = await fs.access(etagFile).then(() => true).catch(() => false)
+      assert.ok(etagExists, `etag dir must land under ${etagFile}`)
+    } finally {
+      await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('CDS_MCP_MODEL env routes bundle download under model-scoped dir', async () => {
+    const altModel = 'env-org/env-model'
+    const altFolder = 'env-org--env-model'
+    const altDir = join(DEFAULT_DIR, altFolder)
+    await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+
+    try {
+      const result = await runCliCommand(['--download'], {
+        env: {
+          ...process.env,
+          CDS_MCP_MODEL: altModel,
+          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        }
+      })
+
+      assert.equal(result.code, 0, 'Command should exit with code 0')
+      const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
+      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      assert.ok(exists, `bundle must land under ${altDir}`)
+    } finally {
+      await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+    }
   })
 })

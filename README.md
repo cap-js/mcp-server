@@ -140,6 +140,22 @@ cds-mcp search_model . Books entity
 cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 ```
 
+### Configuring the embedding model
+
+The embedding model can be overridden per client via `--model` or `CDS_MCP_MODEL`. Default: `sentence-transformers/all-MiniLM-L6-v2`. The chosen model must be one served by the embeddings endpoint — the client pulls the matching bundle and uses the same model for query encoding. If the requested model is not served, `search_docs` fails with an error listing available models.
+
+```json
+{
+  "mcpServers": {
+    "cds-mcp": {
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server", "--model", "org/other-embed"],
+      "env": { "CDS_MCP_MODEL": "org/other-embed" }
+    }
+  }
+}
+```
+
 ## Available Tools
 
 > [!NOTE]
