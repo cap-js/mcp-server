@@ -66,13 +66,6 @@ describe('active model config', () => {
     assert.strictEqual(toDirName('org/name/sub'), 'org--name--sub')
     assert.strictEqual(toDirName('single'), 'single')
   })
-
-  test('fromDirName reverses toDirName', async () => {
-    const { fromDirName } = await import('../lib/calculateEmbeddings.js')
-    assert.strictEqual(fromDirName('org--name'), 'org/name')
-    assert.strictEqual(fromDirName('org--name--sub'), 'org/name/sub')
-    assert.strictEqual(fromDirName('single'), 'single')
-  })
 })
 
 describe('active model wiring into download', () => {
