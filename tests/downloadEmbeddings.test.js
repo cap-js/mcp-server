@@ -148,6 +148,82 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
   })
 
+  test('non-OK error includes available models when manifest is reachable', async () => {
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith('manifest.json'))
+        return new Response(JSON.stringify({ 'model-a': {}, 'model-b': {} }), { status: 200 })
+      return new Response(null, { status: 404, statusText: 'Not Found' })
+    }
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /Failed to fetch bundle: 404/)
+      assert.match(err.message, /Available models/)
+      assert.match(err.message, /model-a/)
+      return true
+    })
+  })
+
+  test('non-OK error has no suffix when manifest is unreachable', async () => {
+    globalThis.fetch = async () => new Response(null, { status: 503, statusText: 'Unavailable' })
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /Failed to fetch bundle: 503/)
+      assert.doesNotMatch(err.message, /Available models/)
+      return true
+    })
+  })
+
+  test('non-OK with x-embeddings-model header throws non-OK error, not model-mismatch', async () => {
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith('manifest.json')) return new Response('{}', { status: 200 })
+      return new Response(null, { status: 400, statusText: 'Bad Request',
+        headers: { 'x-embeddings-model': 'some--other-model' } })
+    }
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /Failed to fetch bundle: 400/)
+      assert.doesNotMatch(err.message, /not found/)
+      return true
+    })
+  })
+
+  test('model mismatch throws "not found" with available models list', async () => {
+    const wrongModel = 'sentence-transformers--different-model'
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith('manifest.json'))
+        return new Response(JSON.stringify({ [wrongModel]: {} }), { status: 200 })
+      const meta = Buffer.from(JSON.stringify({ dim: 1, count: 0, chunks: [], model: 't' }))
+      const header = Buffer.alloc(4)
+      header.writeUInt32BE(meta.length, 0)
+      return new Response(Buffer.concat([header, meta, Buffer.from('B')]), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+      })
+    }
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /not found/)
+      assert.match(err.message, /Available models/)
+      assert.match(err.message, /sentence-transformers--different-model/)
+      return true
+    })
+  })
+
+  test('model mismatch without available models omits suffix', async () => {
+    const wrongModel = 'sentence-transformers--different-model'
+    globalThis.fetch = async (url) => {
+      if (String(url).endsWith('manifest.json')) return new Response(null, { status: 503 })
+      const meta = Buffer.from(JSON.stringify({ dim: 1, count: 0, chunks: [], model: 't' }))
+      const header = Buffer.alloc(4)
+      header.writeUInt32BE(meta.length, 0)
+      return new Response(Buffer.concat([header, meta, Buffer.from('B')]), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+      })
+    }
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /not found/)
+      assert.doesNotMatch(err.message, /Available models/)
+      return true
+    })
+  })
+
   test('throws when bundle response lacks X-Embeddings-Version header', async () => {
     globalThis.fetch = async () => new Response(
       JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
