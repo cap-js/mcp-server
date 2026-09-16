@@ -6,14 +6,14 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
+import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 const mockFetchUrl = new URL('./helpers/mock-fetch.mjs', import.meta.url).href
 
-const testBundleDir = join(DEFAULT_EMBEDDINGS_DIR, TEST_COMMIT_ID)
+const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
 const manifestEtagPath = getManifestEtagPath()
 const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
 let savedEtag = null
@@ -205,5 +205,65 @@ describe('CLI usage', () => {
     await new Promise(resolve => child.on('close', resolve))
 
     assert(true, 'MCP server should start and be killable')
+  })
+
+  test('--model flag routes bundle download under model-scoped dir', async () => {
+    const altModel = 'test-org/test-model'
+    const altFolder = 'test-org--test-model'
+    const altDir = join(DEFAULT_DIR, altFolder)
+    await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+
+    try {
+      const result = await runCliCommand(['--model', altModel, '--download'], {
+        env: {
+          ...process.env,
+          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        }
+      })
+
+      assert.equal(result.code, 0, 'Command should exit with code 0')
+      const output = JSON.parse(result.stdout)
+      assert.strictEqual(output.commitId, TEST_COMMIT_ID)
+
+      // Bundle written under the alt model dir
+      const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
+      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      assert.ok(exists, `bundle must land under ${altDir}`)
+
+      // Etag written under alt model's own etags subdir
+      const etagFile = join(altDir, 'etags')
+      const etagExists = await fs.access(etagFile).then(() => true).catch(() => false)
+      assert.ok(etagExists, `etag dir must land under ${etagFile}`)
+    } finally {
+      await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+    }
+  })
+
+  test('CDS_MCP_MODEL env routes bundle download under model-scoped dir', async () => {
+    const altModel = 'env-org/env-model'
+    const altFolder = 'env-org--env-model'
+    const altDir = join(DEFAULT_DIR, altFolder)
+    await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+
+    try {
+      const result = await runCliCommand(['--download'], {
+        env: {
+          ...process.env,
+          CDS_MCP_MODEL: altModel,
+          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        }
+      })
+
+      assert.equal(result.code, 0, 'Command should exit with code 0')
+      const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
+      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      assert.ok(exists, `bundle must land under ${altDir}`)
+    } finally {
+      await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
+    }
   })
 })
