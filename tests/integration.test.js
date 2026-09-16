@@ -4,9 +4,11 @@ import { test } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
+import { ListRootsRequestSchema } from '@modelcontextprotocol/sdk/types.js'
 import { unlinkSync, writeFileSync } from 'fs'
-import { setTimeout as wait } from 'timers/promises'
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
@@ -28,7 +30,8 @@ test.describe('integration', () => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
-      cwd: sampleProjectPath
+      cwd: sampleProjectPath,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
     })
 
     // Step 3: Use the MCP Client API to connect to the server
@@ -53,14 +56,60 @@ test.describe('integration', () => {
     await transport.close()
   })
 
-  // --- Test: model adapts to CDS file change (CDS_MCP_REFRESH_MS low)
-  test('model adapts to CDS file change (CDS_MCP_REFRESH_MS low)', async () => {
-    // Step 1: Start MCP server with low refresh interval
+  test('search_model follows multiple roots and root changes advertised by the MCP client', async t => {
+    const secondRoot = await mkdtemp(join(tmpdir(), 'cds-mcp-second-root-'))
+    t.after(() => rm(secondRoot, { recursive: true, force: true }))
+    await mkdir(join(secondRoot, 'srv'))
+    await writeFile(
+      join(secondRoot, 'srv', 'service.cds'),
+      'service SecondService { entity Items { key ID: Integer; } }'
+    )
+
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
       cwd: sampleProjectPath,
-      env: { ...process.env, CDS_MCP_REFRESH_MS: '20' }
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+    const client = new Client(
+      { name: 'integration-test-roots', version: '1.0.0' },
+      { capabilities: { roots: { listChanged: true } } }
+    )
+    let roots = [sampleProjectPath, secondRoot]
+    client.setRequestHandler(ListRootsRequestSchema, () => ({
+      roots: roots.map(root => ({ uri: pathToFileURL(root).href }))
+    }))
+    await client.connect(transport)
+
+    const firstProject = await client.callTool({
+      name: 'search_model',
+      arguments: { projectPath: sampleProjectPath, kind: 'service', topN: 1 }
+    })
+    assert.equal(JSON.parse(firstProject.content[0].text)[0].name, 'AdminService')
+
+    const secondProject = await client.callTool({
+      name: 'search_model',
+      arguments: { projectPath: secondRoot, kind: 'service', topN: 1 }
+    })
+    assert.equal(JSON.parse(secondProject.content[0].text)[0].name, 'SecondService')
+
+    roots = [secondRoot]
+    await client.sendRootsListChanged()
+    const rejected = await client.callTool({
+      name: 'search_model',
+      arguments: { projectPath: sampleProjectPath, kind: 'service', topN: 1 }
+    })
+    assert.match(rejected.content[0].text, /outside the configured workspace roots/)
+
+    await transport.close()
+  })
+
+  test('model adapts to CDS file changes on the next request', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [cdsMcpPath],
+      cwd: sampleProjectPath,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
     })
 
     const client = new Client({
@@ -98,7 +147,6 @@ test.describe('integration', () => {
 
     let foundService = false
     let foundEntity = false
-    await wait(300)
     // Check for TestService
     const serviceResult = await client.callTool({
       name: 'search_model',
@@ -130,5 +178,38 @@ test.describe('integration', () => {
 
     // Step 5: Clean up
     await transport.close()
+  })
+
+  test('does not return out-of-root compiler diagnostics to MCP clients', async t => {
+    const workspace = await mkdtemp(join(tmpdir(), 'cds-mcp-diagnostics-'))
+    t.after(() => rm(workspace, { recursive: true, force: true }))
+    const project = join(workspace, 'project')
+    const privateDirectory = join(workspace, 'private')
+    const privateModel = join(privateDirectory, 'model.cds')
+    await Promise.all([mkdir(join(project, 'srv'), { recursive: true }), mkdir(privateDirectory)])
+    await writeFile(privateModel, 'entity SECRET_CUSTOMER_TABLE { key ID Integer; }')
+    await writeFile(
+      join(project, 'srv', 'service.cds'),
+      "using { SECRET_CUSTOMER_TABLE } from '../../private/model'; service LeakingService { entity Items as projection on SECRET_CUSTOMER_TABLE; }"
+    )
+
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [cdsMcpPath],
+      cwd: project,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+    const client = new Client({ name: 'integration-test-diagnostics', version: '1.0.0' })
+    await client.connect(transport)
+    t.after(() => transport.close())
+
+    const result = await client.callTool({
+      name: 'search_model',
+      arguments: { projectPath: project, kind: 'service', topN: 1 }
+    })
+
+    assert.equal(result.content[0].text, 'Failed to compile CDS model')
+    assert(!result.content[0].text.includes(privateModel))
+    assert(!result.content[0].text.includes('SECRET_CUSTOMER_TABLE'))
   })
 })
