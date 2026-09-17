@@ -186,9 +186,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   test('model mismatch throws "not found" with available models list', async () => {
     const wrongModel = 'sentence-transformers--different-model'
+    const wrongModelName = 'sentence-transformers/different-model'
     globalThis.fetch = async (url) => {
       if (String(url).endsWith('manifest.json'))
-        return new Response(JSON.stringify({ [wrongModel]: {} }), { status: 200 })
+        return new Response(JSON.stringify({ [wrongModel]: { model: wrongModelName } }), { status: 200 })
       const meta = Buffer.from(JSON.stringify({ dim: 1, count: 0, chunks: [], model: 't' }))
       const header = Buffer.alloc(4)
       header.writeUInt32BE(meta.length, 0)
@@ -200,7 +201,8 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /not found/)
       assert.match(err.message, /Available models/)
-      assert.match(err.message, /sentence-transformers--different-model/)
+      // Real model name (what --model accepts), not the on-disk folder key.
+      assert.match(err.message, /sentence-transformers\/different-model/)
       return true
     })
   })
