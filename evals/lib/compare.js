@@ -545,7 +545,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   return `<details class="run-detail" data-search="${searchStr}">
   <summary><label class="baseline-label" title="Set as baseline for Δ column" onclick="event.stopPropagation()"><input type="radio" name="pq-baseline" class="baseline-radio" data-run-id="${r.run_id}" value="${r.run_id}"> baseline</label>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
-    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}${r.config.model_memory_mb != null ? ` · model RSS +${r.config.model_memory_mb} MB` : ''}</div>
+    <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
     <table class="rd-table">
       <thead><tr><th>metric</th><th>value</th><th>rank</th><th>gate</th><th></th></tr></thead>
       <tbody>${aggRows}</tbody>
@@ -850,7 +850,7 @@ function renderMarkdownCompare(runs) {
     const heading = r.config && r.config.label ? `${r.config.label} — \`${r.run_id}\`` : `\`${r.run_id}\``
     L.push(`### ${heading} — ${r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'}`)
     L.push('')
-    L.push(`capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\`${r.config.model_memory_mb != null ? ` · model RSS +${r.config.model_memory_mb} MB` : ''}`)
+    L.push(`capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\``)
     L.push('')
     L.push('| metric | value | Δ vs base | baseline | gate | status |')
     L.push('|---|--:|:--:|--:|:--:|:--:|')

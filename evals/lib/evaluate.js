@@ -8,7 +8,6 @@ import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
 import { resolveIds } from './ids.js'
 import tools from '../../lib/tools.js'
-import { getModelMemoryMb } from '../../lib/calculateEmbeddings.js'
 
 async function readJsonOrNull(p) {
   try {
@@ -56,8 +55,7 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, label 
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
-    label,
-    model_memory_mb: getModelMemoryMb()
+    label
   }
 
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
