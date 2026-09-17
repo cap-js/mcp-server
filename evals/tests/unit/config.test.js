@@ -1,0 +1,94 @@
+import { test, describe, afterEach } from 'node:test'
+import assert from 'node:assert/strict'
+import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
+
+// Snapshot & restore the two honoured env vars between tests so overrides don't leak.
+const EVAL_ENV = ['EVAL_LABEL', 'EVAL_RUNS_DIR']
+function clearEnv() {
+  for (const k of EVAL_ENV) delete process.env[k]
+}
+
+describe('config tests', () => {
+  afterEach(clearEnv)
+
+  test('loads defaults from config.json', async () => {
+    clearEnv()
+    const cfg = await loadConfig()
+    assert.equal(cfg.k, 5)
+    assert.equal(cfg.gates.recall_at_k, 0.8)
+    assert.ok(cfg.goldenSet.endsWith('data/golden-set.json'))
+    assert.ok(cfg.output.runsDir.endsWith('runs'))
+    assert.ok(cfg.embeddingsSweepDir === null || typeof cfg.embeddingsSweepDir === 'string')
+    // all metric keys present in gates
+    for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
+  })
+
+  test('EVAL_RUNS_DIR points at another corpus\' results (absolute respected)', async () => {
+    clearEnv()
+    process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'
+    assert.equal((await loadConfig()).output.runsDir, '/tmp/eval-runs-abs')
+  })
+
+  test('programmatic overrides win last', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { k: 3, gates: { recall_at_k: 0.99 }, output: { keepRuns: 3, compareFormat: 'md' } } })
+    assert.equal(cfg.k, 3)
+    assert.equal(cfg.gates.recall_at_k, 0.99)
+    assert.equal(cfg.output.keepRuns, 3)
+    assert.equal(cfg.output.compareFormat, 'md')
+  })
+
+  test('compareFormat defaults to html', async () => {
+    clearEnv()
+    assert.equal((await loadConfig()).output.compareFormat, 'html')
+  })
+
+  test('rejects invalid compareFormat', async () => {
+    clearEnv()
+    await assert.rejects(
+      () => loadConfig({ overrides: { output: { compareFormat: 'pdf' } } }),
+      /compareFormat must be "html" or "md"/
+    )
+  })
+
+  test('rejects invalid k', async () => {
+    clearEnv()
+    await assert.rejects(() => loadConfig({ overrides: { k: 0 } }), /k must be a positive integer/)
+  })
+
+  test('rejects out-of-range gate', async () => {
+    clearEnv()
+    await assert.rejects(
+      () => loadConfig({ overrides: { gates: { recall_at_k: 1.5 } } }),
+      /must be null or a number in \[0,1\]/
+    )
+  })
+
+  test('rejects keepRuns = 0 (would wipe the just-appended run)', async () => {
+    clearEnv()
+    await assert.rejects(() => loadConfig({ overrides: { output: { keepRuns: 0 } } }), /keepRuns must be -1 .* or a positive integer/)
+  })
+
+  test('rejects fractional keepRuns', async () => {
+    clearEnv()
+    await assert.rejects(() => loadConfig({ overrides: { output: { keepRuns: 1.5 } } }), /keepRuns must be -1/)
+  })
+
+  test('accepts keepRuns = -1 (keep all)', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { output: { keepRuns: -1 } } })
+    assert.equal(cfg.output.keepRuns, -1)
+  })
+
+  test('embeddingsSweepDir resolves absolute path via override', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: '/abs/sweep' } })
+    assert.equal(cfg.embeddingsSweepDir, '/abs/sweep')
+  })
+
+  test('embeddingsSweepDir is null when overridden to null', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: null } })
+    assert.equal(cfg.embeddingsSweepDir, null)
+  })
+})

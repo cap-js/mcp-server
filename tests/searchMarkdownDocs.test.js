@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'url'
-import { MODEL_FOLDER } from '../lib/calculateEmbeddings.js'
+import { getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after } from 'node:test'
@@ -8,7 +8,7 @@ import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } f
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const embeddingsDir = path.join(__dirname, '..', 'embeddings', MODEL_FOLDER)
+const embeddingsDir = path.join(__dirname, '..', 'embeddings', toDirName(getActiveModel()))
 const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
 const manifestEtagPath = getManifestEtagPath()
 
