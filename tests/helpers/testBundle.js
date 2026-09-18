@@ -74,7 +74,7 @@ function _buildStub({
   if (model) bundleHeaders['x-embeddings-model'] = model
 
   const manifestObj = Array.isArray(manifest)
-    ? Object.fromEntries(manifest.map(name => [name.replace(/\//g, '--'), [{}]]))
+    ? Object.fromEntries(manifest.map(name => [name.replace(/\//g, '--'), [{ model: name }]]))
     : manifest
 
   const fetchStub = async (url, init = {}) => {
