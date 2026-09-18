@@ -4,10 +4,11 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## Version 0.0.6 - tbd
+## Version 0.0.6 - 2026-09-18
 
 ### Added
 
+- Configurable embedding model per client via the `--model <name>` CLI flag and `CDS_MCP_MODEL` environment variable
 - Capire-versioned embeddings with local manifest resolution
 - Per-chunk metadata in `searchMarkdownDocs` output
 
