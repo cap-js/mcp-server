@@ -24,6 +24,23 @@ jobs:
           node-version: 24.x
       - run: npm ci
       - run: npm run lint
+  check-versions:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: check versions
+        run: |
+          version_in_package_json=$(jq -r '.version' package.json)
+          version_in_server_json=$(jq -r '.packages[0].version' server.json)
+          if [ "$version_in_server_json" != "$version_in_package_json" ]; then
+            echo "Version in server.json ($version_in_server_json) does not match package.json ($version_in_package_json)"
+            exit 1
+          fi
+          version_in_plugin_json=$(jq -r '.version' .claude-plugin/plugin.json)
+          if [ "$version_in_plugin_json" != "$version_in_package_json" ]; then
+            echo "Version in .claude-plugin/plugin.json ($version_in_plugin_json) does not match package.json ($version_in_package_json)"
+            exit 1
+          fi
   test:
     runs-on: ubuntu-latest
     strategy:
