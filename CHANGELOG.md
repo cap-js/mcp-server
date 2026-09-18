@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Changed
 
+- Changed the default embedding model from `Xenova/all-MiniLM-L6-v2` to `sentence-transformers/all-MiniLM-L6-v2`
 - Switched to CAP AI SQLite `VECTOR_EMBEDDING`
 - Improved `search_docs` query param description
 - Replaced background model polling and `CDS_MCP_REFRESH_MS` with request-driven model and configuration refresh
