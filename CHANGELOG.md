@@ -28,8 +28,6 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Refreshed cached models after changes to CAP project configuration
 - Restricted MCP model access to advertised workspace roots, including symlink and resolved-source validation
 
-### Removed
-
 ## Version 0.0.5 - 2026-04-27
 
 ### Added
