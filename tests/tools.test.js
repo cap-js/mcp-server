@@ -4,12 +4,12 @@ import { describe, test, after } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs/promises'
-import { DEFAULT_EMBEDDINGS_DIR } from '../lib/calculateEmbeddings.js'
+import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-const testBundleDir = join(DEFAULT_EMBEDDINGS_DIR, TEST_COMMIT_ID)
+const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
 const manifestEtagPath = getManifestEtagPath()
 const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
 
