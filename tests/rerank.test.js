@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
-import { rerank } from '../lib/rerank.js'
+import { rerank, getReranker } from '../lib/rerank.js'
 
 // These tests require the reranker model to be downloaded.
 // They run against the real ONNX model — no mocks.
@@ -39,5 +39,36 @@ describe('rerank', () => {
       'identical scores for all documents means the softmax-of-single-value regression is back'
     )
     assert(ranked[0].score > ranked[1].score, 'results must be sorted by descending score')
+  })
+
+  test('topK limits returned results to the most relevant', async () => {
+    const query = 'What is the capital of France?'
+    const docs = [
+      { content: 'Paris is the capital of France.' },
+      { content: 'Berlin is the capital of Germany.' },
+      { content: 'Node.js is a JavaScript runtime built on V8.' },
+    ]
+    const ranked = await rerank(query, docs, 1)
+    assert.strictEqual(ranked.length, 1)
+    assert(ranked[0].content.includes('Paris'), 'most relevant result must be returned')
+  })
+
+  test('original result properties are preserved in output', async () => {
+    const query = 'How do I bake a cake?'
+    const docs = [
+      { content: 'Mix flour and eggs.', meta: { title: 'Baking' } },
+      { content: 'Mars is far from Earth.', meta: { title: 'Astronomy' } },
+    ]
+    const ranked = await rerank(query, docs, 2)
+    for (const r of ranked) {
+      const original = docs.find(d => d.content === r.content)
+      assert.deepStrictEqual(r.meta, original.meta, 'meta must be preserved')
+      assert(typeof r.score === 'number', 'score must be a number')
+    }
+  })
+
+  test('getReranker returns the same model instance on concurrent calls', async () => {
+    const [r1, r2] = await Promise.all([getReranker(), getReranker()])
+    assert.strictEqual(r1, r2, 'must resolve to the same [tokenizer, model] tuple to prevent double model loading')
   })
 })
