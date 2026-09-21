@@ -20,7 +20,7 @@
     "manifest.json"
   ],
   "bin": {
-    "cds-mcp": "./index.js"
+    "cds-mcp": "index.js"
   },
   "scripts": {
     "test": "node --test --test-concurrency=1",

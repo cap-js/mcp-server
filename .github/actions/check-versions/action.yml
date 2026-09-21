@@ -1,0 +1,33 @@
+name: Check versions
+description: Assert package.json, server.json (.version and .packages[0].version), and .claude-plugin/plugin.json all declare the same version
+
+# Requires the repo to be checked out first.
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      run: |
+        expected=$(jq -r '.version' package.json)
+
+        # server.json .version is the MCP registry's server release version and
+        # drives publish uniqueness + latest-ranking; it must track the package
+        # version, not just packages[].version.
+        server_version=$(jq -r '.version' server.json)
+        if [ "$server_version" != "$expected" ]; then
+          echo "server.json .version ($server_version) does not match package.json ($expected)"
+          exit 1
+        fi
+
+        package_version=$(jq -r '.packages[0].version' server.json)
+        if [ "$package_version" != "$expected" ]; then
+          echo "server.json .packages[0].version ($package_version) does not match package.json ($expected)"
+          exit 1
+        fi
+
+        plugin_version=$(jq -r '.version' .claude-plugin/plugin.json)
+        if [ "$plugin_version" != "$expected" ]; then
+          echo ".claude-plugin/plugin.json .version ($plugin_version) does not match package.json ($expected)"
+          exit 1
+        fi
+
+        echo "All versions match: $expected"
