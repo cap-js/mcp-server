@@ -4,14 +4,24 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## Unreleased
+## Version 0.0.6 - 2026-09-21
+
+### Added
+
+- Configurable embedding model per client via the `--model <name>` CLI flag and `CDS_MCP_MODEL` environment variable
+- Capire-versioned embeddings with local manifest resolution
+- Per-chunk metadata in `searchMarkdownDocs` output
 
 ### Changed
 
+- Changed the default embedding model from `Xenova/all-MiniLM-L6-v2` to `sentence-transformers/all-MiniLM-L6-v2`
+- Switched to CAP AI SQLite `VECTOR_EMBEDDING`
+- Improved `search_docs` query param description
 - Replaced background model polling and `CDS_MCP_REFRESH_MS` with request-driven model and configuration refresh
 
 ### Fixed
 
+- Blank `Cache-Control`/`Pragma` so conditional GET can 304, avoiding a full re-download of the embeddings bundle on every startup
 - Isolated project model caches and CAP compiler/global state across requests
 - Preserved transitive model imports for explicitly trusted direct CLI projects
 - Prevented rejected MCP model compilations from exposing out-of-root diagnostics
