@@ -6,7 +6,7 @@
     "url": "https://github.com/cap-js/mcp-server",
     "source": "github"
   },
-  "version": "1.0.0",
+  "version": "0.0.6",
   "Icon": {
     "src": "https://github.com/cap-js/mcp-server/blob/main/icon.png"
   },

@@ -84,7 +84,7 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
         _full: m // full precision for aggregation; stripped before serialize
       }
     })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }))
 
   // aggregate = mean of full-precision per-question values, rounded to 2 dp
   const aggregate = {}
