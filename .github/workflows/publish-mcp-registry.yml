@@ -11,6 +11,9 @@ permissions:
 on:
   workflow_dispatch:
 
+env:
+  NPM_CONFIG_IGNORE_SCRIPTS: true
+
 jobs:
   publish-mcp:
     # workflow_dispatch can target any ref; restrict the actual publish to main.
