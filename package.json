@@ -34,13 +34,12 @@
     "@cap-js/sqlite": "^3.1.0",
     "@huggingface/hub": "^2.16.3",
     "@huggingface/tokenizers": "0.1.3",
+    "@huggingface/transformers": "^4.2.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@sap/cds": ">=10.1.0",
     "onnxruntime-node": "1.20.1"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.124.0",
-    "@huggingface/transformers": "^4.2.0",
     "prettier": "^3.9.6"
   },
   "overrides": {

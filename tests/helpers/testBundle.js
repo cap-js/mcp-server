@@ -61,6 +61,7 @@ function _buildStub({
   manifestStatus = 200,
   notModified = false
 } = {}) {
+  const realFetch = globalThis.fetch  // captured before the stub replaces globalThis.fetch
   const seen = []
   let bundleFrame = frame
   if (!bundleFrame) {
@@ -79,6 +80,7 @@ function _buildStub({
 
   const fetchStub = async (url, init = {}) => {
     const urlStr = String(url)
+    if (!urlStr.includes('cap.cloud.sap')) return realFetch(url, init)
     seen.push({ url: urlStr, headers: init.headers || {} })
     if (urlStr.endsWith('/manifest.json')) {
       if (manifestStatus !== 200) return new Response('', { status: manifestStatus })
