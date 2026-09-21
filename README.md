@@ -171,20 +171,6 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 - Annotations
 - HTTP endpoints
 
-For MCP clients, `projectPath` must resolve inside one of the client's advertised workspace roots. If a client does not
-support roots, the server process's working directory is used. Direct CLI calls treat the explicitly provided project
-as trusted and continue to resolve its transitive model imports outside the project directory.
-
-Compiled models are checked for CDS source and CAP project-configuration changes on every `search_model` request. A
-successful refresh replaces the cached model; a failed refresh keeps the last valid model and is retried on the next
-request. The former background-refresh setting `CDS_MCP_REFRESH_MS` is no longer supported.
-
-> [!IMPORTANT]
-> Compiler workers isolate CAP state between projects; they are not operating-system or filesystem sandboxes. CAP
-> compilation can execute project configuration such as `.cdsrc.js` and code from project dependencies with the server
-> process's permissions. Only compile trusted projects. Workspace-root checks protect model-source boundaries, not
-> against malicious code inside an authorized project.
-
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ### `search_docs`
