@@ -1,5 +1,8 @@
 import { test, describe, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
 // Snapshot & restore the two honoured env vars between tests so overrides don't leak.
@@ -90,5 +93,41 @@ describe('config tests', () => {
     clearEnv()
     const cfg = await loadConfig({ overrides: { embeddingsSweepDir: null } })
     assert.equal(cfg.embeddingsSweepDir, null)
+  })
+
+  test('label override wins', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { label: 'my-run' } })
+    assert.equal(cfg.label, 'my-run')
+  })
+
+  test('label override null clears the value', async () => {
+    clearEnv()
+    const cfg = await loadConfig({ overrides: { label: null } })
+    assert.equal(cfg.label, null)
+  })
+
+  test('label read from config file', async () => {
+    clearEnv()
+    const tmp = path.join(os.tmpdir(), `eval-config-label-${process.pid}.json`)
+    await fs.writeFile(tmp, JSON.stringify({ label: 'from-file' }))
+    try {
+      const cfg = await loadConfig({ configPath: tmp })
+      assert.equal(cfg.label, 'from-file')
+    } finally {
+      await fs.unlink(tmp)
+    }
+  })
+
+  test('label override wins over config file', async () => {
+    clearEnv()
+    const tmp = path.join(os.tmpdir(), `eval-config-label2-${process.pid}.json`)
+    await fs.writeFile(tmp, JSON.stringify({ label: 'from-file' }))
+    try {
+      const cfg = await loadConfig({ configPath: tmp, overrides: { label: 'override' } })
+      assert.equal(cfg.label, 'override')
+    } finally {
+      await fs.unlink(tmp)
+    }
   })
 })

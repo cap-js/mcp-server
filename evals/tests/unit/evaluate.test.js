@@ -24,8 +24,8 @@ function fakeRetriever(ranking) {
   return async () => async () => chunks
 }
 
-// Fake sourceDb for the preflight SELECT — returns no found sources (all appear stale).
-const fakeSourceDb = { run: async () => [] }
+// Fake sourceDb for the preflight SELECT — returns all CHUNK_IDS as found so preflight passes.
+const fakeSourceDb = { run: async () => CHUNK_IDS.map(id => ({ source: id })) }
 
 const silentLogger = { log() {}, error() {} }
 
