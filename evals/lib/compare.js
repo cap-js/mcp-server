@@ -1,5 +1,6 @@
 import path from 'path'
 import fs from 'fs/promises'
+import { fileURLToPath } from 'url'
 import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
 import { round } from './metrics.js'
@@ -150,7 +151,9 @@ const PQ_SCRIPT = `
 
   function apply(){
     var term=search.value.trim().toLowerCase();
-    var list=DATA.filter(function(q){ return !term || q.id.toLowerCase().indexOf(term)>=0 || q.question.toLowerCase().indexOf(term)>=0; });
+    var list=DATA.filter(function(q){
+      return !term || q.id.toLowerCase().indexOf(term)>=0 || q.question.toLowerCase().indexOf(term)>=0;
+    });
     if(sortKey){ list=list.slice().sort(function(a,b){
       var av,bv;
       if(sortKey==='id'){ return a.id.localeCompare(b.id,undefined,{numeric:true})*sortDir; }
@@ -422,7 +425,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
     return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${rankCell}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
   }).join('')
 
-  // col index: 0=id,1=question,2..6=metrics,7=hit-ranks — sortable on metrics (2..6)
+  // col index: 0=id,1=question,2..6=metrics,7=hit-ranks — all sortable except hit-ranks
   const pqHead = METRIC_KEYS.map((k, i) => `<th class="sortable" data-col="${i + 2}">${METRIC_LABEL[k]}</th>`).join('')
   const pqRows = (r.per_question || [])
     .map(q => {
@@ -474,9 +477,9 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
 
   const tblId = `rd-pq-${r.run_id.replace(/[^a-z0-9]/gi, '')}`
   const pqSection = (r.per_question || []).length
-    ? `<div class="rd-sub">Per-question metrics <span class="muted">(click row to expand retrieval · click metric header to sort)</span></div>
+    ? `<div class="rd-sub">Per-question metrics <span class="muted">(click row to expand retrieval · click column header to sort)</span> <button id="${tblId}-diff" class="diff-btn">diff only</button></div>
        <table id="${tblId}" class="rd-table" data-run-id="${r.run_id}">
-         <thead><tr><th>id</th><th>question</th>${pqHead}<th>hit ranks</th></tr></thead>
+         <thead><tr><th class="sortable" data-col="0">id</th><th class="sortable" data-col="1">question</th>${pqHead}<th>hit ranks</th></tr></thead>
          <tbody>${pqRows}</tbody>
        </table>
        <script>(function(){
@@ -485,6 +488,21 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   var tbody=tbl.querySelector('tbody');
   var KEYS=${JSON.stringify(METRIC_KEYS)};
   var sortCol=null,sortDir=1;
+  var diffOnly=true;
+  var diffBtn=document.getElementById('${tblId}-diff');
+
+  function hasDiff(row){
+    return Array.from(row.querySelectorAll('td .d')).some(function(s){return s.textContent.trim()!=='';});
+  }
+
+  function applyDiff(){
+    tbody.querySelectorAll('tr.rd-pq-row').forEach(function(row){
+      var show=!diffOnly||hasDiff(row);
+      row.style.display=show?'':'none';
+      var det=row.nextElementSibling;
+      if(det&&det.classList.contains('rd-pq-detail')&&!show){det.style.display='none';row.classList.remove('open');}
+    });
+  }
 
   function renderDelta(v, baseV){
     if(baseV==null) return '';
@@ -507,6 +525,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
         row.cells[col].innerHTML=v.toFixed(3)+renderDelta(v,baseV);
       });
     });
+    applyDiff();
   };
 
   tbl.querySelectorAll('thead th.sortable').forEach(function(th){
@@ -517,6 +536,10 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
       th.classList.add(sortDir===1?'asc':'desc');
       var rows=Array.from(tbody.querySelectorAll('tr.rd-pq-row'));
       rows.sort(function(a,b){
+        if(col<2){
+          var av=a.cells[col].textContent.trim(), bv=b.cells[col].textContent.trim();
+          return av.localeCompare(bv,undefined,{numeric:true})*sortDir;
+        }
         var av=parseFloat(a.cells[col].textContent)||0;
         var bv=parseFloat(b.cells[col].textContent)||0;
         return(av-bv)*sortDir;
@@ -537,6 +560,11 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
       row.classList.toggle('open',!open);
     });
   });
+  if(diffBtn) diffBtn.addEventListener('click',function(){
+    diffOnly=!diffOnly; diffBtn.classList.toggle('active',diffOnly); applyDiff();
+  });
+  if(diffBtn) diffBtn.classList.add('active');
+  applyDiff();
 })();</script>`
     : '<div class="rd-sub muted">No per-question data recorded for this run.</div>'
 
@@ -720,6 +748,8 @@ function renderHtml(runs, textById) {
   .baseline-label { display:inline-flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); cursor:pointer; padding:2px 6px 2px 2px; border-radius:4px; border:1px solid transparent; user-select:none; }
   .baseline-label:has(.baseline-radio:checked) { color:var(--series); border-color:var(--series); background:rgba(42,120,214,0.08); font-weight:600; }
   .baseline-radio { accent-color:var(--series); cursor:pointer; }
+  .diff-btn { font-size:12px; padding:5px 10px; border-radius:6px; border:1px solid var(--border); background:var(--surface); color:var(--ink2); cursor:pointer; font-family:inherit; }
+  .diff-btn.active { background:rgba(42,120,214,0.12); color:var(--series); border-color:var(--series); font-weight:600; }
 </style>
 </head>
 <body>
@@ -922,4 +952,16 @@ export async function compare({ configPath, overrides, outPath, logger = console
     logger.log(`Open it in your editor/viewer:  ${rel}`)
   }
   return { code: 0, runs: runs.length, outPath: out, format: fmt }
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const args = process.argv.slice(2)
+  const configIdx = args.indexOf('--config')
+  const configPath = configIdx !== -1 ? args[configIdx + 1] : undefined
+  compare({ configPath })
+    .then(r => process.exit(r.code))
+    .catch(e => {
+      console.error(e)
+      process.exit(3)
+    })
 }
