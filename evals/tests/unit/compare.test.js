@@ -322,18 +322,17 @@ describe('compare tests', () => {
 
   // ---- per-question table UX: sortable headers + expandable retrieval rows ----
 
-  test('per-question metric headers are sortable (data-col 2–6, class sortable)', async () => {
+  test('per-question metric headers are sortable (data-col 0–5, class sortable)', async () => {
     const q = pq('cap-001', 'Q?', { recall: 1, mrr: 0.5 })
     await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
     await compare({ overrides: overrides(), logger: silentLogger })
     const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
-    // all 4 metric columns (indices 2–5) must have class="sortable" and data-col
-    for (let col = 2; col <= 5; col++) {
+    // all 6 columns (id=0, question=1, metrics=2–5) must have class="sortable" and data-col
+    for (let col = 0; col <= 5; col++) {
       assert.ok(html.includes(`class="sortable" data-col="${col}"`), `data-col="${col}" missing`)
     }
-    // id and question columns (0, 1) must NOT be sortable
-    assert.ok(!html.includes('data-col="0"'))
-    assert.ok(!html.includes('data-col="1"'))
+    // hit-ranks column (col 6) must NOT be sortable
+    assert.ok(!html.includes('data-col="6"'))
   })
 
   test('per-question rows are clickable (rd-pq-row) with matching detail rows (rd-pq-detail)', async () => {
@@ -441,8 +440,43 @@ describe('compare tests', () => {
     assert.ok(html.includes('name="pq-baseline"'))
   })
 
-  test('interactive baseline radio: selecting baseline run updates rd-pq metric cells with delta', async () => {
-    // Two runs: base (mrr=0.5), curr (mrr=1.0). No static baseline_run_id set.
+  test('diff-only button is present in each run-detail per-question section', async () => {
+    const q = pq('cap-001', 'Q?')
+    const run_id = '2026-07-30T10:00:00Z_abc'
+    await writeRun(null, fakeReport(run_id, { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
+    assert.ok(html.includes(`id="rd-pq-${sanitized}-diff"`))
+    assert.ok(html.includes('diff only'))
+  })
+
+  test('diff-only is active by default (diffOnly=true and button marked active on init)', async () => {
+    const q = pq('cap-001', 'Q?')
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_abc', { perQuestion: [q] }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('diffOnly=true'), 'diffOnly must be initialised to true')
+    assert.ok(html.includes("diffBtn.classList.add('active')"), 'button must be marked active on init')
+  })
+
+  test('label from run config renders as run-label span in html', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { label: 'my-embedding-v2' }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('<span class="run-label">my-embedding-v2</span>'))
+  })
+
+  test('label is used as x-axis tick in trend charts', async () => {
+    await writeRun(null, fakeReport('2026-07-30T10:00:00Z_a', { label: 'baseline' }))
+    await writeRun(null, fakeReport('2026-07-30T11:00:00Z_b', { label: 'new-chunker' }))
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+    assert.ok(html.includes('baseline'))
+    assert.ok(html.includes('new-chunker'))
+  })
+
+  test('interactive baseline radio: selecting baseline run updates rd-pq metric cells with delta', async () => {    // Two runs: base (mrr=0.5), curr (mrr=1.0). No static baseline_run_id set.
     // Selecting base as baseline via radio should cause curr table cells to show ▲+0.500.
     const baseRun = fakeReport('2026-07-30T10:00:00Z_base', { perQuestion: [pq('cap-001', 'Q?', { mrr: 0.5 })] })
     const currRun = fakeReport('2026-07-30T11:00:00Z_curr', { perQuestion: [pq('cap-001', 'Q?', { mrr: 1.0 })] })
@@ -465,7 +499,14 @@ describe('compare tests', () => {
         // 5 metric cells (indices 2-6), 1 ranks cell (7)
         for (let i = 0; i < 5; i++) fakeCells.push({ innerHTML: '' })
         fakeCells.push({ innerHTML: '' })
-        rows.push({ dataset: { qid, metrics: metricsRaw }, cells: fakeCells })
+        rows.push({
+          dataset: { qid, metrics: metricsRaw },
+          cells: fakeCells,
+          querySelectorAll: () => [],
+          style: {},
+          classList: { remove() {}, toggle() {} },
+          nextElementSibling: null
+        })
       }
       const fakeTbody = {
         querySelectorAll(sel) { return sel.includes('rd-pq-row') ? rows : [] }
@@ -548,5 +589,73 @@ describe('compare tests', () => {
       currRow.cells[mrrCol].innerHTML.includes('▲+0.500'),
       `Expected MRR cell to show ▲+0.500 but got: ${currRow.cells[mrrCol].innerHTML}`
     )
+  })
+
+  test('diff-only: hides unchanged questions and shows changed ones on load', async () => {
+    // base: cap-001 mrr=0.5, cap-002 mrr=1.0
+    // curr: cap-001 mrr=1.0 (improved), cap-002 mrr=1.0 (unchanged)
+    const base = fakeReport('2026-07-30T10:00:00Z_base', {
+      perQuestion: [pq('cap-001', 'Q1', { mrr: 0.5 }), pq('cap-002', 'Q2', { mrr: 1.0 })]
+    })
+    const curr = {
+      ...fakeReport('2026-07-30T11:00:00Z_curr', {
+        perQuestion: [pq('cap-001', 'Q1', { mrr: 1.0 }), pq('cap-002', 'Q2', { mrr: 1.0 })]
+      }),
+      baseline_run_id: '2026-07-30T10:00:00Z_base'
+    }
+    await writeRun(null, base)
+    await writeRun(null, curr)
+    await compare({ overrides: overrides(), logger: silentLogger })
+    const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+
+    // Server-side: cap-001 gets a ▲ delta span, cap-002 has none.
+    assert.ok(html.includes('▲+0.500'), 'cap-001 MRR improvement delta should be rendered')
+
+    // Execute the curr run inline script with fake rows.
+    // row1 (cap-001) simulates a rendered ▲ span; row2 (cap-002) has none.
+    const tblId = `rd-pq-${'2026-07-30T11:00:00Z_curr'.replace(/[^a-z0-9]/gi, '')}`
+
+    function makeRow(hasDelta) {
+      const dSpans = hasDelta ? [{ textContent: '▲+0.500' }] : []
+      return {
+        dataset: { qid: 'x', metrics: '{"recall_at_k":1,"mrr":1,"hit_rate_at_k":1,"ndcg_at_k":1}' },
+        cells: Array.from({ length: 8 }, () => ({ innerHTML: '' })),
+        querySelectorAll: sel => sel.includes('.d') ? dSpans : [],
+        addEventListener() {},
+        style: {},
+        classList: { remove() {}, toggle() {} },
+        nextElementSibling: null
+      }
+    }
+    const row1 = makeRow(true)   // cap-001: has delta → should stay visible
+    const row2 = makeRow(false)  // cap-002: no delta → should be hidden
+
+    const rows = [row1, row2]
+    const fakeTbody = { querySelectorAll: sel => sel.includes('rd-pq-row') ? rows : [] }
+    const fakeTbl = {
+      querySelector: sel => sel.includes('tbody') ? fakeTbody : null,
+      querySelectorAll: () => [],
+      _rebase: null
+    }
+    const fakeDiffBtn = { addEventListener() {}, classList: { add() {}, remove() {}, toggle() {} } }
+
+    const inlineScripts = [...html.matchAll(/<script>\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g)]
+    const currScript = inlineScripts.find(m => m[0].includes(`'${tblId}'`))
+    assert.ok(currScript, `inline script for ${tblId} not found`)
+
+    const ctx = vm.createContext({
+      Array, Math, JSON, parseFloat,
+      window: {},
+      document: {
+        getElementById: id => id === tblId ? fakeTbl : id === `${tblId}-diff` ? fakeDiffBtn : null,
+        querySelector: () => null,
+        querySelectorAll: () => []
+      }
+    })
+    vm.runInContext(currScript[0].replace(/<\/?script>/g, ''), ctx)
+
+    // diffOnly=true by default → applyDiff() fires on load
+    assert.equal(row1.style.display, '', 'changed question (has delta) should be visible')
+    assert.equal(row2.style.display, 'none', 'unchanged question (no delta) should be hidden')
   })
 })

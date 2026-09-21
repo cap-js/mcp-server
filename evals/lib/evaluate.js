@@ -99,16 +99,18 @@ async function findEmbeddingDirs(sweepDir) {
 // Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
 // embeddingsSweepDir is set), then build the comparison report.
 // `deps.sourceDb` is a test seam: pass a fake sourceDb to skip the ONNX model load.
-export async function evaluateAndCompare({ configPath, overrides, deps = {} } = {}) {
+export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
-    throw new Error(`Golden set missing or malformed at ${cfg.goldenSet}`)
+    logger.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
+    return { code: 3 }
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    throw new Error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`)
+    logger.error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`)
+    return { code: 3 }
   }
 
   const sourceDb = deps.sourceDb ?? await createSourceDb()
