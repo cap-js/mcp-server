@@ -1,0 +1,24 @@
+name: Publish to MCP Registry
+
+# Standalone re-publish of server.json to the MCP Registry, decoupled from the
+# npm release in release.yml. Use when the package is already on npm but the
+# registry entry needs to be (re-)published.
+
+permissions:
+  contents: read
+  id-token: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-mcp:
+    # workflow_dispatch can target any ref; restrict the actual publish to main.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # `npm` environment gates the run behind required-reviewer approval.
+    environment: npm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish to MCP Registry
+        uses: ./.github/actions/publish-mcp-registry
