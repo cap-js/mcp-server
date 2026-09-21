@@ -1,0 +1,17 @@
+name: Publish to MCP Registry
+
+permissions:
+  contents: read
+  id-token: write
+
+on:
+  workflow_dispatch:
+
+jobs:
+  publish-mcp:
+    runs-on: ubuntu-latest
+    environment: npm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Publish to MCP Registry
+        uses: ./.github/actions/publish-mcp-registry
