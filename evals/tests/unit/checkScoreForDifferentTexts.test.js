@@ -7,12 +7,26 @@ import { getEmbeddings, loadChunks } from '../../../lib/embeddings.js'
 
 // just used for testing scoring of different embedded texts
 test('check test', async () => {
-  const text1 = "## Databases\n\n###### Inner Loop\n\n> [!tip] Inner-Loop Development\n> SQLite isn't meant for productive use, but rather for development only.\n> It drastically speeds up turn-around times in local inner-loop development.\n> Essentially it acts as a mock stand-in for the target databases we'll use in production, that is, SAP HANA."
-  const text2 = "# The CAP Cookbook\n\nRecipes for CAP Development\n\nThe following figure illustrates a walkthrough of the most prominent tasks during development of CAP-based projects. The guides contained in this section provide details and instructions about each.\n\nDomain Modeling (/docs/guides/domain/index)\n : Most projects start with capturing the essential objects of their domain in a respective domain model. Find here an introduction to the basics of domain modeling with CDS, complemented with recommended best practices."
+  const text1 = `### . keys
+### . associations
+### . compositions
+### . actions
+
+These properties are convenient shortcuts to access an entity definition's declared *keys* (/docs/cds/cdl#entities), *Association (/docs/cds/cdl#associations)* or *Composition (/docs/cds/cdl#associations)* elements, as well as *bound action* or *function* (/docs/cds/cdl#bound-actions) definitions.
+Their values are [\`LinkedDefinitions\`].
+CDS entity definition data model CDS action operation mutation CDS function query operation`
+  const text2 = `### . keys
+### . associations
+### . compositions
+### . actions
+
+These properties are convenient shortcuts to access an entity definition's declared *keys* (/docs/cds/cdl#entities), *Association (/docs/cds/cdl#associations)* or *Composition (/docs/cds/cdl#associations)* elements, as well as *bound action* or *function* (/docs/cds/cdl#bound-actions) definitions.
+Their values are [\`LinkedDefinitions\`].`
   const dir = path.join(os.tmpdir(), 'embed-truncation-test-' + Date.now())
   const resultEmbeddings = await createEmbeddings('code-chunks', [text1, text2], dir)
 
-  const search = await getEmbeddings('How does cds watch react when I save a domain model and what is the inner development loop in CAP?', 'Xenova/all-MiniLM-L6-v2')
+  const query = 'What are the convenient shortcuts for accessing entity definitions in CAP?'
+  const search = await getEmbeddings(query)
   const chunks = await loadChunks('code-chunks', resultEmbeddings.outDir)
 
   function cosineSimilarity(a, b) {
@@ -27,6 +41,10 @@ test('check test', async () => {
   }))
   // Sort by similarity descending
   scoredChunks.sort((a, b) => b.similarity - a.similarity)
+
+  const isFirst = scoredChunks[0].content == text1
+  console.log(`\ntext${isFirst ? '1' : '2'}: ${scoredChunks[0].similarity}`)
+  console.log(`text${isFirst ? '2' : '1'}: ${scoredChunks[1].similarity}\n\n`)
   
   await unlink(path.join(resultEmbeddings.outDir, 'code-chunks.bin'))
   await unlink(path.join(resultEmbeddings.outDir, 'code-chunks.json'))
