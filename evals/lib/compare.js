@@ -74,7 +74,7 @@ function buildPerQuestionModel(runs) {
     const db = b.delta.mrr === null ? 0 : b.delta.mrr
     if (da !== db) return da - db // biggest MRR drop first
     if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr // then lowest MRR
-    return a.id < b.id ? -1 : 1
+    return a.id.localeCompare(b.id, undefined, { numeric: true })
   })
 
   return { order, textById, rows }
@@ -153,8 +153,8 @@ const PQ_SCRIPT = `
     var list=DATA.filter(function(q){ return !term || q.id.toLowerCase().indexOf(term)>=0 || q.question.toLowerCase().indexOf(term)>=0; });
     if(sortKey){ list=list.slice().sort(function(a,b){
       var av,bv;
-      if(sortKey==='id'){ av=a.id; bv=b.id; return (av<bv?-1:av>bv?1:0)*sortDir; }
-      if(sortKey==='question'){ av=a.question; bv=b.question; return (av<bv?-1:av>bv?1:0)*sortDir; }
+      if(sortKey==='id'){ return a.id.localeCompare(b.id,undefined,{numeric:true})*sortDir; }
+      if(sortKey==='question'){ return a.question.localeCompare(b.question,undefined,{numeric:true})*sortDir; }
       av=a.avg[sortKey]; bv=b.avg[sortKey]; return (av-bv)*sortDir;
     }); }
     render(list);
