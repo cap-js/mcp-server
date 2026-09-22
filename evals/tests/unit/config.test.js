@@ -21,7 +21,7 @@ describe('config tests', () => {
     assert.equal(cfg.gates.recall_at_k, 0.8)
     assert.ok(cfg.goldenSet.endsWith('data/golden-set.json'))
     assert.ok(cfg.output.runsDir.endsWith('runs'))
-    assert.ok(cfg.embeddingsSweepDir === null || typeof cfg.embeddingsSweepDir === 'string')
+    assert.ok(typeof cfg.embeddingsDir === 'string')
     // all metric keys present in gates
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
@@ -83,16 +83,16 @@ describe('config tests', () => {
     assert.equal(cfg.output.keepRuns, -1)
   })
 
-  test('embeddingsSweepDir resolves absolute path via override', async () => {
+  test('embeddingsDir resolves absolute path via override', async () => {
     clearEnv()
-    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: '/abs/sweep' } })
-    assert.equal(cfg.embeddingsSweepDir, '/abs/sweep')
+    const cfg = await loadConfig({ overrides: { embeddingsDir: '/abs/sweep' } })
+    assert.equal(cfg.embeddingsDir, '/abs/sweep')
   })
 
-  test('embeddingsSweepDir is null when overridden to null', async () => {
+  test('embeddingsDir is null when overridden to null', async () => {
     clearEnv()
-    const cfg = await loadConfig({ overrides: { embeddingsSweepDir: null } })
-    assert.equal(cfg.embeddingsSweepDir, null)
+    const cfg = await loadConfig({ overrides: { embeddingsDir: null } })
+    assert.equal(cfg.embeddingsDir, null)
   })
 
   test('label override wins', async () => {

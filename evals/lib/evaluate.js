@@ -2,7 +2,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { loadConfig, EVALS_DIR } from './config.js'
+import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'
@@ -96,8 +96,8 @@ async function findEmbeddingDirs(sweepDir) {
   return results.sort()
 }
 
-// Entry point for `npm run evals`: run the eval once (or sweep all subdirs if
-// embeddingsSweepDir is set), then build the comparison report.
+// Entry point for `npm run evals`: sweep all embedding subdirs under
+// cfg.embeddingsDir, then build the comparison report.
 // `deps.sourceDb` is a test seam: pass a fake sourceDb to skip the ONNX model load.
 export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
@@ -122,36 +122,26 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
   }
 
   let code
-  let perQuestionRaw
-  if (cfg.embeddingsSweepDir) {
-    const dirs = await findEmbeddingDirs(cfg.embeddingsSweepDir)
-    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsSweepDir}`)
-    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsSweepDir}`)
+  if (cfg.embeddingsDir) {
+    const dirs = await findEmbeddingDirs(cfg.embeddingsDir)
+    if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsDir}`)
+    console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsDir}`)
     let worstCode = 0
     for (const dir of dirs) {
       process.env.LOCAL_EMBEDDINGS_DIR = dir
-      const segments = path.relative(cfg.embeddingsSweepDir, dir).split(path.sep)
-      const label = [...segments].join('/')
+      const segments = path.relative(cfg.embeddingsDir, dir).split(path.sep)
+      const label = [cfg.label, ...segments].filter(Boolean).join('/')
       console.error(`\n→ ${label}`)
       const capire_version = await readCapireVersion(dir)
       const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
-  } else {
-    const localEmbDir = process.env.LOCAL_EMBEDDINGS_DIR
-    let label = process.env.EVAL_LABEL || ''
-    if (localEmbDir) {
-      const projectRoot = path.resolve(EVALS_DIR, '..', '..')
-      label = path.relative(projectRoot, localEmbDir).split(path.sep).join('/')
-    }
-    const capire_version = await readCapireVersion(localEmbDir)
-    ;({ code, perQuestionRaw } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps }))
   }
 
   try {
     const { compare } = await import('./compare.js')
-    await compare({ configPath, overrides, perQuestionRaw })
+    await compare({ configPath, overrides })
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
   }
