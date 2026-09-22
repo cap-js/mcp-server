@@ -29,13 +29,18 @@ function stripTrailingAttrBlock(text) {
 
 // '<iframe src="url">desc</iframe>' → 'video (url): desc'   no src → desc only
 function convertMediaEmbeds(text) {
-  return text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
+  let t = text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
     const sm = attrs.match(SRC_ATTR);
     const url = sm ? (sm[1] || sm[2]) : '';
-    const desc = stripHtmlTags(inner, ' ').replace(/\s+/g, ' ').trim();
+    const desc = inner.replace(/</g, ' ').replace(/>/g, ' ').replace(/\s+/g, ' ').trim();
     if (!url) return desc || '';
     return desc ? `video (${url}): ${desc}` : `video (${url})`;
   });
+  // Remove any remaining malformed/unclosed <iframe or <video sequences.
+  // do-while ensures nested crafting (e.g. <<iframe) cannot reconstruct the pattern.
+  let prev;
+  do { prev = t; t = t.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (t !== prev);
+  return t;
 }
 
 function normalizeShared(text) {
