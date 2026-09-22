@@ -29,18 +29,26 @@ function stripTrailingAttrBlock(text) {
 
 // '<iframe src="url">desc</iframe>' → 'video (url): desc'   no src → desc only
 function convertMediaEmbeds(text) {
-  let t = text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
+  const TAG_RE = /<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi;
+  let result = '';
+  let lastIndex = 0;
+  for (const match of text.matchAll(TAG_RE)) {
+    // Clean any orphaned <iframe/<video in the non-matched prefix (single-char do-while).
+    let prefix = text.slice(lastIndex, match.index);
+    let p;
+    do { p = prefix; prefix = prefix.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (prefix !== p);
+    result += prefix;
+    const [, _tag, attrs, inner] = match;
     const sm = attrs.match(SRC_ATTR);
-    const url = sm ? (sm[1] || sm[2]) : '';
+    const url = sm ? (sm[1] || sm[2]).replace(/</g, '') : '';
     const desc = inner.replace(/</g, ' ').replace(/>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!url) return desc || '';
-    return desc ? `video (${url}): ${desc}` : `video (${url})`;
-  });
-  // Remove any remaining malformed/unclosed <iframe or <video sequences.
-  // do-while ensures nested crafting (e.g. <<iframe) cannot reconstruct the pattern.
-  let prev;
-  do { prev = t; t = t.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (t !== prev);
-  return t;
+    result += url ? (desc ? `video (${url}): ${desc}` : `video (${url})`) : (desc || '');
+    lastIndex = match.index + match[0].length;
+  }
+  let suffix = text.slice(lastIndex);
+  let q;
+  do { q = suffix; suffix = suffix.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (suffix !== q);
+  return result + suffix;
 }
 
 function normalizeShared(text) {
