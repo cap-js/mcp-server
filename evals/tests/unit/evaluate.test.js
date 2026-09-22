@@ -46,7 +46,7 @@ function baseOverrides(extra = {}) {
     k: 5,
     goldenSet: goldenPath,
     output: { runsDir },
-    embeddingsSweepDir: null,
+    embeddingsDir: null,
   }
   return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
 }
@@ -285,8 +285,11 @@ describe('evaluate tests', () => {
 
   test('evaluateAndCompare runs the eval once and writes compare', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const embDir = path.join(tmpDir, 'embeddings')
+    await fs.mkdir(embDir, { recursive: true })
+    await fs.writeFile(path.join(embDir, 'code-chunks.json'), '{}')
     const res = await evaluateAndCompare({
-      overrides: baseOverrides(),
+      overrides: { ...baseOverrides(), label: null, embeddingsDir: embDir },
       logger: silentLogger,
       deps: { sourceDb: fakeSourceDb, loadIndex: fakeLoadIndex(), makeRetriever: fakeRetriever(CHUNK_IDS) }
     })
@@ -328,9 +331,10 @@ describe('evaluateSweep tests', () => {
   function sweepOverrides(extra = {}) {
     const base = {
       k: 5,
+      label: null,
       goldenSet: goldenPath,
       output: { runsDir },
-      embeddingsSweepDir: sweepDir,
+      embeddingsDir: sweepDir,
     }
     return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
   }
