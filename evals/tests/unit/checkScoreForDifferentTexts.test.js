@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 import { test } from 'node:test'
 import { unlink } from 'node:fs/promises'
 import path from 'node:path'
