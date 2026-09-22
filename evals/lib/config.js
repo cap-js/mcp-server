@@ -9,7 +9,8 @@ export const DEFAULT_CONFIG = {
   // human-readable label for this run (shown in compare output)
   label: null,
   // do evaluate for all embeddings found in
-  embeddingsSweepDir: '/Users/i543501/SAPDevelop/mcp-server/All Embeddings',
+  // root directory that contains all embedding subdirectories to evaluate
+  embeddingsDir: '../All Embeddings',
   gates: {
     recall_at_k: 0.8,
     mrr: 0.5,
@@ -18,7 +19,7 @@ export const DEFAULT_CONFIG = {
   },
   output: {
     runsDir: 'runs',
-    keepRuns: 600,
+    keepRuns: 500,
     resultsName: 'result.jsonl',
     compareFormat: 'html'
   }
@@ -65,7 +66,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     k: file.k ?? 5,
     label: file.label ?? null,
     baselineRunId: null,
-    embeddingsSweepDir: file.embeddingsSweepDir ? resolve(file.embeddingsSweepDir) : null,
+    embeddingsDir: file.embeddingsDir ? resolve(file.embeddingsDir) : null,
     goldenSet: resolve(file.goldenSet ?? 'data/golden-set.json'),
     gates: {},
     output: {
@@ -84,7 +85,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
-    if (overrides.embeddingsSweepDir !== undefined) cfg.embeddingsSweepDir = overrides.embeddingsSweepDir ? resolve(overrides.embeddingsSweepDir) : null
+    if (overrides.embeddingsDir !== undefined) cfg.embeddingsDir = overrides.embeddingsDir ? resolve(overrides.embeddingsDir) : null
     if (overrides.goldenSet !== undefined) cfg.goldenSet = resolve(overrides.goldenSet)
     if (overrides.gates) Object.assign(cfg.gates, overrides.gates)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
