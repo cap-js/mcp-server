@@ -15,7 +15,8 @@ and the determinism guarantees.
 evals/
   lib/                 # implementation (imported by the tests and npm run evals)
     config.js          #   DEFAULT_CONFIG (edit here) + config loader (EVAL_* env overrides)
-    evaluate.js        #   evaluate(): orchestration — load → preflight → retrieve → score → append
+    index.js           #   evaluate() + evaluateAndCompare() — orchestration
+    retrieval.js       #   readJsonOrNull, makeSearchDocsRunner, retrieveAll, findEmbeddingDirs, readCapireVersion
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
@@ -78,12 +79,12 @@ determinism). So the cache (`embeddings/code-chunks.*` and the ONNX model under
 
 All behaviour is configured in `DEFAULT_CONFIG` at the top of [`lib/config.js`](../lib/config.js) — edit it in one place. One
 env var is honoured for day-to-day runs, and everything is also overridable
-programmatically via `evaluate({ overrides })` in `lib/evaluate.js` (overrides win last).
+programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win last).
 
 | `DEFAULT_CONFIG` key | Default | Meaning |
 |---|---|---|
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
-| `embeddingsSweepDir` | _(unset)_ | Parent directory to sweep. When set, the eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to the sweep dir. |
+| `embeddingsDir` | `'../All Embeddings'` | Parent directory to sweep. The eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to this dir. Override to `null` to disable sweep. |
 | `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
 | `output.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
 | `output.keepRuns` | `100` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
@@ -100,36 +101,19 @@ EVAL_RUNS_DIR=runs-xenova npm run evals
 EVAL_RUNS_DIR=runs-pplx  npm run evals
 ```
 
-### Evaluating custom embeddings
-
-Set the `LOCAL_EMBEDDINGS_DIR` env var to score against a specific set of chunk
-embeddings. The directory must contain `code-chunks.json` and `code-chunks.bin`.
-
-```sh
-LOCAL_EMBEDDINGS_DIR=/path/to/All\ Embeddings/xenova_w_meta/256-d4 npm run evals
-```
-
-The run label is derived automatically from the path relative to the project root
-(e.g. `All Embeddings/xenova_w_meta/256-d4`), so runs are identifiable in the comparison report
-without any manual configuration.
-
-To compare multiple embedding sets, run `npm run evals` once per set (updating
-`LOCAL_EMBEDDINGS_DIR` between runs) — the comparison report is rebuilt automatically
-after each run, charting all runs together.
-
 ### Sweeping multiple embedding sets
 
-Set `embeddingsSweepDir` in `DEFAULT_CONFIG` to a parent directory to score all embedding sets in one
-shot. The eval discovers every descendant directory that contains `code-chunks.json`,
-runs once per directory, and appends all results to `result.jsonl`. A single
-`compare.html` is built at the end.
+`embeddingsDir` in `DEFAULT_CONFIG` points to a parent directory. The eval discovers
+every descendant directory that contains `code-chunks.json`, runs once per directory,
+and appends all results to `result.jsonl`. A single `compare.html` is built at the end.
 
 ```js
 // In lib/config.js DEFAULT_CONFIG:
-embeddingsSweepDir: '/path/to/All Embeddings/xenova_w_meta'
+embeddingsDir: '/path/to/All Embeddings/xenova_w_meta'
 ```
 
-Labels are derived automatically from the path relative to the sweep dir.
+Labels are derived automatically from the path segments relative to `embeddingsDir`.
+If `cfg.label` is also set, it is prepended: `<label>/<path/segments>`.
 
 Given this layout:
 
@@ -143,8 +127,6 @@ xenova_w_meta/
 ```
 
 Labels produced: `256-d4/no-meta`, `256-d4/with-meta`, `512-d4/no-meta`.
-
-`embeddingsSweepDir` takes precedence over `LOCAL_EMBEDDINGS_DIR` when both are set.
 
 
 > **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the

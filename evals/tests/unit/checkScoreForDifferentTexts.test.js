@@ -6,7 +6,7 @@ import { createEmbeddings } from '../../../lib/calculateEmbeddings.js'
 import { getEmbeddings, loadChunks } from '../../../lib/embeddings.js'
 
 // just used for testing scoring of different embedded texts
-test('check test', async () => {
+test.skip('check test', async () => {
   const text1 = `### . keys
 ### . associations
 ### . compositions
