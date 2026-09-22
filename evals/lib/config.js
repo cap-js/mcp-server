@@ -10,7 +10,7 @@ export const DEFAULT_CONFIG = {
   label: null,
   // do evaluate for all embeddings found in
   // root directory that contains all embedding subdirectories to evaluate
-  embeddingsDir: '../All Embeddings',
+  embeddingsDir: '../embeddings',
   gates: {
     recall_at_k: 0.8,
     mrr: 0.5,
