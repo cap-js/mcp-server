@@ -77,7 +77,7 @@ describe('rerank', () => {
 })
 
 
-describe('rerank model benchmark', () => {
+describe.skip('rerank model benchmark', () => {
   //  Model                                      k=1 (10 cands)    k=5 (50 cands)
   //                                             ms      ΔRSS      ms     ΔRSS
   //  ──────────────────────────────────────  ──────  ───────  ──────  ────────
@@ -89,7 +89,7 @@ describe('rerank model benchmark', () => {
   //  Xenova/ms-marco-MiniLM-L-12-v2             601  +337 MB    2086  +1394 MB
   //  mixedbread-ai/mxbai-rerank-xsmall-v1      1038  +465 MB    4871  +2380 MB
   //  mixedbread-ai/mxbai-rerank-base-v1        2296  +350 MB   12122  +4373 MB
-  test.skip('inference time and ΔRSS for each model (20 candidates, max_length=256, dtype=q8)', async () => {
+  test('inference time and ΔRSS for each model (20 candidates, max_length=256, dtype=q8)', async () => {
     const MODELS = [
       'Xenova/ms-marco-TinyBERT-L-2-v2',
       'Xenova/ms-marco-MiniLM-L-6-v2',
