@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { evaluate, evaluateAndCompare } from '../../lib/evaluate.js'
+import { evaluate, evaluateAndCompare } from '../../lib/index.js'
 
 // ---- fixtures -------------------------------------------------------------
 // A tiny in-memory index + retriever so no ONNX model / network is touched.
