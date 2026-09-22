@@ -1,0 +1,17 @@
+name: Publish to MCP Registry
+description: Downloads the MCP Publisher and publishes server.json to the MCP Registry via GitHub OIDC
+
+# The calling job must set `id-token: write` (for github-oidc login) and have the
+# repo checked out first (so server.json is present in the working directory).
+runs:
+  using: composite
+  steps:
+    - name: Download MCP Publisher
+      shell: bash
+      run: |
+        curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+    - name: Publish to MCP Registry
+      shell: bash
+      run: |
+        ./mcp-publisher login github-oidc
+        ./mcp-publisher publish
