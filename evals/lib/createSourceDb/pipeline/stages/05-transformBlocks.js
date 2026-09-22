@@ -38,7 +38,7 @@ function convertMediaEmbeds(text) {
     let p;
     do { p = prefix; prefix = prefix.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (prefix !== p);
     result += prefix;
-    const [, _tag, attrs, inner] = match;
+    const [,, attrs, inner] = match;
     const sm = attrs.match(SRC_ATTR);
     const url = sm ? (sm[1] || sm[2]).replace(/</g, '') : '';
     const desc = inner.replace(/</g, ' ').replace(/>/g, ' ').replace(/\s+/g, ' ').trim();
