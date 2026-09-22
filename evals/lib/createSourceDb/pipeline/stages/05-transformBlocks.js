@@ -32,7 +32,7 @@ function convertMediaEmbeds(text) {
   return text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
     const sm = attrs.match(SRC_ATTR);
     const url = sm ? (sm[1] || sm[2]) : '';
-    const desc = inner.replace(/<[^>]*>?/gi, ' ').replace(/\s+/g, ' ').trim();
+    const desc = stripHtmlTags(inner, ' ').replace(/\s+/g, ' ').trim();
     if (!url) return desc || '';
     return desc ? `video (${url}): ${desc}` : `video (${url})`;
   });
@@ -205,7 +205,11 @@ const VOID_TAGS = new Set(['br', 'hr', 'wbr', 'div', 'span', 'p', 'img', 'detail
 const WRAPPER_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li']);
 const HREF_ATTR = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-const STRIP_TAGS = /<[^>]*>?/g;
+
+// Two-pass strip: first removes complete <...> tags, then any remaining unclosed <... sequences.
+function stripHtmlTags(s, r = ' ') {
+  return s.replace(/<[^>]+>/g, r).replace(/<[^>]*/g, r);
+}
 
 // Tags whose semantic label should survive as plain text for embedding retrieval.
 // <Since version="v10" .../> → "since v10"   <Beta/> → "Beta"
@@ -275,13 +279,13 @@ function convertTableRows(text) {
       // extract <li> items first; join with " / " to keep items distinct
       const liItems = [];
       cell.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (__, liContent) => {
-        const item = liContent.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
+        const item = stripHtmlTags(liContent, ' ').replace(/\s+/g, ' ').trim();
         if (item) liItems.push(item);
       });
       if (liItems.length) {
         cells.push(liItems.join(' / '));
       } else {
-        const flat = cell.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
+        const flat = stripHtmlTags(cell, ' ').replace(/\s+/g, ' ').trim();
         if (flat) cells.push(flat);
       }
     });
@@ -300,7 +304,7 @@ function convertHtmlToMarkdown(text) {
     t = t.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (m, attrs, inner) => {
       const hm = attrs.match(HREF_ATTR);
       const url = hm ? (hm[1] || hm[2]) : '';
-      const label = inner.replace(STRIP_TAGS, '').trim();
+      const label = stripHtmlTags(inner, '').trim();
       if (url && label) return `[${label}](${url})`;
       // Icon-only link (label stripped to empty but real URL present): preserve URL as bare path.
       // Skip Vue/template binding expressions like ":href" values that start with quotes or JS.

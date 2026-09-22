@@ -38,7 +38,7 @@ function isValuelessBody(b) {
   if (/^this documentation is not (complete|available) yet/i.test(b.trim())) return true;
   const stripped = b
     .replace(/!\[[^\]]*\]\([^)]*\)(\{[^}]*\})?/g, '')
-    .replace(/<\/?[A-Za-z][^>]*\/?>?/g, '')
+    .replace(/<\/?[A-Za-z][^>]*\/?>/g, '').replace(/<\/?[A-Za-z][^>]*/g, '')
     .replace(/\{\.[a-z-]+\}/gi, '')
     .replace(/^#{1,6}\s.*$/gm, '')
     .replace(/\bTODO\b/g, '')
