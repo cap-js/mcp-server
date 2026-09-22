@@ -32,7 +32,7 @@ function convertMediaEmbeds(text) {
   return text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
     const sm = attrs.match(SRC_ATTR);
     const url = sm ? (sm[1] || sm[2]) : '';
-    const desc = inner.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const desc = inner.replace(/<[^>]*>?/gi, ' ').replace(/\s+/g, ' ').trim();
     if (!url) return desc || '';
     return desc ? `video (${url}): ${desc}` : `video (${url})`;
   });
@@ -72,7 +72,7 @@ function normalizeStructural(text) {
 // '[label](url)' → 'label (url)'   bare-URL label → just url   empty label → just url
 function flattenLinks(text) {
   if (!text.includes('](')) return text;
-  return text.replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target) => {
+  return text.replace(/(\[[^\]]*\]\()([^)]*)(\))/g, (m, pre, target) => {
     const url = target.trim();
     const label = pre.slice(1, -2).trim(); // strip '[' prefix and '](' suffix
     return (label === '' || label === url) ? url : `${label} (${url})`;
@@ -108,7 +108,7 @@ function resolveRelativeLinks(text, source) {
     return base.join('/') + anchor;
   };
   return text
-    .replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target, post) => pre + resolve(target.trim()) + post)
+    .replace(/(\[[^\]]*\]\()([^)]*)(\))/g, (m, pre, target, post) => pre + resolve(target.trim()) + post)
     .replace(/^(\s*\[[^\]]+\]:\s+)(\S+)/gm, (m, pre, target) => pre + resolve(target.trim()))
     .replace(/(<a\s[^>]*href=)(["'])([^"']*)(\2)/gi, (m, pre, q, target, q2) => pre + q + resolve(target.trim()) + q2);
 }
@@ -205,7 +205,7 @@ const VOID_TAGS = new Set(['br', 'hr', 'wbr', 'div', 'span', 'p', 'img', 'detail
 const WRAPPER_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li']);
 const HREF_ATTR = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-const STRIP_TAGS = /<[^>]*>/g;
+const STRIP_TAGS = /<[^>]*>?/g;
 
 // Tags whose semantic label should survive as plain text for embedding retrieval.
 // <Since version="v10" .../> → "since v10"   <Beta/> → "Beta"
