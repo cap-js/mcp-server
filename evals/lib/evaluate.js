@@ -2,7 +2,7 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
-import { loadConfig, EVALS_DIR } from './config.js'
+import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { createSourceDb } from './createSourceDb/createSourceDb.js'

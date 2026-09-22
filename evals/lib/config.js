@@ -7,7 +7,8 @@ export const DEFAULT_CONFIG = {
   // how many results should search_docs return
   k: 5,
   // human-readable label for this run (shown in compare output)
-  label: "w-h-r-overRet5-xenMiniL12",
+  label: null,
+  // do evaluate for all embeddings found in
   // root directory that contains all embedding subdirectories to evaluate
   embeddingsDir: '../All Embeddings',
   gates: {
@@ -18,7 +19,7 @@ export const DEFAULT_CONFIG = {
   },
   output: {
     runsDir: 'runs',
-    keepRuns: 600,
+    keepRuns: 500,
     resultsName: 'result.jsonl',
     compareFormat: 'html'
   }
