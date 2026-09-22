@@ -520,7 +520,7 @@ describe('compare tests', () => {
 
     // Collect inline scripts (the per-run IIFE blocks that set tbl._rebase).
     const inlineScripts = [...html.matchAll(/<script>\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g)]
-      .map(m => m[0].replace(/<\/?script>/g, ''))
+      .map(m => m[0].replace(/<\/?script>/gi, ''))
 
     // Execute each inline script in a vm context that has getElementById pointing to the fake tables.
     for (const script of inlineScripts) {
@@ -652,7 +652,7 @@ describe('compare tests', () => {
         querySelectorAll: () => []
       }
     })
-    vm.runInContext(currScript[0].replace(/<\/?script>/g, ''), ctx)
+    vm.runInContext(currScript[0].replace(/<\/?script>/gi, ''), ctx)
 
     // diffOnly=true by default → applyDiff() fires on load
     assert.equal(row1.style.display, '', 'changed question (has delta) should be visible')

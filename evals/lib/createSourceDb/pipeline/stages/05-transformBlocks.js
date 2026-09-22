@@ -29,13 +29,26 @@ function stripTrailingAttrBlock(text) {
 
 // '<iframe src="url">desc</iframe>' → 'video (url): desc'   no src → desc only
 function convertMediaEmbeds(text) {
-  return text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
+  const TAG_RE = /<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi;
+  let result = '';
+  let lastIndex = 0;
+  for (const match of text.matchAll(TAG_RE)) {
+    // Clean any orphaned <iframe/<video in the non-matched prefix (single-char do-while).
+    let prefix = text.slice(lastIndex, match.index);
+    let p;
+    do { p = prefix; prefix = prefix.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (prefix !== p);
+    result += prefix;
+    const [,, attrs, inner] = match;
     const sm = attrs.match(SRC_ATTR);
-    const url = sm ? (sm[1] || sm[2]) : '';
-    const desc = inner.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!url) return desc || '';
-    return desc ? `video (${url}): ${desc}` : `video (${url})`;
-  });
+    const url = sm ? (sm[1] || sm[2]).replace(/</g, '') : '';
+    const desc = inner.replace(/</g, ' ').replace(/>/g, ' ').replace(/\s+/g, ' ').trim();
+    result += url ? (desc ? `video (${url}): ${desc}` : `video (${url})`) : (desc || '');
+    lastIndex = match.index + match[0].length;
+  }
+  let suffix = text.slice(lastIndex);
+  let q;
+  do { q = suffix; suffix = suffix.replace(/<(?=\/?(?:iframe|video)\b)/gi, ''); } while (suffix !== q);
+  return result + suffix;
 }
 
 function normalizeShared(text) {
@@ -72,7 +85,7 @@ function normalizeStructural(text) {
 // '[label](url)' → 'label (url)'   bare-URL label → just url   empty label → just url
 function flattenLinks(text) {
   if (!text.includes('](')) return text;
-  return text.replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target) => {
+  return text.replace(/(\[[^\]]*\]\()([^)]*)(\))/g, (m, pre, target) => {
     const url = target.trim();
     const label = pre.slice(1, -2).trim(); // strip '[' prefix and '](' suffix
     return (label === '' || label === url) ? url : `${label} (${url})`;
@@ -108,7 +121,7 @@ function resolveRelativeLinks(text, source) {
     return base.join('/') + anchor;
   };
   return text
-    .replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target, post) => pre + resolve(target.trim()) + post)
+    .replace(/(\[[^\]]*\]\()([^)]*)(\))/g, (m, pre, target, post) => pre + resolve(target.trim()) + post)
     .replace(/^(\s*\[[^\]]+\]:\s+)(\S+)/gm, (m, pre, target) => pre + resolve(target.trim()))
     .replace(/(<a\s[^>]*href=)(["'])([^"']*)(\2)/gi, (m, pre, q, target, q2) => pre + q + resolve(target.trim()) + q2);
 }
@@ -205,7 +218,11 @@ const VOID_TAGS = new Set(['br', 'hr', 'wbr', 'div', 'span', 'p', 'img', 'detail
 const WRAPPER_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li']);
 const HREF_ATTR = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
 const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-const STRIP_TAGS = /<[^>]*>/g;
+
+// Two-pass strip: first removes complete <...> tags, then any remaining unclosed <... sequences.
+function stripHtmlTags(s, r = ' ') {
+  return s.replace(/<[^>]+>/g, r).replace(/<[^>]*/g, r);
+}
 
 // Tags whose semantic label should survive as plain text for embedding retrieval.
 // <Since version="v10" .../> → "since v10"   <Beta/> → "Beta"
@@ -275,13 +292,13 @@ function convertTableRows(text) {
       // extract <li> items first; join with " / " to keep items distinct
       const liItems = [];
       cell.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (__, liContent) => {
-        const item = liContent.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
+        const item = stripHtmlTags(liContent, ' ').replace(/\s+/g, ' ').trim();
         if (item) liItems.push(item);
       });
       if (liItems.length) {
         cells.push(liItems.join(' / '));
       } else {
-        const flat = cell.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
+        const flat = stripHtmlTags(cell, ' ').replace(/\s+/g, ' ').trim();
         if (flat) cells.push(flat);
       }
     });
@@ -300,7 +317,7 @@ function convertHtmlToMarkdown(text) {
     t = t.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (m, attrs, inner) => {
       const hm = attrs.match(HREF_ATTR);
       const url = hm ? (hm[1] || hm[2]) : '';
-      const label = inner.replace(STRIP_TAGS, '').trim();
+      const label = stripHtmlTags(inner, '').trim();
       if (url && label) return `[${label}](${url})`;
       // Icon-only link (label stripped to empty but real URL present): preserve URL as bare path.
       // Skip Vue/template binding expressions like ":href" values that start with quotes or JS.
