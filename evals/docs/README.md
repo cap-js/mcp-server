@@ -22,6 +22,7 @@ evals/
     report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
     metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
     ids.js             #   parse doc id (the Source: URL) from a chunk's first line
+    createSourceDb/    #   pipeline to build chunk embeddings from capire source docs
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
   docs/
@@ -33,7 +34,7 @@ evals/
   tests/
     unit/              # unit tests
       metrics.test.js  config.test.js  ids.test.js  evaluate.test.js  store.test.js
-      compare.test.js  report.test.js  search-docs.test.js
+      compare.test.js  report.test.js  search-docs.test.js  checkScoreForDifferentTexts.test.js
 ```
 
 ## Run
@@ -84,10 +85,10 @@ programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win 
 | `DEFAULT_CONFIG` key | Default | Meaning |
 |---|---|---|
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
-| `embeddingsDir` | `'../All Embeddings'` | Parent directory to sweep. The eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to this dir. Override to `null` to disable sweep. |
+| `embeddingsDir` | `'../embeddings'` | Parent directory to sweep. The eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to this dir. Override to `null` to disable sweep. |
 | `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
 | `output.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
-| `output.keepRuns` | `100` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
+| `output.keepRuns` | `500` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
 | `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
