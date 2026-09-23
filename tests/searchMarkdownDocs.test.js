@@ -162,6 +162,19 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result2.length > 0, 'Second result should not be empty')
   })
 
+  test('LOCAL_EMBEDDINGS_DIR env var is ignored', async () => {
+    const prev = process.env.LOCAL_EMBEDDINGS_DIR
+    try {
+      process.env.LOCAL_EMBEDDINGS_DIR = '/nonexistent/path/that/does/not/exist'
+      const result = await searchMarkdownDocs('entity', 1)
+      assert(typeof result === 'string', 'Result should be a string')
+      assert(result.length > 0, 'Result should not be empty')
+    } finally {
+      if (prev === undefined) delete process.env.LOCAL_EMBEDDINGS_DIR
+      else process.env.LOCAL_EMBEDDINGS_DIR = prev
+    }
+  })
+
   test('should respect maxResults parameter', async () => {
     const maxResults = 5
     const result = await searchMarkdownDocs('entity service', maxResults)
