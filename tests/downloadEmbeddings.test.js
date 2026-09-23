@@ -208,9 +208,43 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /framing/)
   })
 
-  test('propagates fetch network error', async () => {
+  test('falls back to local version on network error', async () => {
     stubNetworkError('network down')
-    await assert.rejects(downloadEmbeddings(), /network down/)
+    const result = await downloadEmbeddings()
+    assert.strictEqual(result.updated, false)
+    assert.ok(result.localDir, 'should return localDir from local version')
+  })
+
+  test('throws offline error (with network cause) when no local version exists', async () => {
+    const os = await import('node:os')
+    const tmpHold = await fs.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-'))
+    // Move every commit dir out of DEFAULT_DIR so resolveLocalVersion returns null.
+    // Scope: all model dirs under DEFAULT_DIR (last-resort scan crosses model folders).
+    const moved = []
+    try {
+      const modelDirs = await fs.readdir(DEFAULT_DIR, { withFileTypes: true }).catch(() => [])
+      for (const m of modelDirs) {
+        if (!m.isDirectory()) continue
+        const modelPath = path.join(DEFAULT_DIR, m.name)
+        const entries = await fs.readdir(modelPath, { withFileTypes: true }).catch(() => [])
+        for (const d of entries) {
+          if (!d.isDirectory() || d.name === 'etags') continue
+          const from = path.join(modelPath, d.name)
+          const to = path.join(tmpHold, m.name + '--' + d.name)
+          await fs.rename(from, to)
+          moved.push({ from, to })
+        }
+      }
+      stubNetworkError('network down')
+      await assert.rejects(downloadEmbeddings(), (err) => {
+        assert.match(err.message, /Offline mode/)
+        assert.match(err.cause?.message, /network down/)
+        return true
+      })
+    } finally {
+      for (const { from, to } of moved) await fs.rename(to, from).catch(() => {})
+      await fs.rm(tmpHold, { recursive: true, force: true }).catch(() => {})
+    }
   })
 
   test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
