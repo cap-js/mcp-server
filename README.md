@@ -47,6 +47,25 @@ See [Getting Started](https://cap.cloud.sap/docs/get-started) on how to jumpstar
 
 Configure your MCP client (Cline, opencode, Claude Code, GitHub Copilot, etc.) to start the server using the command `npx -y @cap-js/mcp-server` as in the following examples.
 
+### Usage in Claude Code
+
+Register the server with [Claude Code](https://claude.com/claude-code).
+
+**For all projects (user scope):**
+```sh
+claude mcp add --scope user cds-mcp -- npx -y @cap-js/mcp-server
+```
+
+**For the current project only:**
+```sh
+claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
+```
+
+**For the current project only (committed to the repository):**
+```sh
+claude mcp add --scope project cds-mcp -- npx -y @cap-js/mcp-server
+```
+
 ### Usage in VS Code
 
 Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
@@ -79,14 +98,6 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 ```
 
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
-
-### Usage in Claude Code
-
-Register the server with [Claude Code](https://claude.com/claude-code):
-
-```sh
-claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
-```
 
 ### Usage in OpenAI Codex
 
@@ -130,14 +141,20 @@ You can also use the tools directly from the command line.
 npm i -g @cap-js/mcp-server
 ```
 
+> [!WARNING]
+> When the package is installed globally, `npx` uses the installed version instead of downloading the latest from npm. You must update the package manually:
+> ```sh
+> npm update -g @cap-js/mcp-server
+> ```
+
 This will provide the command `cds-mcp`, with which you can invoke the tools directly as follows.
 
 ```sh
-# Search for CDS model definitions
-cds-mcp search_model . Books entity
-
 # Search CAP documentation
 cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
+
+# Search for CDS model definitions
+cds-mcp search_model . Books entity
 ```
 
 ## Available Tools
@@ -146,16 +163,6 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 > Tools are meant to be used by AI models and do not constitute a stable API.
 
 The server provides these tools for CAP development:
-
-### `search_model`
-
-This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
-CDS compiles all your `.cds` files into a unified model representation that includes:
-- All definitions and their relationships
-- Annotations
-- HTTP endpoints
-
-The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ### `search_docs`
 
@@ -166,6 +173,15 @@ This tool uses vector embeddings to locally search through preprocessed CAP docu
 
 This semantic search approach enables you to find relevant documentation even when your query does not use the exact keywords found in the docs, all locally on your machine.
 
+### `search_model`
+
+This tool performs fuzzy searches against names of definitions from the compiled CDS model (Core Schema Notation).
+CDS compiles all your `.cds` files into a unified model representation that includes:
+- All definitions and their relationships
+- Annotations
+- HTTP endpoints
+
+The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
 
 ## Support, Feedback, Contributing
 
