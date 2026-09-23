@@ -21,7 +21,7 @@ export const DEFAULT_CONFIG = {
     runsDir: 'runs',
     keepRuns: 500,
     resultsName: 'result.jsonl',
-    compareFormat: 'md'
+    compareFormat: 'html'
   }
 }
 
