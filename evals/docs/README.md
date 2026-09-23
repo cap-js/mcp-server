@@ -20,7 +20,7 @@ evals/
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
     store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
     report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
-    metrics.js         #   pure metric math (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
+    metrics.js         #   pure metric math (Recall@K, MRR, Hit-Rate@K, nDCG@K)
     ids.js             #   parse doc id (the Source: URL) from a chunk's first line
     createSourceDb/    #   pipeline to build chunk embeddings from capire source docs
   data/                # committed input
@@ -61,7 +61,7 @@ Built automatically at the end of every `npm run evals`. The format is controlle
 `output.compareFormat` in `DEFAULT_CONFIG` (`config.js`):
 
 - **`html`** (default) → `runs/compare.html`: leaderboard (all runs ranked by gated
-  metrics), one line chart per metric (Recall@K, Precision@K, MRR, Hit-Rate@K, nDCG@K)
+  metrics), one line chart per metric (Recall@K, MRR, Hit-Rate@K, nDCG@K)
   plotting aggregate values across all runs (gate threshold as a dashed line on gated
   metrics, below-gate points in red), a per-question sparkline grid, and a per-run
   drill-down (click a run to expand its aggregate + per-question tables). Self-contained,
@@ -87,22 +87,14 @@ programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win 
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
 | `embeddingsDir` | `'../embeddings'` | Parent directory to sweep. The eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to this dir. Override to `null` to disable sweep. |
 | `gates.<metric>` | see file | Per-metric gate threshold (number in `[0,1]`) or `null` (reported only). |
-| `output.runsDir` | `runs` | Directory for run output. Also settable via `EVAL_RUNS_DIR` to score another corpus' results. |
+| `output.runsDir` | `runs` | Directory for run output. |
 | `output.keepRuns` | `500` | Max runs to keep in `result.jsonl` — `-1` = all, else a positive integer. |
 | `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
-Only `EVAL_RUNS_DIR` is read from the environment. Everything else is edited in `DEFAULT_CONFIG`.
+All configuration is edited in `DEFAULT_CONFIG`.
 
 ### Useful commands
-
-```sh
-# Point at a different corpus' results directory
-EVAL_RUNS_DIR=runs-xenova npm run evals
-EVAL_RUNS_DIR=runs-pplx  npm run evals
-```
-
-### Sweeping multiple embedding sets
 
 `embeddingsDir` in `DEFAULT_CONFIG` points to a parent directory. The eval discovers
 every descendant directory that contains `code-chunks.json`, runs once per directory,
@@ -129,25 +121,6 @@ xenova_w_meta/
 
 Labels produced: `256-d4/no-meta`, `256-d4/with-meta`, `512-d4/no-meta`.
 
-
-> **K and the baseline are coupled.** When you change `k`, clear `runs/` first — the
-> baseline is the oldest run on file, so mixing different-K runs produces misleading
-> deltas.
-
-> **The default gates are aspirational.** The golden set labels canonical reference pages;
-> the retriever is release-notes-biased and currently scores ~Recall 0.65 / MRR 0.60 /
-> Hit-Rate 0.80, so `npm run evals` **fails on Recall by design**. This is a real quality
-> gap, not a broken harness. Raise retrieval quality (or lower the gates consciously) to
-> turn it green.
-
 ## Outputs
 
-Each run **appends one line** to `runs/result.jsonl` — the run's JSON report, matching
-an exact contract (`run_id`, `config`, `aggregate` with
-`value`/`baseline`/`delta`/`gate`/`status`, `overall_status`, `gated_failures`,
-code-derived `diagnosis`, `per_question` sorted by `id`). Aggregate values are rounded
-to 2 dp; per-question to 3 dp.
-
-The **console** prints a summary (header, metrics table with trend arrows and
-gate/status icons, diagnosis, result line, and the 3 weakest questions). The comparison
-report (`compare.html` or `compare.md`) is built automatically afterwards.
+Each run **appends one line** to `runs/result.jsonl`.

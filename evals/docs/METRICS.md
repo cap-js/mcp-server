@@ -44,22 +44,6 @@ ranking problem.
 **Example:** both relevant docs are in the top 5, so `Recall@5 = 2/2 = 1.00`. If only
 `compositions` had been retrieved, it would be `1/2 = 0.50`.
 
-### Precision@K — *how much of the top-K is actually useful?*
-
-**Formula:** `Precision@K = |relevant ∩ top-K| / K`
-
-**Why it makes sense.** Recall ignores the junk; precision measures it. Of the K results
-we hand back (and pay context-window tokens for), what fraction is relevant? Low
-precision means the model is padding the top-K with noise, which costs tokens and can
-distract a downstream LLM even when recall is fine. We divide by **K**, not by the
-number of results returned — returning fewer than K docs is penalised, because a short
-list that happens to be clean shouldn't score the same as a full, clean one.
-
-**A drop means** the top-K is being **padded with irrelevant docs** (noise), typically
-after a change that loosened ranking or added lower-quality chunks.
-
-**Example:** 2 of the 5 returned are relevant, so `Precision@5 = 2/5 = 0.40`.
-
 ### MRR — *how high is the first relevant doc ranked?*
 
 **Formula:** `MRR = 1 / rank(first relevant doc in top-K)`, or `0` if none is in top-K.
@@ -139,12 +123,11 @@ pipeline stage without any guessing:
 | Question the metric answers | Metric | Cares about rank? |
 |---|---|:--:|
 | Were the relevant docs retrieved at all? | Recall@K | no |
-| Is the top-K free of noise? | Precision@K | no |
 | Did we get at least one? (pass@k) | Hit-Rate@K | no |
 | How high is the first relevant doc? | MRR | yes (first hit) |
 | Is the whole ordering good? | nDCG@K | yes (all hits) |
 
-The **set** metrics (Recall, Precision, Hit-Rate) tell you *what* was found; the
+The **set** metrics (Recall, Hit-Rate) tell you *what* was found; the
 **rank** metrics (MRR, nDCG) tell you *where*. A regression in the first group points at
 chunking/embedding; a regression only in the second points at ranking/scoring.
 
