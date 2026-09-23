@@ -78,17 +78,21 @@ describe('rerank', () => {
 
 
 describe.skip('rerank model benchmark', () => {
-  //  Model                                      k=1 (10 cands)    k=5 (50 cands)
-  //                                             ms      ΔRSS      ms     ΔRSS
-  //  ──────────────────────────────────────  ──────  ───────  ──────  ────────
-  //  Xenova/ms-marco-TinyBERT-L-2-v2             28   +41 MB     119   +236 MB
-  //  Xenova/ms-marco-MiniLM-L-2-v2               87  +264 MB     472  +1402 MB
-  //  Xenova/ms-marco-MiniLM-L-4-v2              157  +264 MB     752  +1399 MB
-  //  jinaai/jina-reranker-v1-tiny-en             219  +311 MB    1023  +1581 MB
-  //  Xenova/ms-marco-MiniLM-L-6-v2              253  +252 MB    1096  +1427 MB
-  //  Xenova/ms-marco-MiniLM-L-12-v2             601  +337 MB    2086  +1394 MB
-  //  mixedbread-ai/mxbai-rerank-xsmall-v1      1038  +465 MB    4871  +2380 MB
-  //  mixedbread-ai/mxbai-rerank-base-v1        2296  +350 MB   12122  +4373 MB
+  //  Model                                      k=1 (10 cands)    k=5 (50 cands)  batch10 k=5 (50 cands) 
+  //                                             ms      ΔRSS      ms     ΔRSS        ms     ΔRSS
+  //  ──────────────────────────────────────  ──────  ───────  ──────  ────────     ──────  ────────
+  //  Xenova/ms-marco-TinyBERT-L-2-v2             28   +41 MB     119   +236 MB     118     +62 MB
+  //  Xenova/ms-marco-MiniLM-L-2-v2               87  +264 MB     472  +1402 MB     575     +605 MB
+  //  Xenova/ms-marco-MiniLM-L-4-v2              157  +264 MB     752  +1399 MB     1085    +569 MB
+  //  Xenova/ms-marco-MiniLM-L-6-v2              253  +252 MB    1096  +1427 MB     1614    +551 MB
+  //  Xenova/ms-marco-MiniLM-L-12-v2             601  +337 MB    2086  +1394 MB     3252    +627 MB
+  //  Xenova/bge-reranker-base                  2366  +307 MB    12783 +1623 MB     10656   +294 MB
+  //  BAAI/bge-reranker-base                    2361  +158 MB   12439  +1552 MB     10635   +292 MB
+  //  BAAI/bge-reranker-large                   8063  +491 MB   41314  +1995 MB     36817   +1158 MB
+  //  jinaai/jina-reranker-v1-tiny-en            219  +311 MB    1023  +1581 MB     1464    +658 MB
+  //  jina-reranker-v1-turbo-en                 514,  +313 MB   2579   +1517 MB     2182    +670 MB
+  //  mixedbread-ai/mxbai-rerank-xsmall-v1      1038  +465 MB    4871  +2380 MB     5414    +767 MB
+  //  mixedbread-ai/mxbai-rerank-base-v1        2296  +350 MB   12122  +4373 MB     15186   +676 MB
   test('inference time and ΔRSS for each model (20 candidates, max_length=256, dtype=q8)', async () => {
     const MODELS = [
       'Xenova/ms-marco-TinyBERT-L-2-v2',
