@@ -36,11 +36,6 @@ export const METRIC_LABEL = {
   ndcg_at_k: 'nDCG'
 }
 
-function envStr(name, fallback) {
-  const v = process.env[name]
-  return v === undefined || v === '' ? fallback : v
-}
-
 // Load and resolve the effective configuration.
 // Default values come from DEFAULT_CONFIG above. An external JSON file at
 // configPath (used by tests) overrides them. Env vars and programmatic
@@ -70,7 +65,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     goldenSet: resolve(file.goldenSet ?? 'data/golden-set.json'),
     gates: {},
     output: {
-      runsDir: resolve(envStr('EVAL_RUNS_DIR', output.runsDir || 'runs')),
+      runsDir: resolve(output.runsDir || 'runs'),
       keepRuns: output.keepRuns ?? 100,
       resultsName: output.resultsName || 'result.jsonl',
       compareFormat: output.compareFormat || 'html'

@@ -5,8 +5,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
-// Snapshot & restore the two honoured env vars between tests so overrides don't leak.
-const EVAL_ENV = ['EVAL_LABEL', 'EVAL_RUNS_DIR']
+// Snapshot & restore the honoured env var between tests so overrides don't leak.
+const EVAL_ENV = ['EVAL_LABEL']
 function clearEnv() {
   for (const k of EVAL_ENV) delete process.env[k]
 }
@@ -24,12 +24,6 @@ describe('config tests', () => {
     assert.ok(typeof cfg.embeddingsDir === 'string')
     // all metric keys present in gates
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
-  })
-
-  test('EVAL_RUNS_DIR points at another corpus\' results (absolute respected)', async () => {
-    clearEnv()
-    process.env.EVAL_RUNS_DIR = '/tmp/eval-runs-abs'
-    assert.equal((await loadConfig()).output.runsDir, '/tmp/eval-runs-abs')
   })
 
   test('programmatic overrides win last', async () => {
