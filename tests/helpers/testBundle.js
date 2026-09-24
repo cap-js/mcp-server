@@ -80,7 +80,10 @@ function _buildStub({
 
   const fetchStub = async (url, init = {}) => {
     const urlStr = String(url)
-    if (!urlStr.includes('cap.cloud.sap')) return realFetch(url, init)
+    if (!urlStr.includes('cap.cloud.sap')) {
+      if (!realFetch) throw new Error(`Unexpected fetch call in test: ${urlStr}`)
+      return realFetch(url, init)
+    }
     seen.push({ url: urlStr, headers: init.headers || {} })
     if (urlStr.endsWith('/manifest.json')) {
       if (manifestStatus !== 200) return new Response('', { status: manifestStatus })
