@@ -37,8 +37,8 @@
     "onnxruntime-node": "1.20.1"
   },
   "devDependencies": {
-    "@huggingface/transformers": "^4.2.0",
-    "prettier": "^3.9.6"
+    "@huggingface/transformers": "^4.3.0",
+    "prettier": "^3.9.8"
   },
   "overrides": {
     "@huggingface/transformers": {
