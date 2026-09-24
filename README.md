@@ -56,7 +56,7 @@ Register the server with [Claude Code](https://claude.com/claude-code).
 claude mcp add --scope user cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
-**For the current project only:**
+**For the current project only (local scope, not committed):**
 ```sh
 claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
