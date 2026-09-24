@@ -475,6 +475,37 @@ test('does not expose compiler diagnostics from outside workspace roots', async 
   })
 })
 
+test('compiles successfully when project root contains a .cds build output directory', async () => {
+  const project = await createProject('DotCdsService', 'DotCdsBooks')
+  await mkdir(path.join(project, '.cds'))
+  await mkdir(path.join(project, '.cds', 'models'))
+
+  const model = await getModel(project)
+  assert(model.definitions.DotCdsService)
+  assert(model.definitions['DotCdsService.Items'])
+})
+
+test('compiles successfully when a nested directory contains a .cds build output directory', async () => {
+  const project = await createProject('NestedDotCdsService', 'NestedDotCdsBooks')
+  await mkdir(path.join(project, 'srv', '.cds'))
+  await mkdir(path.join(project, 'srv', '.cds', 'models'))
+
+  const model = await getModel(project)
+  assert(model.definitions.NestedDotCdsService)
+  assert(model.definitions['NestedDotCdsService.Items'])
+})
+
+test('compiles successfully when project contains other dot-directories', async () => {
+  const project = await createProject('DotDirService', 'DotDirBooks')
+  await mkdir(path.join(project, '.tmp'))
+  await mkdir(path.join(project, '.build'))
+  await writeFile(path.join(project, '.tmp', 'cache.json'), '{}')
+
+  const model = await getModel(project)
+  assert(model.definitions.DotDirService)
+  assert(model.definitions['DotDirService.Items'])
+})
+
 async function createProject(serviceName, entityName, compatTextsEntities) {
   const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-'))
   projects.push(project)
