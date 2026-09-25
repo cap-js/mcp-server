@@ -81,6 +81,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     assert.strictEqual(saved.etag, 'W/"seed"')
     assert.strictEqual(saved.commitId, testVer)
 
+    // Stale lastChecked so the daily skip does not swallow the next call.
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
+
     const captured = stub304()
     const r = await downloadEmbeddings()
     assert.strictEqual(captured.headers?.['If-None-Match'], 'W/"seed"')
@@ -109,6 +112,70 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     // Cleanup.
     for (const v of [older, newer]) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+  })
+
+  test('skips fetch when lastChecked is within 24h and local files exist', async () => {
+    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+    let fetchCalled = false
+    globalThis.fetch = async () => { fetchCalled = true; return new Response(null, { status: 200 }) }
+
+    const r = await downloadEmbeddings()
+    assert.strictEqual(fetchCalled, false, 'must not call fetch within daily window')
+    assert.strictEqual(r.updated, false)
+    assert.strictEqual(r.commitId, testVer)
+  })
+
+  test('proceeds with fetch when lastChecked is stale (>24h)', async () => {
+    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() - 86_400_001 }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+    const captured = stub304()
+    await downloadEmbeddings()
+    assert.ok(captured.headers !== null, 'fetch must be called when lastChecked is stale')
+  })
+
+  test('daily skip falls through to fetch when local files are missing', async () => {
+    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    // testDir intentionally absent
+
+    const seen = stubBundle({ version: testVer })
+    await downloadEmbeddings()
+    assert.strictEqual(seen.length, 1, 'must fall through to fetch when local files are missing')
+  })
+
+  test('200 response stamps lastChecked in etag file', async () => {
+    const before = Date.now()
+    stubBundle({ version: testVer })
+    await downloadEmbeddings()
+    const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
+    assert.ok(saved.lastChecked >= before)
+  })
+
+  test('304 response stamps lastChecked in etag file', async () => {
+    stubBundle({ version: testVer })
+    await downloadEmbeddings()
+    // Stale lastChecked so the daily skip does not swallow the 304 call.
+    const prev = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
+    const before = Date.now()
+    stub304()
+    await downloadEmbeddings()
+    const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
+    assert.ok(saved.lastChecked >= before)
   })
 
   test('throws when bundle 304 but etag file has no commitId', async () => {
