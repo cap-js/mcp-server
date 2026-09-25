@@ -276,10 +276,17 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('falls back to local version on network error', async () => {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
     stubNetworkError('network down')
     const result = await downloadEmbeddings()
     assert.strictEqual(result.updated, false)
-    assert.ok(result.localDir, 'should return localDir from local version')
+    assert.strictEqual(result.commitId, testVer)
+    assert.strictEqual(result.localDir, testDir)
   })
 
   test('throws offline error (with network cause) when no local version exists', async () => {
