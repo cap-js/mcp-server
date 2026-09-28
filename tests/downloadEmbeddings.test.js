@@ -115,7 +115,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('skips fetch when lastChecked is within 24h and local files exist', async () => {
-    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
+    const etagData = { etag: 'W/"seed"', runtime: 'node', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
     await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
     await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
     await fs.mkdir(testDir, { recursive: true })
