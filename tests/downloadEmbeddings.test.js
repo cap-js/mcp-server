@@ -10,11 +10,11 @@ import {
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
-const { getActiveModel, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
+const { getActiveModel, getActiveModelFolder, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 const originalFetch = globalThis.fetch
-const MODEL_FOLDER = toDirName(getActiveModel())
+const MODEL_FOLDER = getActiveModelFolder()
 const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 const modelEtagsRoot = path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags')
 const manifestEtagPath = path.join(modelEtagsRoot, cds.version, 'manifest.etag')
@@ -122,11 +122,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    let fetchCalled = false
-    globalThis.fetch = async () => { fetchCalled = true; return new Response(null, { status: 200 }) }
+    const seen = stubBundle({ version: testVer })
 
     const r = await downloadEmbeddings()
-    assert.strictEqual(fetchCalled, false, 'must not call fetch within daily window')
+    assert.strictEqual(seen.length, 0, 'must not call fetch within daily window')
     assert.strictEqual(r.updated, false)
     assert.strictEqual(r.commitId, testVer)
   })
