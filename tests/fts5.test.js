@@ -1,6 +1,7 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
-import { fullTextSearch, toFts5Query } from '../lib/fts5.js'
+import { fullTextSearch } from '../lib/embeddings.js'
+import { toFts5Query } from '../lib/bm25/fts5.js'
 
 describe('toFts5Query', () => {
   test('lowercases tokens and joins with OR', () => {
