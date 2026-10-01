@@ -1,8 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
-import { AutoTokenizer, AutoModelForSequenceClassification } from '@huggingface/transformers'
 import { rerank, getReranker } from '../lib/rerank.js'
-import { resolveLocalVersion } from '../lib/searchMarkdownDocs.js'
 
 // These tests require the reranker model to be downloaded.
 // They run against the real ONNX model — no mocks.
