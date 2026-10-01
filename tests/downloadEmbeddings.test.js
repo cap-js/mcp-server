@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 import {
-  stubBundleOk, stub304, stubError, stubNetworkError,
+  stub200Bundle, stub304, stubError, stubNetworkError,
   stubManifestWithError, stubMismatchBundle, stubRawResponse, stubConcurrentBundle
 } from './helpers/mock-fetch.mjs'
 
@@ -51,7 +51,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('sends cds and model query params', async () => {
-    const requests = stubBundleOk({ version: testVer })
+    const requests = stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     const url = new URL(requests[0].url)
     assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
@@ -60,7 +60,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
-    stubBundleOk({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
+    stub200Bundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
     const r = await downloadEmbeddings()
     assert.strictEqual(r.updated, true)
     assert.strictEqual(r.commitId, testVer)
@@ -74,7 +74,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
-    stubBundleOk({ version: testVer })
+    stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
     assert.strictEqual(saved.etag, 'W/"seed"')
@@ -121,7 +121,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    const requests = stubBundleOk({ version: testVer })
+    const requests = stub200Bundle({ version: testVer })
 
     const r = await downloadEmbeddings()
     assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
@@ -148,14 +148,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
     // testDir intentionally absent
 
-    const requests = stubBundleOk({ version: testVer })
+    const requests = stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
   })
 
   test('200 response stamps lastChecked in etag file', async () => {
     const before = Date.now()
-    stubBundleOk({ version: testVer })
+    stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
     assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
@@ -163,7 +163,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('304 response stamps lastChecked in etag file', async () => {
-    stubBundleOk({ version: testVer })
+    stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     // Stale lastChecked so the daily skip does not swallow the 304 call.
     const prev = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
@@ -320,7 +320,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
-    stubBundleOk({ version: testVer })
+    stub200Bundle({ version: testVer })
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
