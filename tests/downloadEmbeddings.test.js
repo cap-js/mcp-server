@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 import {
-  stubBundleOkOk, stub304, stubError, stubNetworkError,
+  stubBundleOk, stub304, stubError, stubNetworkError,
   stubManifestWithError, stubMismatchBundle, stubRawResponse, stubConcurrentBundle
 } from './helpers/mock-fetch.mjs'
 
@@ -51,9 +51,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('sends cds and model query params', async () => {
-    const seen = stubBundleOk({ version: testVer })
+    const requests = stubBundleOk({ version: testVer })
     await downloadEmbeddings()
-    const url = new URL(seen[0].url)
+    const url = new URL(requests[0].url)
     assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
     assert.strictEqual(url.searchParams.get('cds'), cds.version)
     assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
@@ -121,10 +121,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    const seen = stubBundleOk({ version: testVer })
+    const requests = stubBundleOk({ version: testVer })
 
     const r = await downloadEmbeddings()
-    assert.strictEqual(seen.length, 0, 'must not call fetch within daily window')
+    assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
     assert.strictEqual(r.updated, false)
     assert.strictEqual(r.commitId, testVer)
   })
@@ -148,9 +148,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
     // testDir intentionally absent
 
-    const seen = stubBundleOk({ version: testVer })
+    const requests = stubBundleOk({ version: testVer })
     await downloadEmbeddings()
-    assert.strictEqual(seen.length, 1, 'must fall through to fetch when local files are missing')
+    assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
   })
 
   test('200 response stamps lastChecked in etag file', async () => {

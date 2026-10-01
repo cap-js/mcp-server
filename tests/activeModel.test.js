@@ -86,9 +86,9 @@ describe('active model wiring into download', () => {
 
   test('bundle URL model= param reflects active model', async () => {
     setActiveModel('foo/bar')
-    const seen = installFetch({ version: testVer, model: 'foo/bar' })
+    const requests = installFetch({ version: testVer, model: 'foo/bar' })
     await downloadEmbeddings()
-    const url = new URL(seen[0].url)
+    const url = new URL(requests[0].url)
     assert.strictEqual(url.searchParams.get('model'), 'foo--bar')
   })
 
@@ -132,10 +132,10 @@ describe('active model wiring into download', () => {
     await fs.writeFile(defaultEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: DEFAULT_MODEL }))
 
     setActiveModel('foo/bar')
-    const seen = installFetch({ version: testVer, model: 'foo/bar' })
+    const requests = installFetch({ version: testVer, model: 'foo/bar' })
     await downloadEmbeddings()
 
-    assert.strictEqual(seen[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
+    assert.strictEqual(requests[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
   })
 
   test('etag under active model dir → 304 path returns cached dir', async () => {
@@ -149,10 +149,10 @@ describe('active model wiring into download', () => {
     await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    const seen = installFetch({ notModified: true })
+    const requests = installFetch({ notModified: true })
 
     const r = await downloadEmbeddings()
-    assert.strictEqual(seen[0].headers['If-None-Match'], 'W/"seed"')
+    assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
     assert.strictEqual(r.updated, false)
     assert.strictEqual(r.commitId, testVer)
 
@@ -172,14 +172,14 @@ describe('active model wiring into download', () => {
 
   test('mismatch throw hits /manifest.json for available list', async () => {
     setActiveModel('foo/bar')
-    const seen = installFetch({
+    const requests = installFetch({
       version: testVer,
       model: DEFAULT_MODEL,
       manifest: ['a/b']
     })
 
     await assert.rejects(downloadEmbeddings())
-    const manifestHits = seen.filter(s => s.url.endsWith('/manifest.json'))
+    const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
     assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
     assert.ok(manifestHits[0].url.startsWith('https://'), 'manifest URL must be absolute')
   })

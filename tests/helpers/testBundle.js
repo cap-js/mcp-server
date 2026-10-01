@@ -62,7 +62,7 @@ function _buildStub({
   manifestStatus = 200,
   notModified = false
 } = {}) {
-  const seen = []
+  const requests = []
   let bundleFrame = frame
   if (!bundleFrame) {
     const metaBuf = Buffer.from(JSON.stringify(body))
@@ -80,7 +80,7 @@ function _buildStub({
 
   const fetchStub = async (url, init = {}) => {
     const urlStr = String(url)
-    seen.push({ url: urlStr, headers: init.headers || {} })
+    requests.push({ url: urlStr, headers: init.headers || {} })
     if (urlStr.endsWith('/manifest.json')) {
       if (manifestStatus !== 200) return new Response('', { status: manifestStatus })
       return new Response(JSON.stringify(manifestObj ?? {}), { status: 200, headers: { 'content-type': 'application/json' } })
@@ -88,13 +88,13 @@ function _buildStub({
     if (notModified) return new Response(null, { status: 304 })
     return new Response(bundleFrame, { status: 200, headers: bundleHeaders })
   }
-  return { fetch: fetchStub, seen }
+  return { fetch: fetchStub, requests }
 }
 
 export function installFetch(opts) {
-  const { fetch: stub, seen } = _buildStub(opts)
+  const { fetch: stub, requests } = _buildStub(opts)
   mock.method(globalThis, 'fetch', stub)
-  return seen
+  return requests
 }
 
 // Mirror etagPathFor(detectRuntime().cdsVersion, activeModelFolder) from

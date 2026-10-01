@@ -19,9 +19,9 @@ if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
 }
 
 export function stubBundleOk({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
-  const seen = []
+  const requests = []
   mock.method(globalThis, 'fetch', async (url, init = {}) => {
-    seen.push({ url: String(url), headers: init.headers || {} })
+    requests.push({ url: String(url), headers: init.headers || {} })
     const metaBuf = Buffer.from(JSON.stringify(body))
     const binBuf = Buffer.from(bin)
     const hdr = Buffer.alloc(4)
@@ -32,7 +32,7 @@ export function stubBundleOk({ version = '__test_bundle__', body = { dim: 1, cou
       headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
     })
   })
-  return seen
+  return requests
 }
 
 // Returns a `captured` object whose `.headers` field is set to the request headers of each call.
