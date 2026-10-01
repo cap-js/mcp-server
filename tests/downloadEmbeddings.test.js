@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 import {
-  stubBundle, stub304, stubError, stubNetworkError,
+  stubBundleOkOk, stub304, stubError, stubNetworkError,
   stubManifestWithError, stubMismatchBundle, stubRawResponse, stubConcurrentBundle
 } from './helpers/mock-fetch.mjs'
 
@@ -51,7 +51,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('sends cds and model query params', async () => {
-    const seen = stubBundle({ version: testVer })
+    const seen = stubBundleOk({ version: testVer })
     await downloadEmbeddings()
     const url = new URL(seen[0].url)
     assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
@@ -60,7 +60,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
-    stubBundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
+    stubBundleOk({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
     const r = await downloadEmbeddings()
     assert.strictEqual(r.updated, true)
     assert.strictEqual(r.commitId, testVer)
@@ -74,7 +74,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
-    stubBundle({ version: testVer })
+    stubBundleOk({ version: testVer })
     await downloadEmbeddings()
     const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
     assert.strictEqual(saved.etag, 'W/"seed"')
@@ -121,7 +121,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    const seen = stubBundle({ version: testVer })
+    const seen = stubBundleOk({ version: testVer })
 
     const r = await downloadEmbeddings()
     assert.strictEqual(seen.length, 0, 'must not call fetch within daily window')
@@ -148,14 +148,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
     // testDir intentionally absent
 
-    const seen = stubBundle({ version: testVer })
+    const seen = stubBundleOk({ version: testVer })
     await downloadEmbeddings()
     assert.strictEqual(seen.length, 1, 'must fall through to fetch when local files are missing')
   })
 
   test('200 response stamps lastChecked in etag file', async () => {
     const before = Date.now()
-    stubBundle({ version: testVer })
+    stubBundleOk({ version: testVer })
     await downloadEmbeddings()
     const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
     assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
@@ -163,7 +163,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('304 response stamps lastChecked in etag file', async () => {
-    stubBundle({ version: testVer })
+    stubBundleOk({ version: testVer })
     await downloadEmbeddings()
     // Stale lastChecked so the daily skip does not swallow the 304 call.
     const prev = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
@@ -320,7 +320,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
-    stubBundle({ version: testVer })
+    stubBundleOk({ version: testVer })
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
@@ -349,7 +349,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     }
   })
 
-  test('concurrent downloadEmbeddings calls must be single-flighted', async () => {
+  test('concurrent calls are serialized with at most one in-flight fetch', async () => {
     const tracking = stubConcurrentBundle(testVer)
     const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
     const anyRejected = results.some(r => r.status === 'rejected')
@@ -359,7 +359,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     )
   })
 
-  test('metaLen leaving empty bin must reject as framing error, not corruption', async () => {
+  test('frame with metaLen consuming all bytes and no bin bytes rejects as framing error', async () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
@@ -374,7 +374,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     )
   })
 
-  test('body shorter than 4 bytes must reject as too short', async () => {
+  test('body shorter than 4 bytes rejects with "too short" error', async () => {
     stubRawResponse(
       Buffer.from([0x00, 0x01, 0x02]),
       { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
@@ -382,14 +382,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /too short/)
   })
 
-  test('exactly-4-byte body (header only, metaLen=0) must reject as empty bin', async () => {
+  test('exactly-4-byte body with metaLen=0 rejects as empty bin', async () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(0, 0)
     stubRawResponse(hdr, { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' })
     await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
   })
 
-  test('frame with 1 bin byte must succeed', async () => {
+  test('frame with 1 bin byte writes the byte and returns updated=true', async () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
@@ -461,7 +461,7 @@ describe('resolveLocalVersion', () => {
     assert.strictEqual(local.commitId, testCommits[1], 'must pick commitId from highest semver cds dir')
   })
 
-  test('among non-semver cds dirs, must tiebreak by mtime, not readdir order', async () => {
+  test('among non-semver cds dirs, tiebreaks by mtime not readdir order', async () => {
     const dirs = ['bundle_alpha', 'bundle_beta']
     await seedEmbedDir(testCommits[0])
     await seedEmbedDir(testCommits[1])

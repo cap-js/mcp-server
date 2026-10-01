@@ -18,7 +18,7 @@ if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
   )
 }
 
-export function stubBundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+export function stubBundleOk({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
   const seen = []
   mock.method(globalThis, 'fetch', async (url, init = {}) => {
     seen.push({ url: String(url), headers: init.headers || {} })

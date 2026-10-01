@@ -1,4 +1,4 @@
-import { test, after } from 'node:test'
+import { test, describe, after } from 'node:test'
 import assert from 'node:assert'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
@@ -12,7 +12,9 @@ after(() => {
   if (testPassed) process.exit(0)
 })
 
-test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async () => {
+describe('calculateEmbeddings vs HuggingFace parity', () => {
+
+test('produces cosine similarity > 0.9 against HuggingFace pipeline on 30 code snippets', async () => {
   // Load HuggingFace pipeline
   const { pipeline } = await import('@huggingface/transformers')
   const hfPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
@@ -348,4 +350,5 @@ test('compare calculateEmbeddings with HuggingFace on code-snippets.json', async
   }
 
   testPassed = true
+})
 })

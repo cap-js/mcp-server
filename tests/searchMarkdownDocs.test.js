@@ -73,8 +73,8 @@ describe('formatResult', () => {
   })
 })
 
-describe('searchMarkdownDocs integration tests', () => {
-  test('should download and load embeddings from server', async () => {
+describe('searchMarkdownDocs', () => {
+  test('downloads bundle, writes .json and .bin files, and returns non-empty --- separated string', async () => {
     const result = await searchMarkdownDocs('entity definition', 3)
 
     assert(typeof result === 'string', 'Result should be a string')
@@ -94,7 +94,7 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
-  test('should handle search queries and return relevant results', async () => {
+  test('returns at most maxResults chunks for multiple distinct queries', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
     for (const query of queries) {
@@ -107,7 +107,7 @@ describe('searchMarkdownDocs integration tests', () => {
     }
   })
 
-  test('should use embeddings files consistently', async () => {
+  test('embedding files are not re-written on subsequent search calls', async () => {
     const jsonPath = path.join(testBundleDir, 'code-chunks.json')
     const binPath = path.join(testBundleDir, 'code-chunks.bin')
 
@@ -140,7 +140,7 @@ describe('searchMarkdownDocs integration tests', () => {
     )
   })
 
-  test('should reuse downloaded files on subsequent calls', async () => {
+  test('reuses cached embedding files on subsequent calls', async () => {
     const result1 = await searchMarkdownDocs('entity', 1)
 
     const jsonExists = await fs
@@ -175,7 +175,7 @@ describe('searchMarkdownDocs integration tests', () => {
     }
   })
 
-  test('should respect maxResults parameter', async () => {
+  test('respects maxResults and returns at most N chunks for varying limits', async () => {
     const maxResults = 5
     const result = await searchMarkdownDocs('entity service', maxResults)
 

@@ -3,14 +3,14 @@ import assert from 'node:assert'
 import { mockReadFile, mockUnlink } from './helpers/mock-fs.js'
 import { loadChunks } from '../lib/embeddings.js'
 
-describe('loadEmbeddings tests', () => {
+describe('loadChunks', () => {
   afterEach(() => mock.restoreAll())
 
-  test('should handle missing embedding files', async () => {
+  test('throws ENOENT when embedding files are missing', async () => {
     await assert.rejects(loadChunks('nonexistent'), err => err.code === 'ENOENT')
   })
 
-  test('should handle corrupted JSON metadata', async () => {
+  test('throws EMBEDDINGS_CORRUPTED and deletes both files when JSON is invalid', async () => {
     mockReadFile('invalid json content', new Float32Array([1, 2, 3, 4]))
     const unlinkMock = mockUnlink()
 
@@ -21,37 +21,37 @@ describe('loadEmbeddings tests', () => {
     assert.ok(paths.some(p => p.endsWith('.bin')), 'bin file must be unlinked')
   })
 
-  test('should handle malformed JSON structure', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when JSON is valid but missing dim field', async () => {
     mockReadFile({ chunks: ['test'] }, new Float32Array([1, 2, 3, 4])) // missing dim
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle mismatched binary file size', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when binary size does not match dim × count', async () => {
     mockReadFile({ dim: 4, count: 2, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3])) // 12 bytes, needs 32
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle count mismatch in metadata', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when chunk count mismatches metadata count', async () => {
     mockReadFile({ dim: 2, count: 5, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3, 4]))
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle NaN values in embeddings', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when embedding vector contains NaN', async () => {
     mockReadFile({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([NaN, 2.0]))
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle Infinity values in embeddings', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when embedding vector contains Infinity', async () => {
     mockReadFile({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([Infinity, 2.0]))
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should load valid embeddings correctly', async () => {
+  test('returns chunks with correct content and sliced float32 vectors', async () => {
     const chunks = ['Hello world', 'Test content']
     mockReadFile({ dim: 3, count: 2, chunks }, new Float32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
 
@@ -64,7 +64,7 @@ describe('loadEmbeddings tests', () => {
     assert.deepStrictEqual(Array.from(result[1].embeddings), [4.0, 5.0, 6.0])
   })
 
-  test('should handle non-string chunk content', async () => {
+  test('throws EMBEDDINGS_CORRUPTED when chunk content is not a string', async () => {
     mockReadFile({ dim: 2, count: 1, chunks: [123] }, new Float32Array([1.0, 2.0]))
     mockUnlink()
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')

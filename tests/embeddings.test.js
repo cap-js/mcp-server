@@ -14,12 +14,12 @@ const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 describe('embeddings', () => {
   afterEach(() => mock.restoreAll())
 
-  test('should create embeddings for a test string', async () => {
+  test('getEmbeddings returns a non-empty array for a plain string', async () => {
     const results = await getEmbeddings('Node.js testing')
-    assert(results.length, 'Results should be an array')
+    assert(results.length > 0, 'getEmbeddings result should be non-empty')
   })
 
-  test('should verify model files are downloaded correctly', async () => {
+  test('model directory and required files exist and are non-empty', async () => {
     assert(fs.existsSync(MODEL_DIR), 'Model directory should exist after initialization')
 
     for (const file of REQUIRED_FILES) {
@@ -31,7 +31,7 @@ describe('embeddings', () => {
     }
   })
 
-  test('should verify model files have expected structure', async () => {
+  test('tokenizer.json has vocab and model.onnx is larger than 1 MB', async () => {
     const tokenizerPath = path.join(MODEL_DIR, 'tokenizer.json')
     const tokenizerData = JSON.parse(fs.readFileSync(tokenizerPath, 'utf-8'))
 
@@ -49,7 +49,7 @@ describe('embeddings', () => {
     assert(modelStats.size > 1000000, 'ONNX model file should be reasonably large (>1MB)')
   })
 
-  test('should verify calculateEmbeddings returns normalized embeddings', async () => {
+  test('calculateEmbeddings returns a 384-dimensional normalized float vector', async () => {
     const testString = 'This is a test string for embedding verification'
     const calculateEmbeddingsResult = await calculateEmbeddings(testString)
 
@@ -71,7 +71,7 @@ describe('embeddings', () => {
     assert(Math.abs(norm - 1.0) < 0.001, `calculateEmbeddings should be normalized (norm ≈ 1.0), got ${norm}`)
   })
 
-  test('should produce consistent embeddings for identical inputs', async () => {
+  test('produces consistent embeddings for identical inputs', async () => {
     const testString = 'Consistent embedding test string'
     const embedding1 = await calculateEmbeddings(testString)
     const embedding2 = await calculateEmbeddings(testString)
@@ -83,7 +83,7 @@ describe('embeddings', () => {
     }
   })
 
-  test('should produce different embeddings for different inputs', async () => {
+  test('produces different embeddings for semantically distinct inputs', async () => {
     const embedding1 = await calculateEmbeddings('First test string')
     const embedding2 = await calculateEmbeddings('Completely different sentence')
 
@@ -100,7 +100,7 @@ describe('embeddings', () => {
     assert(similarity > -1.0 && similarity < 1.0, `Similarity should be in valid range [-1, 1]: ${similarity}`)
   })
 
-  test('should handle empty strings gracefully', async () => {
+  test('handles empty string without throwing or returning non-finite values', async () => {
     try {
       const embedding = await calculateEmbeddings('')
       assert.strictEqual(embedding.length, 384, 'Empty string should still return 384-dimensional embedding')
@@ -113,7 +113,7 @@ describe('embeddings', () => {
     }
   })
 
-  test('should handle reasonably long strings', async () => {
+  test('long string returns a 384-dimensional normalized embedding', async () => {
     const longString = 'This is a moderately long test string. '.repeat(10)
     const embedding = await calculateEmbeddings(longString)
 
