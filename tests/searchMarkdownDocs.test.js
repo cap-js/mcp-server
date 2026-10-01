@@ -2,7 +2,7 @@ import { fileURLToPath } from 'url'
 import { getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
-import { test, describe, after } from 'node:test'
+import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
 import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
 
@@ -18,14 +18,14 @@ const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
 // Build real embeddings and mock fetch BEFORE importing searchMarkdownDocs.js.
 // That module fires downloadEmbeddings() at module load time — mock must be in place first.
 const testFrame = await buildTestBundle()
-globalThis.fetch = makeFetchStub(testFrame)
+mock.method(globalThis, 'fetch', makeFetchStub(testFrame))
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
 const { formatResult } = searchModule
 
 after(async () => {
-  globalThis.fetch = undefined
+  mock.restoreAll()
   await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
   if (savedEtag !== null) {
     await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })

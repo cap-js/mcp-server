@@ -1,4 +1,4 @@
-import { test, describe, after, before, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
@@ -13,7 +13,6 @@ const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchM
 const { getActiveModel, getActiveModelFolder, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
-const originalFetch = globalThis.fetch
 const MODEL_FOLDER = getActiveModelFolder()
 const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 const modelEtagsRoot = path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags')
@@ -41,12 +40,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   const testDir = path.join(DEFAULT_EMBEDDINGS_DIR, testVer)
 
   beforeEach(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     await clearBundleState()
     await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })
   after(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     await clearBundleState()
     await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })

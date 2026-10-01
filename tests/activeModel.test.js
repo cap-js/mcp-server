@@ -1,4 +1,4 @@
-import { test, describe, after, before, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
@@ -20,13 +20,12 @@ const DEFAULT_MODEL = getActiveModel()
 const MODEL_FOLDER = toDirName(DEFAULT_MODEL)
 const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 
-const originalFetch = globalThis.fetch
 const defaultEtagPath = getManifestEtagPath()  // for the module-default model
 
 let _savedEtag = null
 before(async () => { _savedEtag = await fs.readFile(defaultEtagPath, 'utf-8').catch(() => null) })
 after(async () => {
-  globalThis.fetch = originalFetch
+  mock.restoreAll()
   setActiveModel()
   if (_savedEtag !== null) {
     await fs.mkdir(path.dirname(defaultEtagPath), { recursive: true })
@@ -38,7 +37,7 @@ after(async () => {
 
 describe('active model config', () => {
   beforeEach(() => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     setActiveModel()
   })
 
@@ -72,7 +71,7 @@ describe('active model wiring into download', () => {
   const testVer = '__test_model_bundle__'
 
   beforeEach(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     setActiveModel()
     // Clean etag dirs for both default and 'foo--bar' scopes.
     await fs.rm(path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags'), { recursive: true, force: true }).catch(() => {})

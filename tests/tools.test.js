@@ -1,6 +1,6 @@
 // Node.js test runner (test) for lib/tools.js
 import assert from 'node:assert'
-import { describe, test, after } from 'node:test'
+import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs/promises'
@@ -16,12 +16,12 @@ const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
 // Build real embeddings and mock fetch BEFORE importing tools.js.
 // tools.js statically imports searchMarkdownDocs.js which fires downloadEmbeddings() at module load.
 const testFrame = await buildTestBundle()
-globalThis.fetch = makeFetchStub(testFrame)
+mock.method(globalThis, 'fetch', makeFetchStub(testFrame))
 
 const tools = (await import('../lib/tools.js')).default
 
 after(async () => {
-  globalThis.fetch = undefined
+  mock.restoreAll()
   await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
   if (savedEtag !== null) {
     await fs.mkdir(dirname(manifestEtagPath), { recursive: true })

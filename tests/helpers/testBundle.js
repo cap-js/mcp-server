@@ -1,4 +1,5 @@
 import { createRequire } from 'node:module'
+import { mock } from 'node:test'
 import path from 'path'
 import calculateEmbeddings, { DEFAULT_DIR, UNKNOWN_CDS_VERSION, getActiveModelFolder } from '../../lib/calculateEmbeddings.js'
 
@@ -92,7 +93,7 @@ function _buildStub({
 
 export function installFetch(opts) {
   const { fetch: stub, seen } = _buildStub(opts)
-  globalThis.fetch = stub
+  mock.method(globalThis, 'fetch', stub)
   return seen
 }
 

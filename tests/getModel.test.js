@@ -4,7 +4,7 @@ import { mkdtemp, mkdir, rm, symlink, utimes, writeFile } from 'node:fs/promises
 import { createRequire } from 'node:module'
 import os from 'node:os'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test, mock } from 'node:test'
 import cds from '@sap/cds'
 import getModel from '../lib/getModel.js'
 
@@ -109,7 +109,7 @@ test('serializes concurrent project loading with isolated CDS globals and config
   let maxActiveScans = 0
 
   cds.model = previousModel
-  fs.promises.readdir = async (directory, ...args) => {
+  mock.method(fs.promises, 'readdir', async (directory, ...args) => {
     if (!projectRoots.has(path.resolve(directory))) return originalReaddir.call(fs.promises, directory, ...args)
     activeScans++
     maxActiveScans = Math.max(maxActiveScans, activeScans)
@@ -119,7 +119,7 @@ test('serializes concurrent project loading with isolated CDS globals and config
     } finally {
       activeScans--
     }
-  }
+  })
 
   try {
     const [resultA, resultB, missingResult] = await Promise.allSettled([
@@ -145,7 +145,7 @@ test('serializes concurrent project loading with isolated CDS globals and config
     assert.strictEqual(cds.compile, previousCompile)
     assert.strictEqual(cds.resolve, previousResolve)
   } finally {
-    fs.promises.readdir = originalReaddir
+    mock.restoreAll()
     cds.root = previousRoot
     cds.model = originalCdsModel
   }
@@ -289,7 +289,7 @@ test('recompiles when project files change between compilation and snapshotting'
 
   const originalLstat = fs.promises.lstat
   let changedDuringSnapshot = false
-  fs.promises.lstat = async (file, ...args) => {
+  mock.method(fs.promises, 'lstat', async (file, ...args) => {
     if (!changedDuringSnapshot && path.resolve(file) === servicePath && fs.existsSync(markerPath)) {
       changedDuringSnapshot = true
       fs.writeFileSync(
@@ -300,13 +300,13 @@ test('recompiles when project files change between compilation and snapshotting'
       fs.utimesSync(servicePath, latestMtime, latestMtime)
     }
     return originalLstat.call(fs.promises, file, ...args)
-  }
+  })
 
   let model
   try {
     model = await getModel(project)
   } finally {
-    fs.promises.lstat = originalLstat
+    mock.restoreAll()
   }
 
   assert(changedDuringSnapshot)
@@ -335,7 +335,7 @@ test('recompiles when a newly discovered external source changes during compilat
 
   const originalLstat = fs.promises.lstat
   let changedDuringSnapshot = false
-  fs.promises.lstat = async (file, ...args) => {
+  mock.method(fs.promises, 'lstat', async (file, ...args) => {
     if (!changedDuringSnapshot && path.resolve(file) === canonicalSharedModelPath && fs.existsSync(markerPath)) {
       changedDuringSnapshot = true
       fs.writeFileSync(sharedModelPath, 'entity SharedBooks { key ID: Integer; latest: String; }')
@@ -343,13 +343,13 @@ test('recompiles when a newly discovered external source changes during compilat
       fs.utimesSync(sharedModelPath, latestMtime, latestMtime)
     }
     return originalLstat.call(fs.promises, file, ...args)
-  }
+  })
 
   let model
   try {
     model = await getModel(project, [workspace])
   } finally {
-    fs.promises.lstat = originalLstat
+    mock.restoreAll()
   }
 
   assert(changedDuringSnapshot)
@@ -375,18 +375,17 @@ test('keeps a successful compilation when timestamp collection remains unavailab
   const unreadableDirectory = path.join(project, 'unrelated')
   await mkdir(unreadableDirectory)
   const originalReaddir = fs.promises.readdir
-
-  fs.promises.readdir = async (directory, ...args) => {
+  mock.method(fs.promises, 'readdir', async (directory, ...args) => {
     if (path.resolve(directory) === unreadableDirectory) throw new Error('directory temporarily unavailable')
     return originalReaddir.call(fs.promises, directory, ...args)
-  }
+  })
 
   let model
   try {
     model = await getModel(project)
     assert(model.definitions.SnapshotService)
   } finally {
-    fs.promises.readdir = originalReaddir
+    mock.restoreAll()
   }
 
   const modelWithSnapshot = await getModel(project)
