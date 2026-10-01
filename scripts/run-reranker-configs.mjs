@@ -103,7 +103,7 @@ for (const cfg of CONFIGS) {
 
   setLabel(label)
 
-  const env = { ...process.env, CDS_MCP_RERANK_MODEL: model }
+  const env = { ...process.env, CDS_MCP_RERANK_MODEL: model, RERANK_ENABLED: true }
   if (dtype        != null) env.CDS_MCP_RERANK_DTYPE         = dtype
   if (batchSize    != null) env.CDS_MCP_RERANK_BATCH_SIZE     = String(batchSize)
   if (overRetrieve != null) env.CDS_MCP_RERANK_OVER_RETRIEVE  = String(overRetrieve)
