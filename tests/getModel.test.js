@@ -515,6 +515,28 @@ describe('dot-directory filtering', () => {
   })
 })
 
+describe('OData containment', () => {
+  test('compiles with OData containment enabled and hides contained entities', async () => {
+    const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-model-'))
+    projects.push(project)
+    await mkdir(path.join(project, 'srv'))
+    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'srv', 'service.cds'),
+      `namespace my;
+      entity Orders { key ID: Integer; items: Composition of many Items on items.order = $self; }
+      entity Items { key ID: Integer; order: Association to Orders; }
+      entity Books { key ID: Integer; }
+      service OrderService { entity Orders as projection on my.Orders; entity Items as projection on my.Items; }
+      service CatalogService { entity Books as projection on my.Books; }`
+    )
+
+    const model = await getModel(project)
+    assert.deepEqual(model.definitions['my.OrderService'].exposedEntities, ['my.OrderService.Orders'])
+    assert.deepEqual(model.definitions['my.CatalogService'].exposedEntities, ['my.CatalogService.Books'])
+  })
+})
+
 async function createProject(serviceName, entityName, compatTextsEntities) {
   const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-'))
   projects.push(project)
