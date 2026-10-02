@@ -1,11 +1,12 @@
 // Subprocess fetch mock — loaded via NODE_OPTIONS=--import "file://..."
 // Reads bundle from CDS_MCP_TEST_BUNDLE_PATH, serves it for any fetch call.
 import { readFileSync } from 'node:fs'
+import { mock } from 'node:test'
 
 if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
   const frame = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
   const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
-  globalThis.fetch = async (_url, _init) =>
+  mock.method(globalThis, 'fetch', async (_url, _init) =>
     new Response(frame, {
       status: 200,
       headers: {
@@ -14,12 +15,13 @@ if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
         'content-type': 'application/octet-stream'
       }
     })
+  )
 }
 
-export function stubBundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
-  const seen = []
-  globalThis.fetch = async (url, init = {}) => {
-    seen.push({ url: String(url), headers: init.headers || {} })
+export function stub200Bundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+  const requests = []
+  mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    requests.push({ url: String(url), headers: init.headers || {} })
     const metaBuf = Buffer.from(JSON.stringify(body))
     const binBuf = Buffer.from(bin)
     const hdr = Buffer.alloc(4)
@@ -29,40 +31,40 @@ export function stubBundle({ version = '__test_bundle__', body = { dim: 1, count
       status: 200,
       headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
     })
-  }
-  return seen
+  })
+  return requests
 }
 
 // Returns a `captured` object whose `.headers` field is set to the request headers of each call.
 export function stub304() {
   const captured = { headers: null }
-  globalThis.fetch = async (_url, init = {}) => {
+  mock.method(globalThis, 'fetch', async (_url, init = {}) => {
     captured.headers = init.headers || {}
     return new Response(null, { status: 304 })
-  }
+  })
   return captured
 }
 
 export function stubError(status, statusText = '', headers = {}) {
-  globalThis.fetch = async () => new Response(null, { status, statusText, headers })
+  mock.method(globalThis, 'fetch', async () => new Response(null, { status, statusText, headers }))
 }
 
 export function stubNetworkError(message = 'network down') {
-  globalThis.fetch = async () => { throw new TypeError(message) }
+  mock.method(globalThis, 'fetch', async () => { throw new TypeError(message) })
 }
 
 // Routes manifest.json requests to a JSON manifest response, all other requests to an error.
 export function stubManifestWithError(manifest, { status, statusText = '', headers = {} } = {}) {
-  globalThis.fetch = async (url) => {
+  mock.method(globalThis, 'fetch', async (url) => {
     if (String(url).endsWith('manifest.json'))
       return new Response(JSON.stringify(manifest), { status: 200 })
     return new Response(null, { status, statusText, headers })
-  }
+  })
 }
 
 // Routes manifest.json to manifest (or error when null), all other requests to a mismatch bundle.
 export function stubMismatchBundle({ manifest, manifestStatus = 200, version, wrongModel }) {
-  globalThis.fetch = async (url) => {
+  mock.method(globalThis, 'fetch', async (url) => {
     if (String(url).endsWith('manifest.json'))
       return manifest !== null
         ? new Response(JSON.stringify(manifest), { status: manifestStatus })
@@ -74,19 +76,19 @@ export function stubMismatchBundle({ manifest, manifestStatus = 200, version, wr
       status: 200,
       headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
     })
-  }
+  })
 }
 
 // Returns a raw response body — used for testing framing edge cases.
 export function stubRawResponse(body, headers = {}) {
-  globalThis.fetch = async () => new Response(body, { status: 200, headers })
+  mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200, headers }))
 }
 
 // Returns a `tracking` object whose `.maxConcurrent` field records peak concurrent fetch calls.
 export function stubConcurrentBundle(version, delayMs = 30) {
   let concurrent = 0
   const tracking = { maxConcurrent: 0 }
-  globalThis.fetch = async () => {
+  mock.method(globalThis, 'fetch', async () => {
     concurrent++
     tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
     await new Promise(r => setTimeout(r, delayMs))
@@ -98,6 +100,6 @@ export function stubConcurrentBundle(version, delayMs = 30) {
       status: 200,
       headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
     })
-  }
+  })
   return tracking
 }

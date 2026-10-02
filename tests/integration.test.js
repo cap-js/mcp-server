@@ -1,6 +1,6 @@
 // Integration test for mcp-server server
 import assert from 'node:assert'
-import { test } from 'node:test'
+import { test, describe } from 'node:test'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { join, dirname } from 'path'
@@ -16,7 +16,7 @@ const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 // --- Ensure testService.cds is removed after each test
 const testServicePathCorrect = join(dirname(fileURLToPath(import.meta.url)), 'sample', 'srv', 'testService.cds')
 
-test.describe('integration', () => {
+describe('integration', () => {
   test.afterEach(() => {
     try {
       unlinkSync(testServicePathCorrect)
@@ -25,8 +25,7 @@ test.describe('integration', () => {
     }
   })
 
-  test('spawn mcp-server and call search_model tool', async () => {
-    // Step 2: Spawn the MCP server in the sample project directory
+  test('spawn mcp-server and call search_model tool', async t => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
@@ -34,11 +33,10 @@ test.describe('integration', () => {
       env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
     })
 
-    // Step 3: Use the MCP Client API to connect to the server
     const client = new Client({ name: 'integration-test', version: '1.0.0' })
+    t.after(() => transport.close())
     await client.connect(transport)
 
-    // Step 4: Programmatically call a tool and verify output
     const result = await client.callTool({
       name: 'search_model',
       arguments: {
@@ -52,8 +50,6 @@ test.describe('integration', () => {
     assert(result.content.length > 0, 'Should return at least one result')
     const serviceResults = JSON.parse(result.content[0].text)
     assert.equal(serviceResults[0].name, 'AdminService', 'Should return the AdminService')
-    // Step 5: Clean up
-    await transport.close()
   })
 
   test('search_model follows multiple roots and root changes advertised by the MCP client', async t => {
@@ -75,6 +71,7 @@ test.describe('integration', () => {
       { name: 'integration-test-roots', version: '1.0.0' },
       { capabilities: { roots: { listChanged: true } } }
     )
+    t.after(() => transport.close())
     let roots = [sampleProjectPath, secondRoot]
     client.setRequestHandler(ListRootsRequestSchema, () => ({
       roots: roots.map(root => ({ uri: pathToFileURL(root).href }))
@@ -100,11 +97,9 @@ test.describe('integration', () => {
       arguments: { projectPath: sampleProjectPath, kind: 'service', topN: 1 }
     })
     assert.match(rejected.content[0].text, /outside the configured workspace roots/)
-
-    await transport.close()
   })
 
-  test('model adapts to CDS file changes on the next request', async () => {
+  test('model adapts to CDS file changes on the next request', async t => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
@@ -116,6 +111,7 @@ test.describe('integration', () => {
       name: 'integration-test-model-change',
       version: '1.0.0'
     })
+    t.after(() => transport.close())
     await client.connect(transport)
 
     // Step 2: Ensure TestService/TestEntity are NOT found
@@ -175,9 +171,6 @@ test.describe('integration', () => {
     }
     assert(foundService, 'Model should adapt and expose TestService')
     assert(foundEntity, 'Model should adapt and expose TestEntity')
-
-    // Step 5: Clean up
-    await transport.close()
   })
 
   test('does not return out-of-root compiler diagnostics to MCP clients', async t => {
@@ -209,7 +202,5 @@ test.describe('integration', () => {
     })
 
     assert.equal(result.content[0].text, 'Failed to compile CDS model')
-    assert(!result.content[0].text.includes(privateModel))
-    assert(!result.content[0].text.includes('SECRET_CUSTOMER_TABLE'))
   })
 })
