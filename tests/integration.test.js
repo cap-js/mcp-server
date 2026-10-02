@@ -13,6 +13,79 @@ import { tmpdir } from 'node:os'
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 
+async function runAgent(query, { projectPath = sampleProjectPath } = {}) {
+  const transport = new StdioClientTransport({
+    command: 'node',
+    args: [cdsMcpPath],
+    cwd: projectPath,
+    env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+  })
+  const mcpClient = new Client({ name: 'run-agent', version: '1.0.0' })
+  await mcpClient.connect(transport)
+
+  const { tools: mcpTools } = await mcpClient.listTools()
+  const anthropicTools = mcpTools.map(t => ({
+    name: t.name,
+    description: t.description,
+    input_schema: t.inputSchema
+  }))
+
+  const toolCalls = []
+  const origCallTool = mcpClient.callTool.bind(mcpClient)
+  mcpClient.callTool = async params => {
+    const result = await origCallTool(params)
+    toolCalls.push({ tool: params.name, args: params.arguments, result })
+    return result
+  }
+
+  const { default: Anthropic } = await import('@anthropic-ai/sdk')
+  const anthropic = new Anthropic()
+  const messages = [{ role: 'user', content: query }]
+  let text = ''
+
+  for (let i = 0; i < 5; i++) {
+    const response = await anthropic.messages.create({
+      model: 'claude-opus-4-8',
+      max_tokens: 1024,
+      tools: anthropicTools,
+      messages
+    })
+
+    for (const block of response.content) {
+      if (block.type === 'text') text += block.text
+    }
+
+    if (response.stop_reason !== 'tool_use') break
+
+    messages.push({ role: 'assistant', content: response.content })
+
+    const toolResults = []
+    for (const block of response.content) {
+      if (block.type !== 'tool_use') continue
+      let content
+      try {
+        const mcpResult = await mcpClient.callTool({ name: block.name, arguments: block.input })
+        content = (mcpResult.content ?? [])
+          .filter(c => c.type === 'text')
+          .map(c => c.text)
+          .join('\n')
+      } catch (e) {
+        content = `Error: ${e.message}`
+      }
+      toolResults.push({ type: 'tool_result', tool_use_id: block.id, content })
+    }
+
+    messages.push({ role: 'user', content: toolResults })
+  }
+
+  await transport.close()
+
+  const toolWasCalled = (name, predicate) =>
+    toolCalls.some(c => c.tool === name && (predicate === undefined || predicate(c.args)))
+
+  return { text, toolCalls, toolWasCalled }
+}
+
 // --- Ensure testService.cds is removed after each test
 const testServicePathCorrect = join(dirname(fileURLToPath(import.meta.url)), 'sample', 'srv', 'testService.cds')
 
@@ -23,6 +96,69 @@ test.describe('integration', () => {
     } catch {
       /* ignore */
     }
+  })
+
+  test('records which tools were called and supports predicate checks', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [cdsMcpPath],
+      cwd: sampleProjectPath,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+    const client = new Client({ name: 'integration-test-tool-recorder', version: '1.0.0' })
+    await client.connect(transport)
+
+    const toolCalls = []
+    const origCallTool = client.callTool.bind(client)
+    client.callTool = async (params) => {
+      const result = await origCallTool(params)
+      toolCalls.push({ tool: params.name, args: params.arguments, result })
+      return result
+    }
+    const toolWasCalled = (name, predicate) =>
+      toolCalls.some(c => c.tool === name && (predicate === undefined || predicate(c.args)))
+
+    // Get a seed chunk via search_docs, then expand context via get_doc_context.
+    // The agent may resolve context via get_doc_context or by running a wider search_docs query.
+    // Either counts.
+    const { content: [{ text: chunk }] } = await client.callTool({
+      name: 'search_docs',
+      arguments: { query: 'sqlite production', maxResults: 1 }
+    })
+    await client.callTool({
+      name: 'get_doc_context',
+      arguments: { chunk, direction: 'after', count: 2 }
+    })
+
+    assert(toolWasCalled('search_docs'), 'search_docs must have been called')
+    assert(
+      toolWasCalled('get_doc_context') || toolWasCalled('search_docs', args => args.maxResults > 1),
+      'context expansion must use get_doc_context or a broader search_docs call'
+    )
+    assert(!toolWasCalled('search_model'), 'search_model should not have been called')
+
+    await transport.close()
+  })
+
+  test('server exposes exactly the expected MCP tools', async () => {
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [cdsMcpPath],
+      cwd: sampleProjectPath,
+      env: { ...process.env, CDS_MCP_OFFLINE: 'true' }
+    })
+    const client = new Client({ name: 'integration-test-list-tools', version: '1.0.0' })
+    await client.connect(transport)
+
+    const { tools } = await client.listTools()
+    const toolNames = tools.map(t => t.name)
+
+    assert(toolNames.includes('search_model'), 'server must expose search_model')
+    assert(toolNames.includes('search_docs'), 'server must expose search_docs')
+    assert(toolNames.includes('get_doc_context'), 'server must expose get_doc_context')
+    assert.equal(toolNames.length, 3, 'server must expose exactly 3 tools')
+
+    await transport.close()
   })
 
   test('spawn mcp-server and call search_model tool', async () => {
@@ -211,5 +347,23 @@ test.describe('integration', () => {
     assert.equal(result.content[0].text, 'Failed to compile CDS model')
     assert(!result.content[0].text.includes(privateModel))
     assert(!result.content[0].text.includes('SECRET_CUSTOMER_TABLE'))
+  })
+
+  test('agent autonomously calls search_docs or search_model to answer a CDS question', { timeout: 60000 }, async t => {
+    if (!process.env.ANTHROPIC_AUTH_TOKEN) {
+      t.skip('ANTHROPIC_AUTH_TOKEN not set')
+      return
+    }
+
+    const query =
+      'Walk me through the CDS documentation section on draft handling step by step'
+    const { text, toolWasCalled } = await runAgent(query)
+
+    assert(
+      toolWasCalled('search_docs') || toolWasCalled('search_model'),
+      'agent must call search_docs or search_model'
+    )
+    assert(toolWasCalled('get_doc_context'), 'agent must call get_doc_context to expand surrounding documentation')
+    assert(text.length > 0, 'agent must produce a text response')
   })
 })
