@@ -1,7 +1,8 @@
 import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
-import { installMemFs, getManifestEtagPath } from './helpers/mem-fs-mock.js'
+import { installMemFs } from './helpers/mem-fs-mock.js'
+import { getManifestEtagPath } from './helpers/test-bundle.js'
 import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
 
 process.env.CDS_MCP_OFFLINE = 'true'

@@ -3,28 +3,14 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { installMemFs, buildTestBundle, TEST_COMMIT_ID } from './helpers/mem-fs-mock.js'
-import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
+import { installTestBundle } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-// Build the real doc frame from the committed bundle BEFORE the in-memory fs is
-// installed (buildTestBundle reads the real fixture via un-mocked named imports).
-const testFrame = await buildTestBundle()
-
-// In-memory fs: the embeddings/ dir is virtual (clean slate — the real bundle
-// and etag are hidden), while the real search still reads its model from disk.
-installMemFs()
-
-// Mock fetch BEFORE importing tools.js — it statically imports
+// Install the test bundle in-process (clean in-memory fs + a fetch mock that
+// serves the frame) BEFORE importing tools.js — it statically imports
 // searchMarkdownDocs.js, which fires downloadEmbeddings() at module load.
-mockFetch(
-  bundle.raw(testFrame, {
-    etag: `W/"${TEST_COMMIT_ID}"`,
-    'x-embeddings-version': TEST_COMMIT_ID,
-    'content-type': 'application/octet-stream'
-  })
-)
+await installTestBundle()
 
 const tools = (await import('../lib/tools.js')).default
 

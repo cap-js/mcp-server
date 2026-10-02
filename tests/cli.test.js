@@ -6,17 +6,14 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/mem-fs-mock.js'
+import { DEFAULT_DIR } from '../lib/calculateEmbeddings.js'
+import { seedCliTestBundle, TEST_COMMIT_ID } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 const mockFetchUrl = new URL('./helpers/mock-fetch.mjs', import.meta.url).href
 
-const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
-const manifestEtagPath = getManifestEtagPath()
-const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
-let savedEtag = null
+let ctx
 
 function runCliCommand(args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -53,33 +50,10 @@ const noFetchEnv = {
 }
 
 before(async () => {
-  // Save any real etag that exists before our subprocess tests overwrite it.
-  savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
-
-  // Build real bundle, write to temp file for subprocess mock-fetch.mjs.
-  const frame = await buildTestBundle()
-  await fs.writeFile(bundlePath, frame)
-
-  // Pre-seed versioned embeddings dir for offline tests.
-  // resolveLocalVersion() last-resort scan will find this dir.
-  await fs.mkdir(testBundleDir, { recursive: true })
-  const metaLen = frame.readUInt32BE(0)
-  const metaBytes = frame.subarray(4, 4 + metaLen)
-  const binBytes = frame.subarray(4 + metaLen)
-  await fs.writeFile(join(testBundleDir, 'code-chunks.json'), metaBytes)
-  await fs.writeFile(join(testBundleDir, 'code-chunks.bin'), binBytes)
+  ctx = await seedCliTestBundle()
 })
 
-after(async () => {
-  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
-  await fs.unlink(bundlePath).catch(() => {})
-  if (savedEtag !== null) {
-    await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
-    await fs.writeFile(manifestEtagPath, savedEtag)
-  } else {
-    await fs.rm(dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
-  }
-})
+after(() => ctx.cleanup())
 
 describe('CLI usage', () => {
   test('search_model returns matching definitions for a project path', async () => {
@@ -127,7 +101,7 @@ describe('CLI usage', () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
       env: {
         ...process.env,
-        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
         NODE_OPTIONS: `--import "${mockFetchUrl}"`
       }
@@ -143,7 +117,7 @@ describe('CLI usage', () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
       env: {
         ...process.env,
-        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
         NODE_OPTIONS: `--import "${mockFetchUrl}"`
       }
@@ -197,7 +171,7 @@ describe('CLI usage', () => {
     const result = await runCliCommand(['--download'], {
       env: {
         ...process.env,
-        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
         NODE_OPTIONS: `--import "${mockFetchUrl}"`
       }
@@ -239,7 +213,9 @@ describe('CLI usage', () => {
   test('no arguments starts MCP server mode', async () => {
     let stderr = ''
     const child = spawn('node', [cdsMcpPath], { stdio: 'pipe' })
-    child.stderr.on('data', d => { stderr += d })
+    child.stderr.on('data', d => {
+      stderr += d
+    })
 
     await new Promise(resolve => setTimeout(resolve, 100))
 
@@ -259,7 +235,7 @@ describe('CLI usage', () => {
       const result = await runCliCommand(['--model', altModel, '--download'], {
         env: {
           ...process.env,
-          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
           NODE_OPTIONS: `--import "${mockFetchUrl}"`
         }
@@ -271,12 +247,18 @@ describe('CLI usage', () => {
 
       // Bundle written under the alt model dir
       const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
-      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      const exists = await fs
+        .access(bundleJson)
+        .then(() => true)
+        .catch(() => false)
       assert.ok(exists, `bundle must land under ${altDir}`)
 
       // Etag written under alt model's own etags subdir
       const etagFile = join(altDir, 'etags')
-      const etagExists = await fs.access(etagFile).then(() => true).catch(() => false)
+      const etagExists = await fs
+        .access(etagFile)
+        .then(() => true)
+        .catch(() => false)
       assert.ok(etagExists, `etag dir must land under ${etagFile}`)
     } finally {
       await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})
@@ -294,7 +276,7 @@ describe('CLI usage', () => {
         env: {
           ...process.env,
           CDS_MCP_MODEL: altModel,
-          CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+          CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
           NODE_OPTIONS: `--import "${mockFetchUrl}"`
         }
@@ -302,7 +284,10 @@ describe('CLI usage', () => {
 
       assert.equal(result.code, 0, 'Command should exit with code 0')
       const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
-      const exists = await fs.access(bundleJson).then(() => true).catch(() => false)
+      const exists = await fs
+        .access(bundleJson)
+        .then(() => true)
+        .catch(() => false)
       assert.ok(exists, `bundle must land under ${altDir}`)
     } finally {
       await fs.rm(altDir, { recursive: true, force: true }).catch(() => {})

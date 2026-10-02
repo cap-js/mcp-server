@@ -1,33 +1,32 @@
 // General in-memory filesystem for tests, built on node:test `mock.method`.
 //
-// Rule: tests must never create, edit, or remove real files. Reading a real
-// committed fixture (for example the ML model) is fine. So:
+// installMemFs() intercepts EXACTLY these promise-API methods on the shared
+// `fs/promises` object — nothing more:
+//   writes: writeFile, mkdir, unlink, rename, mkdtemp — go to the in-memory
+//           store; the real disk is never written.
+//   reads:  readFile, stat, access, readdir — serve from the store first, then
+//           fall through to the REAL disk, EXCEPT under a "mocked root" (default
+//           the project's `embeddings/` dir) which stays a clean in-memory slate
+//           (an unseeded read there rejects ENOENT instead of leaking the real
+//           bundle/etag). This lets the embedder still load its real model from
+//           `.cds/models` while the embeddings-logic writes stay virtual.
 //
-//   - WRITES (writeFile, mkdir, unlink, rename, mkdtemp) always go to the
-//     in-memory store. The real disk is never touched.
-//   - READS (readFile, stat, access, readdir) serve from the store first,
-//     then fall through to the REAL disk — EXCEPT under a "mocked root" (by
-//     default the project's `embeddings/` dir), which stays a clean in-memory
-//     slate: an unseeded read there rejects ENOENT instead of leaking the real
-//     bundle/etag. This is what the embeddings-logic tests need, and it lets the
-//     embedder still load its real model from `.cds/models`.
-//
-// Only the methods the code and tests actually use are mocked.
+// Anything else reaches the REAL disk — rm, rmdir, cp, copyFile, lstat, the sync
+// `fs.*Sync` methods, and any `fs/promises` value captured by a named import
+// before install are NOT intercepted. Do not call those on paths you want kept
+// virtual. Helpers that must touch the real disk (e.g. seedCliTestBundle) use
+// named fs imports on purpose.
 //
 // Teardown is the suite's usual `mock.restoreAll()` in an afterEach/after hook.
-//
-// Only the promises API is mocked. `import fs from 'fs/promises'` and
-// `import fs from 'node:fs'` then `fs.promises.*` resolve to the ONE object
-// returned by require('fs/promises'), so one set of stubs covers them.
-// Destructured named imports capture the function at import time and are NOT
-// reachable here — those code paths stay out of scope.
+// `import fs from 'fs/promises'` and `import fs from 'node:fs'` then
+// `fs.promises.*` resolve to the one object require('fs/promises') returns, so a
+// single set of stubs covers them.
 
 import { mock } from 'node:test'
 import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
 import path from 'node:path'
-import cds from '@sap/cds'
-import calculateEmbeddings, { DEFAULT_DIR, getActiveModelFolder } from '../../lib/calculateEmbeddings.js'
+import { DEFAULT_DIR } from '../../lib/calculateEmbeddings.js'
 
 const require = createRequire(import.meta.url)
 // Same object the source holds via `import fs from 'fs/promises'`.
@@ -289,44 +288,4 @@ export function installMemFs({ seed, mockedRoots = [DEFAULT_DIR] } = {}) {
 
   if (seed) handle.seedTree(seed)
   return handle
-}
-
-// --- Test bundle helpers -----------------------------------------------------
-// Kept here so a test needs only this one helper.
-
-// Fixed commit id the mock server reports for the test bundle.
-export const TEST_COMMIT_ID = '__test_bundle__'
-
-// Etag path for the ACTIVE model and the installed cds version. Tracks
-// setActiveModel(); detectRuntime() resolves this project's cds version.
-export function getManifestEtagPath() {
-  return path.join(DEFAULT_DIR, getActiveModelFolder(), 'etags', cds.version, 'manifest.etag')
-}
-
-// Small CAP-relevant chunks covering the search assertions:
-//   - 'cds init' for query 'how to create a new cap project'
-//   - 'enterprise-messaging' for query 'event mesh config'
-const TEST_CHUNKS = [
-  'To create a new CAP project, run: cds init my-project. The cds init command scaffolds a minimal project.',
-  'Use cds add hana to add HANA support. First run cds init to bootstrap the project structure.',
-  'Enterprise messaging in CAP uses enterprise-messaging as the service binding kind in package.json under cds.requires.',
-  'SAP Event Mesh (enterprise-messaging) enables async messaging between microservices in CAP applications.',
-  'Define CDS entities: entity Books { key ID: Integer; title: String; author: Association to Authors; }',
-  'Expose entities via services: service CatalogService { entity Books as projection on my.Books; }',
-  'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc'
-]
-
-// Build the server's binary frame — [4-byte BE meta length][meta JSON][bin] —
-// from real embeddings of TEST_CHUNKS. The embedder reads its real model; the
-// frame needs no committed bundle, so this works on a clean CI checkout.
-export async function buildTestBundle() {
-  const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
-  const dim = vecs[0].length
-  const flat = new Float32Array(TEST_CHUNKS.length * dim)
-  for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
-  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS }
-  const metaBuf = Buffer.from(JSON.stringify(meta))
-  const header = Buffer.alloc(4)
-  header.writeUInt32BE(metaBuf.length, 0)
-  return Buffer.concat([header, metaBuf, Buffer.from(flat.buffer)])
 }
