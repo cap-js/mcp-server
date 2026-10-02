@@ -3,10 +3,10 @@ import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promis
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { test } from 'node:test'
+import { test, describe } from 'node:test'
 import { createMcpProjectPathResolver, resolvePathsWithinRoots, resolveProjectPath } from '../lib/projectPath.js'
 
-test.describe('project path authorization', () => {
+describe('project path authorization', () => {
   test('accepts projects inside a canonical workspace root', async t => {
     const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
     t.after(() => rm(directory, { recursive: true, force: true }))
