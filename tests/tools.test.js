@@ -3,33 +3,18 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import fs from 'fs/promises'
-import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import { installTestBundle } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
-const manifestEtagPath = getManifestEtagPath()
-const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
-
-// Build real embeddings and mock fetch BEFORE importing tools.js.
-// tools.js statically imports searchMarkdownDocs.js which fires downloadEmbeddings() at module load.
-const testFrame = await buildTestBundle()
-mock.method(globalThis, 'fetch', makeFetchStub(testFrame))
+// Install the test bundle in-process (clean in-memory fs + a fetch mock that
+// serves the frame) BEFORE importing tools.js — it statically imports
+// searchMarkdownDocs.js, which fires downloadEmbeddings() at module load.
+await installTestBundle()
 
 const tools = (await import('../lib/tools.js')).default
 
-after(async () => {
-  mock.restoreAll()
-  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
-  if (savedEtag !== null) {
-    await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
-    await fs.writeFile(manifestEtagPath, savedEtag)
-  } else {
-    await fs.rm(dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
-  }
-})
+after(() => mock.restoreAll())
 
 describe('tools', () => {
   test('search_model: returns AdminService with exposedEntities when querying by kind=service', async () => {
