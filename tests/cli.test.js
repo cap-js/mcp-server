@@ -139,6 +139,22 @@ describe('CLI usage', () => {
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
 
+  test('search_docs produces no output on stderr', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'], {
+      env: {
+        ...process.env,
+        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+      }
+    })
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.stderr, '', `Expected no stderr output, got: ${result.stderr}`)
+    const lines = result.stdout.split('\n')
+    assert.equal(lines[0].includes('headingPath:'), true, 'stdout should start with output and nothing else')
+  })
+
   test('invalid tool name shows error', async () => {
     const result = await runCliCommand(['invalid_tool', 'arg1'])
 
