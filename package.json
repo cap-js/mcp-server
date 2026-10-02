@@ -23,7 +23,7 @@
     "cds-mcp": "index.js"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1",
+    "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
     "lint": "npx eslint .",
     "setup": "rm -rf node_modules package-lock.json && npm i"
   },
@@ -43,6 +43,13 @@
   "overrides": {
     "@huggingface/transformers": {
       "onnxruntime-node": "1.20.1"
+    }
+  },
+  "cds": {
+    "log": {
+      "levels": {
+        "@cap-js/ai": "error"
+      }
     }
   }
 }
