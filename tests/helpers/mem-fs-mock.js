@@ -25,10 +25,9 @@
 import { mock } from 'node:test'
 import { createRequire } from 'node:module'
 import { randomUUID } from 'node:crypto'
-import { readFile as realReadFile, readdir as realReaddir } from 'node:fs/promises'
 import path from 'node:path'
 import cds from '@sap/cds'
-import { DEFAULT_DIR, getActiveModelFolder, getActiveEmbeddingsDir } from '../../lib/calculateEmbeddings.js'
+import calculateEmbeddings, { DEFAULT_DIR, getActiveModelFolder } from '../../lib/calculateEmbeddings.js'
 
 const require = createRequire(import.meta.url)
 // Same object the source holds via `import fs from 'fs/promises'`.
@@ -293,8 +292,7 @@ export function installMemFs({ seed, mockedRoots = [DEFAULT_DIR] } = {}) {
 }
 
 // --- Test bundle helpers -----------------------------------------------------
-// Kept here so a test needs only this one helper. These read the real committed
-// bundle via un-mocked named fs imports, so they work before or after install.
+// Kept here so a test needs only this one helper.
 
 // Fixed commit id the mock server reports for the test bundle.
 export const TEST_COMMIT_ID = '__test_bundle__'
@@ -305,25 +303,30 @@ export function getManifestEtagPath() {
   return path.join(DEFAULT_DIR, getActiveModelFolder(), 'etags', cds.version, 'manifest.etag')
 }
 
-// Pack the real committed bundle into the server's binary frame:
-//   [4-byte BE meta length][meta JSON bytes][bin bytes]
-// Feed the frame through the fetch mock so the real doc chunks and embeddings
-// drive the real search — without recomputing them.
+// Small CAP-relevant chunks covering the search assertions:
+//   - 'cds init' for query 'how to create a new cap project'
+//   - 'enterprise-messaging' for query 'event mesh config'
+const TEST_CHUNKS = [
+  'To create a new CAP project, run: cds init my-project. The cds init command scaffolds a minimal project.',
+  'Use cds add hana to add HANA support. First run cds init to bootstrap the project structure.',
+  'Enterprise messaging in CAP uses enterprise-messaging as the service binding kind in package.json under cds.requires.',
+  'SAP Event Mesh (enterprise-messaging) enables async messaging between microservices in CAP applications.',
+  'Define CDS entities: entity Books { key ID: Integer; title: String; author: Association to Authors; }',
+  'Expose entities via services: service CatalogService { entity Books as projection on my.Books; }',
+  'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc'
+]
+
+// Build the server's binary frame — [4-byte BE meta length][meta JSON][bin] —
+// from real embeddings of TEST_CHUNKS. The embedder reads its real model; the
+// frame needs no committed bundle, so this works on a clean CI checkout.
 export async function buildTestBundle() {
-  const base = getActiveEmbeddingsDir()
-  const entries = await realReaddir(base, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    if (!entry.isDirectory() || entry.name === 'etags') continue
-    const dir = path.join(base, entry.name)
-    try {
-      const meta = await realReadFile(path.join(dir, 'code-chunks.json'))
-      const bin = await realReadFile(path.join(dir, 'code-chunks.bin'))
-      const header = Buffer.alloc(4)
-      header.writeUInt32BE(meta.length, 0)
-      return Buffer.concat([header, meta, bin])
-    } catch {
-      continue
-    }
-  }
-  throw new Error(`No local embeddings bundle found under ${base} to build a test frame from`)
+  const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
+  const dim = vecs[0].length
+  const flat = new Float32Array(TEST_CHUNKS.length * dim)
+  for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
+  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS }
+  const metaBuf = Buffer.from(JSON.stringify(meta))
+  const header = Buffer.alloc(4)
+  header.writeUInt32BE(metaBuf.length, 0)
+  return Buffer.concat([header, metaBuf, Buffer.from(flat.buffer)])
 }

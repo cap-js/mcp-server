@@ -1,4 +1,4 @@
-import { test, describe, after } from 'node:test'
+import { test, describe, beforeEach, afterEach, after, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'node:path'
 import os from 'node:os'
@@ -17,9 +17,14 @@ after(() => {
 })
 
 describe('createEmbeddings truncation', () => {
+  let mem
+  beforeEach(() => {
+    mem = installMemFs()
+  })
+  afterEach(() => mock.restoreAll())
+
   test('too-long chunk produces exactly one row, truncated not split', async () => {
     // Writes stay in memory; the real embedder still reads its model from disk.
-    const mem = installMemFs()
     const dir = path.join(os.tmpdir(), 'embed-truncation-test-' + Date.now())
     const result = await createEmbeddings('code-chunks', [SHORT, LONG], dir)
 

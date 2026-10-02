@@ -27,13 +27,57 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
   after(() => mock.restoreAll())
 
-  test('sends cds and model query params', async () => {
-    const requests = mockFetch(bundle.ok({ version: testVer }))
-    await downloadEmbeddings()
-    const url = new URL(requests[0].url)
-    assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
-    assert.strictEqual(url.searchParams.get('cds'), cds.version)
-    assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
+  // Group: 200 bundle, no prior FS state — all three share the same mock response.
+  describe('200 bundle, no prior state', () => {
+    let requests
+    beforeEach(() => {
+      requests = mockFetch(bundle.ok({ version: testVer }))
+    })
+
+    test('sends cds and model query params', async () => {
+      await downloadEmbeddings()
+      const url = new URL(requests[0].url)
+      assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
+      assert.strictEqual(url.searchParams.get('cds'), cds.version)
+      assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
+    })
+
+    test('200 response stamps lastChecked in etag file', async () => {
+      const before = Date.now()
+      await downloadEmbeddings()
+      const saved = mem.readJson(manifestEtagPath)
+      assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
+      assert.ok(saved.lastChecked >= before)
+    })
+
+    test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
+      const os = await import('node:os')
+      const originalCwd = process.cwd()
+      const newestEtag = path.join(modelEtagsRoot, 'latest', 'manifest.etag')
+      const unknownEtag = path.join(modelEtagsRoot, 'unknown', 'manifest.etag')
+
+      try {
+        process.chdir(os.tmpdir())
+        await downloadEmbeddings()
+
+        assert.strictEqual(
+          mem.exists(unknownEtag),
+          false,
+          'no etag file may be created under <DEFAULT_DIR>/etags/unknown/'
+        )
+        assert.ok(mem.exists(newestEtag), `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
+
+        const saved = mem.readJson(newestEtag)
+        assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
+        assert.strictEqual(
+          saved.commitId,
+          testVer,
+          'stored commitId must be the x-embeddings-version returned by the server'
+        )
+      } finally {
+        process.chdir(originalCwd)
+      }
+    })
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
@@ -142,15 +186,6 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
   })
 
-  test('200 response stamps lastChecked in etag file', async () => {
-    const before = Date.now()
-    mockFetch(bundle.ok({ version: testVer }))
-    await downloadEmbeddings()
-    const saved = mem.readJson(manifestEtagPath)
-    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
-    assert.ok(saved.lastChecked >= before)
-  })
-
   test('304 response stamps lastChecked in etag file', async () => {
     mockFetch(bundle.ok({ version: testVer }))
     await downloadEmbeddings()
@@ -165,16 +200,21 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     assert.ok(saved.lastChecked >= before)
   })
 
-  test('throws when bundle 304 but etag file has no commitId', async () => {
-    mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
-    mockFetch(bundle.notModified())
-    await assert.rejects(downloadEmbeddings(), /no commitId/)
-  })
+  // Group: 304 not modified with corrupt stored state — both share the same mock response.
+  describe('304 not modified, corrupt stored state', () => {
+    beforeEach(() => {
+      mockFetch(bundle.notModified())
+    })
 
-  test('throws when bundle 304 but the stored commit id dir is missing on disk', async () => {
-    mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', commitId: '__gone__' }))
-    mockFetch(bundle.notModified())
-    await assert.rejects(downloadEmbeddings(), /missing files/)
+    test('throws when bundle 304 but etag file has no commitId', async () => {
+      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
+      await assert.rejects(downloadEmbeddings(), /no commitId/)
+    })
+
+    test('throws when bundle 304 but the stored commit id dir is missing on disk', async () => {
+      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', commitId: '__gone__' }))
+      await assert.rejects(downloadEmbeddings(), /missing files/)
+    })
   })
 
   test('throws when bundle response is non-OK', async () => {
@@ -302,37 +342,6 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.match(err.cause?.message, /network down/)
       return true
     })
-  })
-
-  test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
-    mockFetch(bundle.ok({ version: testVer }))
-
-    const os = await import('node:os')
-    const originalCwd = process.cwd()
-    const newestEtag = path.join(modelEtagsRoot, 'latest', 'manifest.etag')
-    const unknownEtag = path.join(modelEtagsRoot, 'unknown', 'manifest.etag')
-
-    try {
-      process.chdir(os.tmpdir())
-      await downloadEmbeddings()
-
-      assert.strictEqual(
-        mem.exists(unknownEtag),
-        false,
-        'no etag file may be created under <DEFAULT_DIR>/etags/unknown/'
-      )
-      assert.ok(mem.exists(newestEtag), `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
-
-      const saved = mem.readJson(newestEtag)
-      assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
-      assert.strictEqual(
-        saved.commitId,
-        testVer,
-        'stored commitId must be the x-embeddings-version returned by the server'
-      )
-    } finally {
-      process.chdir(originalCwd)
-    }
   })
 
   test('concurrent calls are serialized with at most one in-flight fetch', async () => {
