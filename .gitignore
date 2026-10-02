@@ -2,3 +2,9 @@ models/
 embeddings/
 node_modules/
 .claude
+
+# Transient eval output — result.jsonl and compare.html/.md (recreated on demand)
+evals/runs/
+
+# local file for source map generation
+llms-full.txt
