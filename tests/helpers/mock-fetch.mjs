@@ -28,9 +28,14 @@ export function mockFetch(...handlers) {
   mock.method(globalThis, 'fetch', async (url, init = {}) => {
     const u = String(url)
     requests.push({ url: u, headers: init.headers || {} })
-    const key = u.endsWith('/manifest.json') ? 'manifest' : 'getEmbeddings'
-    const route = routes[key]
-    if (!route) throw new TypeError(`mockFetch: ${key} endpoint not mocked: ${u}`)
+    const { pathname } = new URL(u)
+    const key = pathname.endsWith('/manifest.json')
+      ? 'manifest'
+      : pathname.endsWith('/getEmbeddings')
+        ? 'getEmbeddings'
+        : null
+    const route = key && routes[key]
+    if (!route) throw new TypeError(`mockFetch: endpoint not mocked: ${u}`)
     return route.respond(u, init)
   })
   return requests
@@ -42,10 +47,11 @@ export const bundle = {
   ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
     return {
       endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame(body, bin), {
-        status: 200,
-        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-      })
+      respond: async () =>
+        new Response(frame(body, bin), {
+          status: 200,
+          headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+        })
     }
   },
 
@@ -68,16 +74,22 @@ export const bundle = {
   wrongModel({ version, wrongModel }) {
     return {
       endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
-        status: 200,
-        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
-      })
+      respond: async () =>
+        new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
+        })
     }
   },
 
   // Fetch throws — simulates a network failure.
   networkError(message = 'network down') {
-    return { endpoint: 'getEmbeddings', respond: async () => { throw new TypeError(message) } }
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => {
+        throw new TypeError(message)
+      }
+    }
   },
 
   // 200 framed bundle after a delay; the returned object's `.tracking.maxConcurrent`
@@ -116,7 +128,12 @@ export const manifest = {
 
   // Fetch throws — simulates a network failure.
   networkError(message = 'network down') {
-    return { endpoint: 'manifest', respond: async () => { throw new TypeError(message) } }
+    return {
+      endpoint: 'manifest',
+      respond: async () => {
+        throw new TypeError(message)
+      }
+    }
   }
 }
 
@@ -125,9 +142,11 @@ export const manifest = {
 if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
   const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
   const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
-  mockFetch(bundle.raw(prebuilt, {
-    etag: `W/"${commitId}"`,
-    'x-embeddings-version': commitId,
-    'content-type': 'application/octet-stream'
-  }))
+  mockFetch(
+    bundle.raw(prebuilt, {
+      etag: `W/"${commitId}"`,
+      'x-embeddings-version': commitId,
+      'content-type': 'application/octet-stream'
+    })
+  )
 }

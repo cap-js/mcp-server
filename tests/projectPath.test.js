@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { realpath } from 'node:fs/promises'
+import { realpath, lstat } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test, describe } from 'node:test'
@@ -33,6 +33,9 @@ describe('project path authorization', () => {
   })
 
   test('rejects a symlink that escapes a workspace root', async () => {
+    // Guard: the fixture must be a real symlink, else realpath() can't escape
+    // the root and this test would pass for the wrong reason.
+    assert.ok((await lstat(escapingLink)).isSymbolicLink(), `${escapingLink} must be a symlink`)
     await assert.rejects(resolveProjectPath(escapingLink, [workspace]), /outside the configured workspace roots/)
   })
 
