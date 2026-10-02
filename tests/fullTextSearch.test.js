@@ -1,5 +1,6 @@
 import { test, describe } from 'node:test'
 import assert from 'node:assert'
+import cds from '@sap/cds'
 import { fullTextSearch } from '../lib/embeddings.js'
 import { toFts5Query } from '../lib/bm25/fts5.js'
 
@@ -32,6 +33,11 @@ describe('toFts5Query', () => {
 })
 
 describe('fullTextSearch', () => {
+  test('uses fts5', async () => {
+    const results = await fullTextSearch('entity', [{ content: 'entity books' }], 10)
+    assert.ok(Array.isArray(results), 'should return results via fts5')
+  })
+
   test('returns empty array for empty query', async () => {
     assert.deepStrictEqual(await fullTextSearch('', [{ content: 'entity books' }], 10), [])
   })
@@ -72,5 +78,23 @@ describe('fullTextSearch', () => {
     const chunks = [{ content: 'entity books title author' }]
     const [r] = await fullTextSearch('entity', chunks, 10)
     assert.ok(r.score < 0, `score should be negative, got ${r.score}`)
+  })
+
+  test('creates exactly one virtual FTS5 table per call', async (t) => {
+    let createVtCount = 0
+    const origTo = cds.connect.to.bind(cds.connect)
+
+    t.mock.method(cds.connect, 'to', async (opts) => {
+      const svc = await origTo(opts)
+      const origRun = svc.run.bind(svc)
+      svc.run = async (...args) => {
+        if (typeof args[0] === 'string' && args[0].includes('CREATE VIRTUAL TABLE')) createVtCount++
+        return origRun(...args)
+      }
+      return svc
+    })
+
+    await fullTextSearch('entity', [{ content: 'entity books title' }], 10)
+    assert.strictEqual(createVtCount, 1, 'exactly one virtual table must be created per fullTextSearch call')
   })
 })
