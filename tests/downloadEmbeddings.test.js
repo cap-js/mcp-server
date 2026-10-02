@@ -1,7 +1,6 @@
 import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
-import fs from 'fs/promises'
 import { installMemFs } from './helpers/mem-fs-mock.js'
 import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
 
@@ -464,10 +463,10 @@ describe('resolveLocalVersion', () => {
         JSON.stringify({ etag: 'W/"x"', commitId: testCommits[i] })
       )
     }
-    const now = Date.now() / 1000
+    const now = Date.now()
     // control mtime on the embed dirs themselves — last-resort uses those, not etag dirs
-    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]), now - 100, now - 100)
-    await fs.utimes(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]), now, now)
+    mem.setMtime(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]), now - 100000)
+    mem.setMtime(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]), now)
     // both etag dirs have non-semver names → semver scan skips them → fall through to mtime last-resort
     const local = await resolveLocalVersion()
     assert.ok(local, 'last-resort must find a complete embed dir')

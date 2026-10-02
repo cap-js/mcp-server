@@ -3,14 +3,16 @@
 // Rule: tests must never create, edit, or remove real files. Reading a real
 // committed fixture (for example the ML model) is fine. So:
 //
-//   - WRITES (writeFile, mkdir, rm, rmdir, unlink, rename, utimes, cp, copyFile)
-//     always go to the in-memory store. The real disk is never touched.
-//   - READS (readFile, stat, lstat, access, readdir) serve from the store first,
+//   - WRITES (writeFile, mkdir, unlink, rename, mkdtemp) always go to the
+//     in-memory store. The real disk is never touched.
+//   - READS (readFile, stat, access, readdir) serve from the store first,
 //     then fall through to the REAL disk — EXCEPT under a "mocked root" (by
 //     default the project's `embeddings/` dir), which stays a clean in-memory
 //     slate: an unseeded read there rejects ENOENT instead of leaking the real
 //     bundle/etag. This is what the embeddings-logic tests need, and it lets the
 //     embedder still load its real model from `.cds/models`.
+//
+// Only the methods the code and tests actually use are mocked.
 //
 // Teardown is the suite's usual `mock.restoreAll()` in an afterEach/after hook.
 //
@@ -229,13 +231,6 @@ export function installMemFs({ seed, mockedRoots = [DEFAULT_DIR] } = {}) {
       const dir = String(prefix) + randomUUID().replace(/-/g, '').slice(0, 6)
       ensureDir(dir)
       return dir
-    },
-
-    async utimes(p, _atime, mtime) {
-      const node = store.get(norm(p))
-      if (!node) throw enoent('utime', norm(p))
-      node.mtimeMs = mtime instanceof Date ? mtime.getTime() : Number(mtime) * 1000
-      return undefined
     }
   }
 
@@ -280,6 +275,10 @@ export function installMemFs({ seed, mockedRoots = [DEFAULT_DIR] } = {}) {
     },
     mtime(p) {
       return store.get(norm(p))?.mtimeMs
+    },
+    setMtime(p, mtimeMs) {
+      const node = store.get(norm(p))
+      if (node) node.mtimeMs = mtimeMs
     },
     writtenJson(suffix = '.json') {
       for (const [k, data] of writes) {
