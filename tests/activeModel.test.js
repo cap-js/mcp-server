@@ -1,4 +1,4 @@
-import { test, describe, after, before, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
@@ -20,13 +20,12 @@ const DEFAULT_MODEL = getActiveModel()
 const MODEL_FOLDER = toDirName(DEFAULT_MODEL)
 const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 
-const originalFetch = globalThis.fetch
 const defaultEtagPath = getManifestEtagPath()  // for the module-default model
 
 let _savedEtag = null
 before(async () => { _savedEtag = await fs.readFile(defaultEtagPath, 'utf-8').catch(() => null) })
 after(async () => {
-  globalThis.fetch = originalFetch
+  mock.restoreAll()
   setActiveModel()
   if (_savedEtag !== null) {
     await fs.mkdir(path.dirname(defaultEtagPath), { recursive: true })
@@ -38,7 +37,7 @@ after(async () => {
 
 describe('active model config', () => {
   beforeEach(() => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     setActiveModel()
   })
 
@@ -72,7 +71,7 @@ describe('active model wiring into download', () => {
   const testVer = '__test_model_bundle__'
 
   beforeEach(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     setActiveModel()
     // Clean etag dirs for both default and 'foo--bar' scopes.
     await fs.rm(path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags'), { recursive: true, force: true }).catch(() => {})
@@ -87,9 +86,9 @@ describe('active model wiring into download', () => {
 
   test('bundle URL model= param reflects active model', async () => {
     setActiveModel('foo/bar')
-    const seen = installFetch({ version: testVer, model: 'foo/bar' })
+    const requests = installFetch({ version: testVer, model: 'foo/bar' })
     await downloadEmbeddings()
-    const url = new URL(seen[0].url)
+    const url = new URL(requests[0].url)
     assert.strictEqual(url.searchParams.get('model'), 'foo--bar')
   })
 
@@ -133,10 +132,10 @@ describe('active model wiring into download', () => {
     await fs.writeFile(defaultEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: DEFAULT_MODEL }))
 
     setActiveModel('foo/bar')
-    const seen = installFetch({ version: testVer, model: 'foo/bar' })
+    const requests = installFetch({ version: testVer, model: 'foo/bar' })
     await downloadEmbeddings()
 
-    assert.strictEqual(seen[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
+    assert.strictEqual(requests[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
   })
 
   test('etag under active model dir → 304 path returns cached dir', async () => {
@@ -150,10 +149,10 @@ describe('active model wiring into download', () => {
     await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
     await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    const seen = installFetch({ notModified: true })
+    const requests = installFetch({ notModified: true })
 
     const r = await downloadEmbeddings()
-    assert.strictEqual(seen[0].headers['If-None-Match'], 'W/"seed"')
+    assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
     assert.strictEqual(r.updated, false)
     assert.strictEqual(r.commitId, testVer)
 
@@ -173,14 +172,14 @@ describe('active model wiring into download', () => {
 
   test('mismatch throw hits /manifest.json for available list', async () => {
     setActiveModel('foo/bar')
-    const seen = installFetch({
+    const requests = installFetch({
       version: testVer,
       model: DEFAULT_MODEL,
       manifest: ['a/b']
     })
 
     await assert.rejects(downloadEmbeddings())
-    const manifestHits = seen.filter(s => s.url.endsWith('/manifest.json'))
+    const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
     assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
     assert.ok(manifestHits[0].url.startsWith('https://'), 'manifest URL must be absolute')
   })

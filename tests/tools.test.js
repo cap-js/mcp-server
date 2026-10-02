@@ -1,6 +1,6 @@
 // Node.js test runner (test) for lib/tools.js
 import assert from 'node:assert'
-import { describe, test, after } from 'node:test'
+import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import fs from 'fs/promises'
@@ -16,12 +16,12 @@ const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
 // Build real embeddings and mock fetch BEFORE importing tools.js.
 // tools.js statically imports searchMarkdownDocs.js which fires downloadEmbeddings() at module load.
 const testFrame = await buildTestBundle()
-globalThis.fetch = makeFetchStub(testFrame)
+mock.method(globalThis, 'fetch', makeFetchStub(testFrame))
 
 const tools = (await import('../lib/tools.js')).default
 
 after(async () => {
-  globalThis.fetch = undefined
+  mock.restoreAll()
   await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
   if (savedEtag !== null) {
     await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
@@ -32,7 +32,7 @@ after(async () => {
 })
 
 describe('tools', () => {
-  test('search_model: should find services', async () => {
+  test('search_model: returns AdminService with exposedEntities when querying by kind=service', async () => {
     const result = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'service',
@@ -45,7 +45,7 @@ describe('tools', () => {
     assert.equal(result[0].exposedEntities[0], 'AdminService.Books', 'Should contain exposed entities')
   })
 
-  test('search_model: endpoints', async () => {
+  test('search_model: service and entity results include odata endpoint with correct path', async () => {
     // Service endpoints
     const result = await tools.search_model.handler({
       projectPath: sampleProjectPath,
@@ -77,7 +77,7 @@ describe('tools', () => {
     })
     assert(Array.isArray(books), 'Result should be an array')
     assert(books.length > 0, 'Should find at least one entity')
-    assert(books[0].name, 'AdminService.Books', 'Should find AdminService.Books entity')
+    assert.equal(books[0].name, 'AdminService.Books', 'Should find AdminService.Books entity')
 
     assert(books[0].elements.ID, 'Books entity should have key ID')
     assert(books[0].elements.ID.key === true, 'ID should be marked as key')
@@ -98,7 +98,7 @@ describe('tools', () => {
     assert(books[0].elements.HasDraftEntity, 'Draft-enabled entity should have HasDraftEntity')
   })
 
-  test('search_model: should list all entities (namesOnly)', async () => {
+  test('search_model: lists all entities as name strings when namesOnly=true', async () => {
     const entities = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'entity',
@@ -110,7 +110,7 @@ describe('tools', () => {
     assert(typeof entities[0] === 'string', 'Should return only names')
   })
 
-  test('search_model: should list all services (namesOnly)', async () => {
+  test('search_model: lists all services as name strings when namesOnly=true', async () => {
     const services = await tools.search_model.handler({
       projectPath: sampleProjectPath,
       kind: 'service',
@@ -122,7 +122,7 @@ describe('tools', () => {
     assert(typeof services[0] === 'string', 'Should return only names')
   })
 
-  test('search_docs: should find docs', async () => {
+  test('search_docs: result for "create a new cap project" includes "cds init"', async () => {
     const results = await tools.search_docs.handler({
       query: 'how to create a new cap project',
       maxResults: 10

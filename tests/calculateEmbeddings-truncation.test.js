@@ -1,4 +1,4 @@
-import { test, after } from 'node:test'
+import { test, describe, after } from 'node:test'
 import assert from 'node:assert'
 import { unlink } from 'node:fs/promises'
 import path from 'node:path'
@@ -14,6 +14,8 @@ const SHORT = 'banana'
 let testPassed = false
 after(() => { if (testPassed) process.exit(0) })
 
+describe('createEmbeddings truncation', () => {
+
 test('too-long chunk produces exactly one row, truncated not split', async () => {
   const dir = path.join(os.tmpdir(), 'embed-truncation-test-' + Date.now())
   const result = await createEmbeddings('code-chunks', [SHORT, LONG], dir)
@@ -28,4 +30,5 @@ test('too-long chunk produces exactly one row, truncated not split', async () =>
   await unlink(path.join(result.outDir, 'code-chunks.json'))
 
   testPassed = true
+})
 })
