@@ -12,10 +12,6 @@ const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-tran
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
-  let mem
-  beforeEach(() => {
-    mem = installMemFs()
-  })
   afterEach(() => mock.restoreAll())
 
   test('getEmbeddings returns a non-empty array for a plain string', async () => {
@@ -135,71 +131,79 @@ describe('embeddings', () => {
     assert(Math.abs(norm - 1.0) < 0.001, `Long string embedding should be normalized: ${norm}`)
   })
 
-  // createEmbeddings tests — fs writes are mocked; no tmp dirs created
-
-  test('createEmbeddings preserves chunk order in output', async () => {
-    const chunks = [
-      'first chunk about cds init',
-      'second chunk about cds watch',
-      'third chunk about cds deploy',
-      'fourth chunk about service definitions',
-      'fifth chunk about entity projections'
-    ]
-    await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = mem.writtenJson()
-    assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
-  })
-
-  test('createEmbeddings writes metadata when provided', async () => {
-    const chunks = ['chunk about cds init', 'chunk about cds watch', 'chunk about cds deploy']
-    const metadata = [
-      { source: 'getting-started', label: 'node' },
-      { source: 'getting-started', label: 'java' },
-      { source: 'deploy', label: 'node' }
-    ]
-    await createEmbeddings('test', chunks, '/mock-dir', { metadata })
-    const meta = mem.writtenJson()
-    assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
-    assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
-  })
-
-  test('createEmbeddings without metadata produces no metadata key', async () => {
-    const chunks = ['chunk about cds init']
-    await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = mem.writtenJson()
-    assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
-  })
-
-  test('createEmbeddings places output under capire.version folder', async () => {
-    const chunks = ['chunk about cds init']
-    const capire = {
-      commitId: '__commit_id_1234__',
-      cdsDependency: { node: '>=10.0', java: '>=5.0' }
-    }
-    const { outDir } = await createEmbeddings('test', chunks, '/mock-dir', {
-      capire
+  // createEmbeddings tests — fs writes go to the in-memory store; no tmp dirs.
+  // Scoped to its own describe so the real-model calculateEmbeddings tests below
+  // keep the real fs (they may install a model on demand, which needs real mkdir).
+  describe('createEmbeddings', () => {
+    let mem
+    beforeEach(() => {
+      mem = installMemFs()
     })
-    assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
-    const meta = mem.writtenJson()
-    assert.deepStrictEqual(meta.capire, capire)
-  })
 
-  test('createEmbeddings without capire uses model folder only', async () => {
-    const chunks = ['chunk about cds init']
-    const { outDir, modelFolderName } = await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = mem.writtenJson()
-    assert.strictEqual(meta.capire, undefined)
-    assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
-  })
+    test('createEmbeddings preserves chunk order in output', async () => {
+      const chunks = [
+        'first chunk about cds init',
+        'second chunk about cds watch',
+        'third chunk about cds deploy',
+        'fourth chunk about service definitions',
+        'fifth chunk about entity projections'
+      ]
+      await createEmbeddings('test', chunks, '/mock-dir')
+      const meta = mem.writtenJson()
+      assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
+    })
 
-  test('createEmbeddings throws when metadata length mismatches chunks', async () => {
-    await assert.rejects(
-      () =>
-        createEmbeddings('test', ['a', 'b', 'c'], '/mock-dir', {
-          metadata: [{ x: 1 }, { x: 2 }]
-        }),
-      /metadata length must match chunks length/
-    )
+    test('createEmbeddings writes metadata when provided', async () => {
+      const chunks = ['chunk about cds init', 'chunk about cds watch', 'chunk about cds deploy']
+      const metadata = [
+        { source: 'getting-started', label: 'node' },
+        { source: 'getting-started', label: 'java' },
+        { source: 'deploy', label: 'node' }
+      ]
+      await createEmbeddings('test', chunks, '/mock-dir', { metadata })
+      const meta = mem.writtenJson()
+      assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
+      assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
+    })
+
+    test('createEmbeddings without metadata produces no metadata key', async () => {
+      const chunks = ['chunk about cds init']
+      await createEmbeddings('test', chunks, '/mock-dir')
+      const meta = mem.writtenJson()
+      assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
+    })
+
+    test('createEmbeddings places output under capire.version folder', async () => {
+      const chunks = ['chunk about cds init']
+      const capire = {
+        commitId: '__commit_id_1234__',
+        cdsDependency: { node: '>=10.0', java: '>=5.0' }
+      }
+      const { outDir } = await createEmbeddings('test', chunks, '/mock-dir', {
+        capire
+      })
+      assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
+      const meta = mem.writtenJson()
+      assert.deepStrictEqual(meta.capire, capire)
+    })
+
+    test('createEmbeddings without capire uses model folder only', async () => {
+      const chunks = ['chunk about cds init']
+      const { outDir, modelFolderName } = await createEmbeddings('test', chunks, '/mock-dir')
+      const meta = mem.writtenJson()
+      assert.strictEqual(meta.capire, undefined)
+      assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
+    })
+
+    test('createEmbeddings throws when metadata length mismatches chunks', async () => {
+      await assert.rejects(
+        () =>
+          createEmbeddings('test', ['a', 'b', 'c'], '/mock-dir', {
+            metadata: [{ x: 1 }, { x: 2 }]
+          }),
+        /metadata length must match chunks length/
+      )
+    })
   })
 
   test('calculateEmbeddings with explicit model returns different dimensions as default', async () => {
