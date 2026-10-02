@@ -1,20 +1,19 @@
-import { test, describe, after, before, beforeEach } from 'node:test'
+import { test, describe, after, before, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fs from 'fs/promises'
 import {
-  stubBundle, stub304, stubError, stubNetworkError,
+  stub200Bundle, stub304, stubError, stubNetworkError,
   stubManifestWithError, stubMismatchBundle, stubRawResponse, stubConcurrentBundle
 } from './helpers/mock-fetch.mjs'
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
-const { getActiveModel, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
+const { getActiveModel, getActiveModelFolder, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
-const originalFetch = globalThis.fetch
-const MODEL_FOLDER = toDirName(getActiveModel())
+const MODEL_FOLDER = getActiveModelFolder()
 const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 const modelEtagsRoot = path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags')
 const manifestEtagPath = path.join(modelEtagsRoot, cds.version, 'manifest.etag')
@@ -41,27 +40,27 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   const testDir = path.join(DEFAULT_EMBEDDINGS_DIR, testVer)
 
   beforeEach(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     await clearBundleState()
     await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })
   after(async () => {
-    globalThis.fetch = originalFetch
+    mock.restoreAll()
     await clearBundleState()
     await fs.rm(testDir, { recursive: true, force: true }).catch(() => {})
   })
 
   test('sends cds and model query params', async () => {
-    const seen = stubBundle({ version: testVer })
+    const requests = stub200Bundle({ version: testVer })
     await downloadEmbeddings()
-    const url = new URL(seen[0].url)
+    const url = new URL(requests[0].url)
     assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
     assert.strictEqual(url.searchParams.get('cds'), cds.version)
     assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
   })
 
   test('writes versioned json + bin and returns updated=true', async () => {
-    stubBundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
+    stub200Bundle({ version: testVer, body: { dim: 1, count: 1, chunks: ['hi'] }, bin: Buffer.from(new Float32Array([1.5]).buffer) })
     const r = await downloadEmbeddings()
     assert.strictEqual(r.updated, true)
     assert.strictEqual(r.commitId, testVer)
@@ -75,11 +74,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
-    stubBundle({ version: testVer })
+    stub200Bundle({ version: testVer })
     await downloadEmbeddings()
     const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
     assert.strictEqual(saved.etag, 'W/"seed"')
     assert.strictEqual(saved.commitId, testVer)
+
+    // Stale lastChecked so the daily skip does not swallow the next call.
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
 
     const captured = stub304()
     const r = await downloadEmbeddings()
@@ -109,6 +111,69 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     // Cleanup.
     for (const v of [older, newer]) await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, v), { recursive: true, force: true }).catch(() => {})
+  })
+
+  test('skips fetch when lastChecked is within 24h and local files exist', async () => {
+    const etagData = { etag: 'W/"seed"', runtime: 'node', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+    const requests = stub200Bundle({ version: testVer })
+
+    const r = await downloadEmbeddings()
+    assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
+    assert.strictEqual(r.updated, false)
+    assert.strictEqual(r.commitId, testVer)
+  })
+
+  test('proceeds with fetch when lastChecked is stale (>24h)', async () => {
+    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() - 86_400_001 }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+    const captured = stub304()
+    await downloadEmbeddings()
+    assert.ok(captured.headers !== null, 'fetch must be called when lastChecked is stale')
+  })
+
+  test('daily skip falls through to fetch when local files are missing', async () => {
+    const etagData = { etag: 'W/"seed"', commitId: testVer, model: getActiveModel(), lastChecked: Date.now() }
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify(etagData))
+    // testDir intentionally absent
+
+    const requests = stub200Bundle({ version: testVer })
+    await downloadEmbeddings()
+    assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
+  })
+
+  test('200 response stamps lastChecked in etag file', async () => {
+    const before = Date.now()
+    stub200Bundle({ version: testVer })
+    await downloadEmbeddings()
+    const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
+    assert.ok(saved.lastChecked >= before)
+  })
+
+  test('304 response stamps lastChecked in etag file', async () => {
+    stub200Bundle({ version: testVer })
+    await downloadEmbeddings()
+    // Stale lastChecked so the daily skip does not swallow the 304 call.
+    const prev = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
+    const before = Date.now()
+    stub304()
+    await downloadEmbeddings()
+    const saved = JSON.parse(await fs.readFile(manifestEtagPath, 'utf-8'))
+    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
+    assert.ok(saved.lastChecked >= before)
   })
 
   test('throws when bundle 304 but etag file has no commitId', async () => {
@@ -208,13 +273,54 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /framing/)
   })
 
-  test('propagates fetch network error', async () => {
+  test('falls back to local version on network error', async () => {
+    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
+    await fs.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+    await fs.mkdir(testDir, { recursive: true })
+    await fs.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+    await fs.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
     stubNetworkError('network down')
-    await assert.rejects(downloadEmbeddings(), /network down/)
+    const result = await downloadEmbeddings()
+    assert.strictEqual(result.updated, false)
+    assert.strictEqual(result.commitId, testVer)
+    assert.strictEqual(result.localDir, testDir)
+  })
+
+  test('throws offline error (with network cause) when no local version exists', async () => {
+    const os = await import('node:os')
+    const tmpHold = await fs.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-'))
+    // Move every commit dir out of DEFAULT_DIR so resolveLocalVersion returns null.
+    // Scope: all model dirs under DEFAULT_DIR (last-resort scan crosses model folders).
+    const moved = []
+    try {
+      const modelDirs = await fs.readdir(DEFAULT_DIR, { withFileTypes: true }).catch(() => [])
+      for (const m of modelDirs) {
+        if (!m.isDirectory()) continue
+        const modelPath = path.join(DEFAULT_DIR, m.name)
+        const entries = await fs.readdir(modelPath, { withFileTypes: true }).catch(() => [])
+        for (const d of entries) {
+          if (!d.isDirectory() || d.name === 'etags') continue
+          const from = path.join(modelPath, d.name)
+          const to = path.join(tmpHold, m.name + '--' + d.name)
+          await fs.rename(from, to)
+          moved.push({ from, to })
+        }
+      }
+      stubNetworkError('network down')
+      await assert.rejects(downloadEmbeddings(), (err) => {
+        assert.match(err.message, /Offline mode/)
+        assert.match(err.cause?.message, /network down/)
+        return true
+      })
+    } finally {
+      for (const { from, to } of moved) await fs.rename(to, from).catch(() => {})
+      await fs.rm(tmpHold, { recursive: true, force: true }).catch(() => {})
+    }
   })
 
   test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
-    stubBundle({ version: testVer })
+    stub200Bundle({ version: testVer })
 
     const os = await import('node:os')
     const originalCwd = process.cwd()
@@ -243,7 +349,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     }
   })
 
-  test('concurrent downloadEmbeddings calls must be single-flighted', async () => {
+  test('concurrent calls are serialized with at most one in-flight fetch', async () => {
     const tracking = stubConcurrentBundle(testVer)
     const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
     const anyRejected = results.some(r => r.status === 'rejected')
@@ -253,7 +359,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     )
   })
 
-  test('metaLen leaving empty bin must reject as framing error, not corruption', async () => {
+  test('frame with metaLen consuming all bytes and no bin bytes rejects as framing error', async () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
@@ -268,7 +374,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     )
   })
 
-  test('body shorter than 4 bytes must reject as too short', async () => {
+  test('body shorter than 4 bytes rejects with "too short" error', async () => {
     stubRawResponse(
       Buffer.from([0x00, 0x01, 0x02]),
       { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
@@ -276,14 +382,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /too short/)
   })
 
-  test('exactly-4-byte body (header only, metaLen=0) must reject as empty bin', async () => {
+  test('exactly-4-byte body with metaLen=0 rejects as empty bin', async () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(0, 0)
     stubRawResponse(hdr, { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' })
     await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
   })
 
-  test('frame with 1 bin byte must succeed', async () => {
+  test('frame with 1 bin byte writes the byte and returns updated=true', async () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
@@ -355,7 +461,7 @@ describe('resolveLocalVersion', () => {
     assert.strictEqual(local.commitId, testCommits[1], 'must pick commitId from highest semver cds dir')
   })
 
-  test('among non-semver cds dirs, must tiebreak by mtime, not readdir order', async () => {
+  test('among non-semver cds dirs, tiebreaks by mtime not readdir order', async () => {
     const dirs = ['bundle_alpha', 'bundle_beta']
     await seedEmbedDir(testCommits[0])
     await seedEmbedDir(testCommits[1])
