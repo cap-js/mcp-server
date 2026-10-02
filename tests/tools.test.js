@@ -3,33 +3,32 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import fs from 'fs/promises'
-import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import { installMemFs, buildTestBundle, TEST_COMMIT_ID } from './helpers/mem-fs-mock.js'
+import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-const testBundleDir = join(DEFAULT_DIR, toDirName(getActiveModel()), TEST_COMMIT_ID)
-const manifestEtagPath = getManifestEtagPath()
-const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
-
-// Build real embeddings and mock fetch BEFORE importing tools.js.
-// tools.js statically imports searchMarkdownDocs.js which fires downloadEmbeddings() at module load.
+// Build the real doc frame from the committed bundle BEFORE the in-memory fs is
+// installed (buildTestBundle reads the real fixture via un-mocked named imports).
 const testFrame = await buildTestBundle()
-mock.method(globalThis, 'fetch', makeFetchStub(testFrame))
+
+// In-memory fs: the embeddings/ dir is virtual (clean slate — the real bundle
+// and etag are hidden), while the real search still reads its model from disk.
+installMemFs()
+
+// Mock fetch BEFORE importing tools.js — it statically imports
+// searchMarkdownDocs.js, which fires downloadEmbeddings() at module load.
+mockFetch(
+  bundle.raw(testFrame, {
+    etag: `W/"${TEST_COMMIT_ID}"`,
+    'x-embeddings-version': TEST_COMMIT_ID,
+    'content-type': 'application/octet-stream'
+  })
+)
 
 const tools = (await import('../lib/tools.js')).default
 
-after(async () => {
-  mock.restoreAll()
-  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
-  if (savedEtag !== null) {
-    await fs.mkdir(dirname(manifestEtagPath), { recursive: true })
-    await fs.writeFile(manifestEtagPath, savedEtag)
-  } else {
-    await fs.rm(dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
-  }
-})
+after(() => mock.restoreAll())
 
 describe('tools', () => {
   test('search_model: returns AdminService with exposedEntities when querying by kind=service', async () => {

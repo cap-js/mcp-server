@@ -7,7 +7,7 @@ import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
 import { DEFAULT_DIR, getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import { buildTestBundle, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/mem-fs-mock.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')

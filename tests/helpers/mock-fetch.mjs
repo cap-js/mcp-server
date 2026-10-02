@@ -1,105 +1,133 @@
-// Subprocess fetch mock — loaded via NODE_OPTIONS=--import "file://..."
-// Reads bundle from CDS_MCP_TEST_BUNDLE_PATH, serves it for any fetch call.
+// Fetch mocks for the two server endpoints.
+// Each factory describes ONE endpoint:
+//   bundle.*   → GET …/getEmbeddings
+//   manifest.* → GET …/manifest.json
+// `mockFetch(...handlers)` installs one fetch mock that routes by URL to the
+// handlers you pass. A test mocks only the endpoints it needs.
 import { readFileSync } from 'node:fs'
 import { mock } from 'node:test'
 
-if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
-  const frame = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
-  const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
-  mock.method(globalThis, 'fetch', async (_url, _init) =>
-    new Response(frame, {
-      status: 200,
-      headers: {
-        etag: `W/"${commitId}"`,
-        'x-embeddings-version': commitId,
-        'content-type': 'application/octet-stream'
-      }
-    })
-  )
+// Binary frame: [4-byte BE meta length][meta JSON bytes][bin bytes].
+function frame(body, bin) {
+  const metaBuf = Buffer.from(JSON.stringify(body))
+  const binBuf = Buffer.isBuffer(bin) ? bin : Buffer.from(bin)
+  const hdr = Buffer.alloc(4)
+  hdr.writeUInt32BE(metaBuf.length, 0)
+  return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
-export function stub200Bundle({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+// Installs one fetch mock. Routes each request to the handler for its endpoint.
+// Returns the request log: one `{ url, headers }` entry per fetch call.
+export function mockFetch(...handlers) {
+  const routes = {}
+  for (const h of handlers) {
+    if (routes[h.endpoint]) throw new Error(`mockFetch: duplicate handler for ${h.endpoint}`)
+    routes[h.endpoint] = h
+  }
   const requests = []
   mock.method(globalThis, 'fetch', async (url, init = {}) => {
-    requests.push({ url: String(url), headers: init.headers || {} })
-    const metaBuf = Buffer.from(JSON.stringify(body))
-    const binBuf = Buffer.from(bin)
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(metaBuf.length, 0)
-    const frame = Buffer.concat([hdr, metaBuf, binBuf])
-    return new Response(frame, {
-      status: 200,
-      headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-    })
+    const u = String(url)
+    requests.push({ url: u, headers: init.headers || {} })
+    const key = u.endsWith('/manifest.json') ? 'manifest' : 'getEmbeddings'
+    const route = routes[key]
+    if (!route) throw new TypeError(`mockFetch: ${key} endpoint not mocked: ${u}`)
+    return route.respond(u, init)
   })
   return requests
 }
 
-// Returns a `captured` object whose `.headers` field is set to the request headers of each call.
-export function stub304() {
-  const captured = { headers: null }
-  mock.method(globalThis, 'fetch', async (_url, init = {}) => {
-    captured.headers = init.headers || {}
-    return new Response(null, { status: 304 })
-  })
-  return captured
+// Handlers for the bundle endpoint — GET …/getEmbeddings.
+export const bundle = {
+  // 200 framed bundle.
+  ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame(body, bin), {
+        status: 200,
+        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+      })
+    }
+  },
+
+  // 304 Not Modified — the manifest is unchanged for this cds version.
+  notModified() {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status: 304 }) }
+  },
+
+  // Non-OK status.
+  failed(status, statusText = '', headers = {}) {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status, statusText, headers }) }
+  },
+
+  // 200 with a raw body — for framing edge cases.
+  raw(body, headers = {}) {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(body, { status: 200, headers }) }
+  },
+
+  // 200 framed bundle that reports a different model via x-embeddings-model.
+  wrongModel({ version, wrongModel }) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
+      })
+    }
+  },
+
+  // Fetch throws — simulates a network failure.
+  networkError(message = 'network down') {
+    return { endpoint: 'getEmbeddings', respond: async () => { throw new TypeError(message) } }
+  },
+
+  // 200 framed bundle after a delay; the returned object's `.tracking.maxConcurrent`
+  // records the peak number of overlapping fetch calls.
+  concurrent(version, delayMs = 30) {
+    let concurrent = 0
+    const tracking = { maxConcurrent: 0 }
+    return {
+      endpoint: 'getEmbeddings',
+      tracking,
+      respond: async () => {
+        concurrent++
+        tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
+        await new Promise(r => setTimeout(r, delayMs))
+        concurrent--
+        return new Response(frame({ dim: 0, count: 0, chunks: [], model: 't' }, 'BIN'), {
+          status: 200,
+          headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+        })
+      }
+    }
+  }
 }
 
-export function stubError(status, statusText = '', headers = {}) {
-  mock.method(globalThis, 'fetch', async () => new Response(null, { status, statusText, headers }))
+// Handlers for the manifest endpoint — GET …/manifest.json.
+export const manifest = {
+  // 200 JSON manifest.
+  ok(body) {
+    return { endpoint: 'manifest', respond: async () => new Response(JSON.stringify(body), { status: 200 }) }
+  },
+
+  // Non-200 status.
+  failed(status, statusText = '', headers = {}) {
+    return { endpoint: 'manifest', respond: async () => new Response(null, { status, statusText, headers }) }
+  },
+
+  // Fetch throws — simulates a network failure.
+  networkError(message = 'network down') {
+    return { endpoint: 'manifest', respond: async () => { throw new TypeError(message) } }
+  }
 }
 
-export function stubNetworkError(message = 'network down') {
-  mock.method(globalThis, 'fetch', async () => { throw new TypeError(message) })
-}
-
-// Routes manifest.json requests to a JSON manifest response, all other requests to an error.
-export function stubManifestWithError(manifest, { status, statusText = '', headers = {} } = {}) {
-  mock.method(globalThis, 'fetch', async (url) => {
-    if (String(url).endsWith('manifest.json'))
-      return new Response(JSON.stringify(manifest), { status: 200 })
-    return new Response(null, { status, statusText, headers })
-  })
-}
-
-// Routes manifest.json to manifest (or error when null), all other requests to a mismatch bundle.
-export function stubMismatchBundle({ manifest, manifestStatus = 200, version, wrongModel }) {
-  mock.method(globalThis, 'fetch', async (url) => {
-    if (String(url).endsWith('manifest.json'))
-      return manifest !== null
-        ? new Response(JSON.stringify(manifest), { status: manifestStatus })
-        : new Response(null, { status: manifestStatus })
-    const meta = Buffer.from(JSON.stringify({ dim: 1, count: 0, chunks: [], model: 't' }))
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(meta.length, 0)
-    return new Response(Buffer.concat([hdr, meta, Buffer.from('B')]), {
-      status: 200,
-      headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
-    })
-  })
-}
-
-// Returns a raw response body — used for testing framing edge cases.
-export function stubRawResponse(body, headers = {}) {
-  mock.method(globalThis, 'fetch', async () => new Response(body, { status: 200, headers }))
-}
-
-// Returns a `tracking` object whose `.maxConcurrent` field records peak concurrent fetch calls.
-export function stubConcurrentBundle(version, delayMs = 30) {
-  let concurrent = 0
-  const tracking = { maxConcurrent: 0 }
-  mock.method(globalThis, 'fetch', async () => {
-    concurrent++
-    tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
-    await new Promise(r => setTimeout(r, delayMs))
-    concurrent--
-    const meta = Buffer.from(JSON.stringify({ dim: 0, count: 0, chunks: [], model: 't' }))
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(meta.length, 0)
-    return new Response(Buffer.concat([hdr, meta, Buffer.from('BIN')]), {
-      status: 200,
-      headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-    })
-  })
-  return tracking
+// Subprocess fetch mock — loaded via NODE_OPTIONS=--import "file://..."
+// Reads a prebuilt bundle from CDS_MCP_TEST_BUNDLE_PATH, serves it for the bundle endpoint.
+if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
+  const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
+  const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
+  mockFetch(bundle.raw(prebuilt, {
+    etag: `W/"${commitId}"`,
+    'x-embeddings-version': commitId,
+    'content-type': 'application/octet-stream'
+  }))
 }

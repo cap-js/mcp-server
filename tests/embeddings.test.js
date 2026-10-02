@@ -1,17 +1,21 @@
-import { test, describe, afterEach, mock } from 'node:test'
+import { test, describe, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings, { getQueryDb } from '../lib/calculateEmbeddings.js'
-import { mockFsWrites, getWrittenJson } from './helpers/mock-fs.js'
+import { installMemFs } from './helpers/mem-fs-mock.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
+  let mem
+  beforeEach(() => {
+    mem = installMemFs()
+  })
   afterEach(() => mock.restoreAll())
 
   test('getEmbeddings returns a non-empty array for a plain string', async () => {
@@ -63,7 +67,11 @@ describe('embeddings', () => {
     )
 
     const hiddenSize = 384
-    assert.strictEqual(calculateEmbeddingsResult.length, hiddenSize, 'calculateEmbeddings should return embedding of size 384')
+    assert.strictEqual(
+      calculateEmbeddingsResult.length,
+      hiddenSize,
+      'calculateEmbeddings should return embedding of size 384'
+    )
 
     let norm = 0
     for (let i = 0; i < hiddenSize; i++) norm += calculateEmbeddingsResult[i] * calculateEmbeddingsResult[i]
@@ -89,7 +97,9 @@ describe('embeddings', () => {
 
     assert.strictEqual(embedding1.length, embedding2.length, 'Embeddings should have same length')
 
-    let dotProduct = 0, norm1 = 0, norm2 = 0
+    let dotProduct = 0,
+      norm1 = 0,
+      norm2 = 0
     for (let i = 0; i < embedding1.length; i++) {
       dotProduct += embedding1[i] * embedding2[i]
       norm1 += embedding1[i] * embedding1[i]
@@ -135,52 +145,59 @@ describe('embeddings', () => {
       'fourth chunk about service definitions',
       'fifth chunk about entity projections'
     ]
-    const writes = mockFsWrites()
     await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = getWrittenJson(writes)
+    const meta = mem.writtenJson()
     assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
   })
 
   test('createEmbeddings writes metadata when provided', async () => {
     const chunks = ['chunk about cds init', 'chunk about cds watch', 'chunk about cds deploy']
-    const metadata = [{ source: 'getting-started', label: 'node' }, { source: 'getting-started', label: 'java' }, { source: 'deploy', label: 'node' }]
-    const writes = mockFsWrites()
+    const metadata = [
+      { source: 'getting-started', label: 'node' },
+      { source: 'getting-started', label: 'java' },
+      { source: 'deploy', label: 'node' }
+    ]
     await createEmbeddings('test', chunks, '/mock-dir', { metadata })
-    const meta = getWrittenJson(writes)
+    const meta = mem.writtenJson()
     assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
     assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
   })
 
   test('createEmbeddings without metadata produces no metadata key', async () => {
     const chunks = ['chunk about cds init']
-    const writes = mockFsWrites()
     await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = getWrittenJson(writes)
+    const meta = mem.writtenJson()
     assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
   })
 
   test('createEmbeddings places output under capire.version folder', async () => {
     const chunks = ['chunk about cds init']
-    const capire = { commitId: '__commit_id_1234__', cdsDependency: { node: '>=10.0', java: '>=5.0' } }
-    const writes = mockFsWrites()
-    const { outDir } = await createEmbeddings('test', chunks, '/mock-dir', { capire })
+    const capire = {
+      commitId: '__commit_id_1234__',
+      cdsDependency: { node: '>=10.0', java: '>=5.0' }
+    }
+    const { outDir } = await createEmbeddings('test', chunks, '/mock-dir', {
+      capire
+    })
     assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
-    const meta = getWrittenJson(writes)
+    const meta = mem.writtenJson()
     assert.deepStrictEqual(meta.capire, capire)
   })
 
   test('createEmbeddings without capire uses model folder only', async () => {
     const chunks = ['chunk about cds init']
-    const writes = mockFsWrites()
     const { outDir, modelFolderName } = await createEmbeddings('test', chunks, '/mock-dir')
-    const meta = getWrittenJson(writes)
+    const meta = mem.writtenJson()
     assert.strictEqual(meta.capire, undefined)
     assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
   })
 
   test('createEmbeddings throws when metadata length mismatches chunks', async () => {
     await assert.rejects(
-      () => createEmbeddings('test', ['a', 'b', 'c'], '/mock-dir', { metadata: [{ x: 1 }, { x: 2 }] }),
+      () =>
+        createEmbeddings('test', ['a', 'b', 'c'], '/mock-dir', {
+          metadata: [{ x: 1 }, { x: 2 }]
+        }),
       /metadata length must match chunks length/
     )
   })
@@ -190,7 +207,11 @@ describe('embeddings', () => {
     const text = 'test query for model param'
     const withoutModel = await calculateEmbeddings(text)
     const withModel = await calculateEmbeddings(text, MODEL)
-    assert.notStrictEqual(withModel.length, withoutModel.length, 'explicit model must return different dim than default')
+    assert.notStrictEqual(
+      withModel.length,
+      withoutModel.length,
+      'explicit model must return different dim than default'
+    )
   })
 
   test('calculateEmbeddings reuses cache when called twice with same model', async () => {

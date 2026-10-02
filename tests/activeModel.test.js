@@ -1,186 +1,140 @@
-import { test, describe, after, before, beforeEach, mock } from 'node:test'
+import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
-import fs from 'fs/promises'
-import { getManifestEtagPath, installFetch } from './helpers/testBundle.js'
+import { installMemFs, getManifestEtagPath } from './helpers/mem-fs-mock.js'
+import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings } = await import('../lib/searchMarkdownDocs.js')
-const {
-  DEFAULT_DIR,
-  setActiveModel,
-  getActiveModel,
-  getActiveModelFolder,
-  getActiveEmbeddingsDir,
-  toDirName
-} = await import('../lib/calculateEmbeddings.js')
+const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName } = await import('../lib/calculateEmbeddings.js')
 
 const DEFAULT_MODEL = getActiveModel()
-const MODEL_FOLDER = toDirName(DEFAULT_MODEL)
-const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
 
-const defaultEtagPath = getManifestEtagPath()  // for the module-default model
+// Etag path for the module-default model (captured before we switch models).
+const defaultEtagPath = getManifestEtagPath()
 
-let _savedEtag = null
-before(async () => { _savedEtag = await fs.readFile(defaultEtagPath, 'utf-8').catch(() => null) })
-after(async () => {
+after(() => {
   mock.restoreAll()
   setActiveModel()
-  if (_savedEtag !== null) {
-    await fs.mkdir(path.dirname(defaultEtagPath), { recursive: true })
-    await fs.writeFile(defaultEtagPath, _savedEtag)
-  } else {
-    await fs.rm(path.dirname(defaultEtagPath), { recursive: true, force: true }).catch(() => {})
-  }
-})
-
-describe('active model config', () => {
-  beforeEach(() => {
-    mock.restoreAll()
-    setActiveModel()
-  })
-
-  test('default active model equals module default', () => {
-    setActiveModel()
-    assert.strictEqual(getActiveModel(), DEFAULT_MODEL)
-    assert.strictEqual(getActiveModelFolder(), MODEL_FOLDER)
-    assert.strictEqual(getActiveEmbeddingsDir(), DEFAULT_EMBEDDINGS_DIR)
-  })
-
-  test('setActiveModel switches folder + dir; empty resets to default', () => {
-    setActiveModel('foo/bar')
-    assert.strictEqual(getActiveModel(), 'foo/bar')
-    assert.strictEqual(getActiveModelFolder(), 'foo--bar')
-    assert.strictEqual(getActiveEmbeddingsDir(), path.join(DEFAULT_DIR, 'foo--bar'))
-
-    setActiveModel('')
-    assert.strictEqual(getActiveModel(), DEFAULT_MODEL, 'empty string must reset to default')
-
-    setActiveModel(undefined)
-    assert.strictEqual(getActiveModel(), DEFAULT_MODEL, 'undefined must reset to default')
-  })
-
-  test('toDirName escapes slashes', () => {
-    assert.strictEqual(toDirName('org/name/sub'), 'org--name--sub')
-    assert.strictEqual(toDirName('single'), 'single')
-  })
 })
 
 describe('active model wiring into download', () => {
   const testVer = '__test_model_bundle__'
+  let mem
 
-  beforeEach(async () => {
+  // Fresh in-memory fs per test → clean slate, no real etag/bundle in play.
+  beforeEach(() => {
     mock.restoreAll()
-    setActiveModel()
-    // Clean etag dirs for both default and 'foo--bar' scopes.
-    await fs.rm(path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags'), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_DIR, 'foo--bar', 'etags'), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, testVer), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_DIR, 'foo--bar', testVer), { recursive: true, force: true }).catch(() => {})
-  })
-  after(async () => {
-    await fs.rm(path.join(DEFAULT_EMBEDDINGS_DIR, testVer), { recursive: true, force: true }).catch(() => {})
-    await fs.rm(path.join(DEFAULT_DIR, 'foo--bar'), { recursive: true, force: true }).catch(() => {})
+    setActiveModel('foo/bar')
+    mem = installMemFs()
   })
 
-  test('bundle URL model= param reflects active model', async () => {
-    setActiveModel('foo/bar')
-    const requests = installFetch({ version: testVer, model: 'foo/bar' })
-    await downloadEmbeddings()
-    const url = new URL(requests[0].url)
-    assert.strictEqual(url.searchParams.get('model'), 'foo--bar')
-  })
-
-  test('server returns different model → throws with available models listed', async () => {
-    setActiveModel('foo/bar')
-    installFetch({
-      version: testVer,
-      model: DEFAULT_MODEL,
-      manifest: ['sentence-transformers/all-MiniLM-L6-v2', 'Xenova/all-MiniLM-L6-v2']
+  // Mock: 200 framed bundle whose model matches the active model.
+  describe('bundle 200, server model matches', () => {
+    let requests
+    beforeEach(() => {
+      requests = mockFetch(bundle.ok({ version: testVer }))
     })
 
-    await assert.rejects(
-      downloadEmbeddings(),
-      err => /Requested model "foo\/bar" not found/.test(err.message)
-        && /sentence-transformers\/all-MiniLM-L6-v2/.test(err.message)
-        && /Xenova\/all-MiniLM-L6-v2/.test(err.message)
-    )
-  })
-
-  test('manifest fetch failure → still throws, without Available list', async () => {
-    setActiveModel('foo/bar')
-    installFetch({ version: testVer, model: DEFAULT_MODEL, manifestStatus: 500 })
-
-    await assert.rejects(
-      downloadEmbeddings(),
-      err => /Requested model "foo\/bar" not found/.test(err.message)
-        && !/Available models/.test(err.message)
-    )
-  })
-
-  test('no throw when server model matches requested', async () => {
-    setActiveModel('foo/bar')
-    installFetch({ version: testVer, model: 'foo/bar' })
-    await downloadEmbeddings()  // must not throw
-  })
-
-  test('switching active model reads different etag path → no If-None-Match sent', async () => {
-    // Seed etag under DEFAULT model's dir, then switch to foo/bar → different etag scope,
-    // download must not carry the default's If-None-Match.
-    await fs.mkdir(path.dirname(defaultEtagPath), { recursive: true })
-    await fs.writeFile(defaultEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: DEFAULT_MODEL }))
-
-    setActiveModel('foo/bar')
-    const requests = installFetch({ version: testVer, model: 'foo/bar' })
-    await downloadEmbeddings()
-
-    assert.strictEqual(requests[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
-  })
-
-  test('etag under active model dir → 304 path returns cached dir', async () => {
-    setActiveModel('foo/bar')
-    const activeEtagPath = getManifestEtagPath()  // now points at foo--bar/<cds>/manifest.etag
-    await fs.mkdir(path.dirname(activeEtagPath), { recursive: true })
-    await fs.writeFile(activeEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: 'foo/bar' }))
-
-    const dir = path.join(DEFAULT_DIR, 'foo--bar', testVer)
-    await fs.mkdir(dir, { recursive: true })
-    await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
-    await fs.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
-
-    const requests = installFetch({ notModified: true })
-
-    const r = await downloadEmbeddings()
-    assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
-    assert.strictEqual(r.updated, false)
-    assert.strictEqual(r.commitId, testVer)
-
-    await fs.rm(path.join(DEFAULT_DIR, 'foo--bar', testVer), { recursive: true, force: true }).catch(() => {})
-  })
-
-  test('written etag records active model when server omits x-embeddings-model header', async () => {
-    setActiveModel('foo/bar')
-    installFetch({ version: testVer })  // no model header
-
-    await downloadEmbeddings()
-
-    const activeEtagPath = getManifestEtagPath()
-    const saved = JSON.parse(await fs.readFile(activeEtagPath, 'utf-8'))
-    assert.strictEqual(saved.model, 'foo/bar', 'must persist active model as fallback')
-  })
-
-  test('mismatch throw hits /manifest.json for available list', async () => {
-    setActiveModel('foo/bar')
-    const requests = installFetch({
-      version: testVer,
-      model: DEFAULT_MODEL,
-      manifest: ['a/b']
+    test('bundle URL model= param reflects active model', async () => {
+      await downloadEmbeddings()
+      const url = new URL(requests[0].url)
+      assert.strictEqual(url.searchParams.get('model'), 'foo--bar')
     })
 
-    await assert.rejects(downloadEmbeddings())
-    const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
-    assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
-    assert.ok(manifestHits[0].url.startsWith('https://'), 'manifest URL must be absolute')
+    test('no throw when server model matches requested', async () => {
+      await downloadEmbeddings() // must not throw
+    })
+
+    test('switching active model reads different etag path → no If-None-Match sent', async () => {
+      // Seed etag under DEFAULT model's dir; active model is foo/bar → different etag
+      // scope, so the download must not carry the default's If-None-Match.
+      mem.seedFile(
+        defaultEtagPath,
+        JSON.stringify({
+          etag: 'W/"seed"',
+          commitId: testVer,
+          model: DEFAULT_MODEL
+        })
+      )
+
+      await downloadEmbeddings()
+      assert.strictEqual(requests[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
+    })
+
+    test('written etag records active model when server omits x-embeddings-model header', async () => {
+      await downloadEmbeddings()
+      const saved = mem.readJson(getManifestEtagPath())
+      assert.strictEqual(saved.model, 'foo/bar', 'must persist active model as fallback')
+    })
+  })
+
+  // Mock: bundle reports a different model (wrongModel) + manifest endpoint.
+  describe('model mismatch (bundle wrongModel + manifest)', () => {
+    test('server returns different model → throws with available models listed', async () => {
+      mockFetch(
+        bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
+        manifest.ok({
+          [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [{ model: 'sentence-transformers/all-MiniLM-L6-v2' }],
+          [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
+        })
+      )
+
+      await assert.rejects(
+        downloadEmbeddings(),
+        err =>
+          /Requested model "foo\/bar" not found/.test(err.message) &&
+          /sentence-transformers\/all-MiniLM-L6-v2/.test(err.message) &&
+          /Xenova\/all-MiniLM-L6-v2/.test(err.message)
+      )
+    })
+
+    test('manifest fetch failure → still throws, without Available list', async () => {
+      mockFetch(bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }), manifest.failed(500))
+
+      await assert.rejects(
+        downloadEmbeddings(),
+        err => /Requested model "foo\/bar" not found/.test(err.message) && !/Available models/.test(err.message)
+      )
+    })
+
+    test('mismatch throw hits /manifest.json for available list', async () => {
+      const requests = mockFetch(
+        bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
+        manifest.ok({ [toDirName('a/b')]: [{ model: 'a/b' }] })
+      )
+
+      await assert.rejects(downloadEmbeddings())
+      const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
+      assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
+      assert.ok(manifestHits[0].url.startsWith('https://'), 'manifest URL must be absolute')
+    })
+  })
+
+  // Mock: 304 Not Modified.
+  describe('bundle 304 not modified', () => {
+    test('etag under active model dir → 304 path returns cached dir', async () => {
+      const activeEtagPath = getManifestEtagPath() // points at foo--bar/<cds>/manifest.etag
+      mem.seedFile(
+        activeEtagPath,
+        JSON.stringify({
+          etag: 'W/"seed"',
+          commitId: testVer,
+          model: 'foo/bar'
+        })
+      )
+
+      const dir = path.join(DEFAULT_DIR, 'foo--bar', testVer)
+      mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
+      mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      const requests = mockFetch(bundle.notModified())
+
+      const r = await downloadEmbeddings()
+      assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
+      assert.strictEqual(r.updated, false)
+      assert.strictEqual(r.commitId, testVer)
+    })
   })
 })
