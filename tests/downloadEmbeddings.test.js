@@ -308,32 +308,37 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     await assert.rejects(downloadEmbeddings(), /framing/)
   })
 
-  test('falls back to local version on network error', async () => {
-    mem.seedFile(
-      manifestEtagPath,
-      JSON.stringify({
-        etag: 'W/"seed"',
-        commitId: testVer,
-        model: getActiveModel()
+  // Group: network error — shares the same mock response.
+  describe('network error', () => {
+    beforeEach(() => {
+      mockFetch(bundle.networkError('network down'))
+    })
+
+    test('falls back to local version on network error', async () => {
+      mem.seedFile(
+        manifestEtagPath,
+        JSON.stringify({
+          etag: 'W/"seed"',
+          commitId: testVer,
+          model: getActiveModel()
+        })
+      )
+      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      const result = await downloadEmbeddings()
+      assert.strictEqual(result.updated, false)
+      assert.strictEqual(result.commitId, testVer)
+      assert.strictEqual(result.localDir, testDir)
+    })
+
+    test('throws offline error (with network cause) when no local version exists', async () => {
+      // Fresh in-memory store → nothing local, so resolveLocalVersion returns null.
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /Offline mode/)
+        assert.match(err.cause?.message, /network down/)
+        return true
       })
-    )
-    mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-    mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
-
-    mockFetch(bundle.networkError('network down'))
-    const result = await downloadEmbeddings()
-    assert.strictEqual(result.updated, false)
-    assert.strictEqual(result.commitId, testVer)
-    assert.strictEqual(result.localDir, testDir)
-  })
-
-  test('throws offline error (with network cause) when no local version exists', async () => {
-    // Fresh in-memory store → nothing local, so resolveLocalVersion returns null.
-    mockFetch(bundle.networkError('network down'))
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /Offline mode/)
-      assert.match(err.cause?.message, /network down/)
-      return true
     })
   })
 
