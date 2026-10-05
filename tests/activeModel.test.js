@@ -42,11 +42,9 @@ describe('active model wiring into download', () => {
 
   // Mock: 200 framed bundle whose model matches the active model.
   describe('bundle 200, server model matches', () => {
-    let requests
+    let fetchMock
     beforeEach(() => {
-      requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
-        requests.push({ url: String(url), headers: init.headers || {} })
+      fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(frame({ dim: 1, count: 1, chunks: [] }, 'BIN'), {
           status: 200,
           headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
@@ -56,7 +54,7 @@ describe('active model wiring into download', () => {
 
     test('bundle URL model= param reflects active model', async () => {
       await downloadEmbeddings()
-      const url = new URL(requests[0].url)
+      const url = new URL(String(fetchMock.mock.calls[0].arguments[0]))
       assert.strictEqual(url.searchParams.get('model'), 'foo--bar')
     })
 
@@ -77,7 +75,7 @@ describe('active model wiring into download', () => {
       )
 
       await downloadEmbeddings()
-      assert.strictEqual(requests[0].headers['If-None-Match'], undefined, 'active model uses its own etag scope')
+      assert.strictEqual((fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], undefined, 'active model uses its own etag scope')
     })
 
     test('written etag records active model when server omits x-embeddings-model header', async () => {
@@ -130,10 +128,8 @@ describe('active model wiring into download', () => {
     })
 
     test('mismatch throw hits /manifest.json for available list', async () => {
-      const requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+      const fetchMock = mock.method(globalThis, 'fetch', async (url) => {
         const u = String(url)
-        requests.push({ url: u, headers: init.headers || {} })
         if (new URL(u).pathname.endsWith('/manifest.json')) {
           return new Response(JSON.stringify({ [toDirName('a/b')]: [{ model: 'a/b' }] }), { status: 200 })
         }
@@ -144,9 +140,9 @@ describe('active model wiring into download', () => {
       })
 
       await assert.rejects(downloadEmbeddings())
-      const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
+      const manifestHits = fetchMock.mock.calls.filter(c => String(c.arguments[0]).endsWith('/manifest.json'))
       assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
-      assert.ok(manifestHits[0].url.startsWith('https://'), 'manifest URL must be absolute')
+      assert.ok(String(manifestHits[0].arguments[0]).startsWith('https://'), 'manifest URL must be absolute')
     })
   })
 
@@ -167,14 +163,12 @@ describe('active model wiring into download', () => {
       await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
       await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
-      const requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
-        requests.push({ url: String(url), headers: init.headers || {} })
+      const fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(null, { status: 304 })
       })
 
       const r = await downloadEmbeddings()
-      assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
+      assert.strictEqual((fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], 'W/"seed"')
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer)
     })

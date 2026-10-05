@@ -37,11 +37,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   // Group: 200 bundle, no prior FS state — all three share the same mock response.
   describe('200 bundle, no prior state', () => {
-    let requests
+    let fetchMock
     beforeEach(() => {
-      requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
-        requests.push({ url: String(url), headers: init.headers || {} })
+      fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
           status: 200,
           headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
@@ -51,7 +49,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     test('sends cds and model query params', async () => {
       await downloadEmbeddings()
-      const url = new URL(requests[0].url)
+      const url = new URL(String(fetchMock.mock.calls[0].arguments[0]))
       assert.strictEqual(url.pathname.endsWith('/getEmbeddings'), true)
       assert.strictEqual(url.searchParams.get('cds'), cds.version)
       assert.strictEqual(url.searchParams.get('model'), MODEL_FOLDER)
@@ -115,13 +113,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       // Stale lastChecked so the daily skip does not swallow the next call.
       await fsp.writeFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
 
-      requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
-        requests.push({ url: String(url), headers: init.headers || {} })
+      const mock304 = mock.method(globalThis, 'fetch', async () => {
         return new Response(null, { status: 304 })
       })
       const r = await downloadEmbeddings()
-      assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
+      assert.strictEqual((mock304.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], 'W/"seed"')
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer, '304 returns the commit id stored alongside the etag')
     })
@@ -139,7 +135,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await fsp.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
       const r = await downloadEmbeddings()
-      assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
+      assert.strictEqual(fetchMock.mock.calls.length, 0, 'must not call fetch within daily window')
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer)
     })
@@ -155,7 +151,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       // testDir intentionally absent
 
       await downloadEmbeddings()
-      assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
+      assert.strictEqual(fetchMock.mock.calls.length, 1, 'must fall through to fetch when local files are missing')
     })
 
     test('304 response stamps lastChecked in etag file', async () => {
@@ -174,11 +170,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   // Group: 304 not modified — shares the same mock response.
   describe('304 not modified', () => {
-    let requests
+    let fetchMock
     beforeEach(() => {
-      requests = []
-      mock.method(globalThis, 'fetch', async (url, init = {}) => {
-        requests.push({ url: String(url), headers: init.headers || {} })
+      fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(null, { status: 304 })
       })
     })
@@ -212,7 +206,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await fsp.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
       await downloadEmbeddings()
-      assert.ok(requests.length > 0, 'fetch must be called when lastChecked is stale')
+      assert.ok(fetchMock.mock.calls.length > 0, 'fetch must be called when lastChecked is stale')
     })
 
     test('throws when bundle 304 but etag file has no commitId', async () => {

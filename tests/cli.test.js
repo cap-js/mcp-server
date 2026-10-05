@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import { test, describe, before, after } from 'node:test'
 import { spawn } from 'node:child_process'
 import { join, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
 import { DEFAULT_DIR, getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
@@ -30,7 +30,6 @@ mock.method(globalThis, 'fetch', async () =>
   })
 )
 `
-const mockFetchUrl = `data:text/javascript,${encodeURIComponent(bundleMockScript)}`
 
 // Seed the REAL disk for subprocess-based CLI tests. Those tests spawn child
 // `node` processes, so the in-process fs mock never reaches them — the child reads
@@ -46,11 +45,13 @@ async function seedCliTestBundle() {
   const { meta, bin } = unframeBundle(frame)
 
   const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
+  const mockScriptPath = join(os.tmpdir(), `cds-mcp-test-mock-${process.pid}.mjs`)
   const dir = join(getActiveEmbeddingsDir(), TEST_COMMIT_ID)
   const etagPath = join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
   const savedEtag = await readFile(etagPath, 'utf-8').catch(() => null)
 
   await writeFile(bundlePath, frame)
+  await writeFile(mockScriptPath, bundleMockScript)
   await mkdir(dir, { recursive: true })
   await writeFile(join(dir, 'code-chunks.json'), meta)
   await writeFile(join(dir, 'code-chunks.bin'), bin)
@@ -58,6 +59,7 @@ async function seedCliTestBundle() {
   async function cleanup() {
     await rm(dir, { recursive: true, force: true }).catch(() => {})
     await unlink(bundlePath).catch(() => {})
+    await unlink(mockScriptPath).catch(() => {})
     if (savedEtag !== null) {
       await mkdir(dirname(etagPath), { recursive: true })
       await writeFile(etagPath, savedEtag)
@@ -66,7 +68,7 @@ async function seedCliTestBundle() {
     }
   }
 
-  return { bundlePath, commitId: TEST_COMMIT_ID, versionDir: dir, cleanup }
+  return { bundlePath, mockScriptPath, commitId: TEST_COMMIT_ID, versionDir: dir, cleanup }
 }
 
 let ctx
@@ -159,7 +161,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
@@ -175,7 +177,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
@@ -229,7 +231,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
@@ -293,7 +295,7 @@ describe('CLI usage', () => {
           ...process.env,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
         }
       })
 
@@ -334,7 +336,7 @@ describe('CLI usage', () => {
           CDS_MCP_MODEL: altModel,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${mockFetchUrl}"`
+          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
         }
       })
 
