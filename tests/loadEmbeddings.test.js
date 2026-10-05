@@ -2,13 +2,13 @@ import { test, describe, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { installMemFs } from './helpers/remap-fs.js'
+import { remapFs } from './helpers/remap-fs.js'
 import { loadChunks } from '../lib/embeddings.js'
 import { getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 
 describe('loadChunks', () => {
   beforeEach(() => {
-    installMemFs()
+    remapFs()
   })
   afterEach(() => mock.restoreAll())
 

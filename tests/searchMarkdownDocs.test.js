@@ -4,8 +4,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { installMemFs } from './helpers/remap-fs.js'
-import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
+import { remapFs } from './helpers/remap-fs.js'
+import { buildTestBundle } from './helpers/test-bundle.js'
 import { TEST_COMMIT_ID } from './helpers/paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -13,11 +13,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const embeddingsDir = path.join(__dirname, '..', 'embeddings', toDirName(getActiveModel()))
 const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
 
-// Install the test bundle in-process (clean in-memory fs + a fetch mock that
-// serves the frame) BEFORE importing searchMarkdownDocs.js — that module fires
-// downloadEmbeddings() at module load time, so the setup must be in place first.
-installMemFs()
-mockFetch(bundle.okReal())
+// Install the test bundle in-process BEFORE importing searchMarkdownDocs.js.
+remapFs()
+
+let _frame = null
+mock.method(globalThis, 'fetch', async () => {
+  if (!_frame) _frame = buildTestBundle()
+  const f = await _frame
+  const version = '__test_bundle__'
+  return new Response(f, {
+    status: 200,
+    headers: { etag: `W/"${version}"`, 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+  })
+})
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default

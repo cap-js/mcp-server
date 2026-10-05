@@ -6,7 +6,7 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings, { getQueryDb } from '../lib/calculateEmbeddings.js'
-import { installMemFs } from './helpers/remap-fs.js'
+import { remapFs } from './helpers/remap-fs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -137,7 +137,7 @@ describe('embeddings', () => {
   // keep the real fs (they may install a model on demand, which needs real mkdir).
   describe('createEmbeddings', () => {
     beforeEach(() => {
-      installMemFs()
+      remapFs()
     })
 
     test('createEmbeddings preserves chunk order in output', async () => {

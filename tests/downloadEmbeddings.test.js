@@ -2,9 +2,96 @@ import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fsp from 'node:fs/promises'
-import { installMemFs } from './helpers/remap-fs.js'
-import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
+import { remapFs } from './helpers/remap-fs.js'
 import { getManifestEtagPath, modelEtagsRoot as computeModelEtagsRoot } from './helpers/paths.js'
+
+function frame(body, bin) {
+  const metaBuf = Buffer.from(JSON.stringify(body))
+  const binBuf = Buffer.isBuffer(bin) ? bin : Buffer.from(bin)
+  const hdr = Buffer.alloc(4)
+  hdr.writeUInt32BE(metaBuf.length, 0)
+  return Buffer.concat([hdr, metaBuf, binBuf])
+}
+
+function mockFetch(...handlers) {
+  const routes = {}
+  for (const h of handlers) {
+    if (routes[h.endpoint]) throw new Error(`mockFetch: duplicate handler for ${h.endpoint}`)
+    routes[h.endpoint] = h
+  }
+  const requests = []
+  mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    const u = String(url)
+    requests.push({ url: u, headers: init.headers || {} })
+    const { pathname } = new URL(u)
+    const key = pathname.endsWith('/manifest.json') ? 'manifest'
+      : pathname.endsWith('/getEmbeddings') ? 'getEmbeddings' : null
+    const route = key && routes[key]
+    if (!route) throw new TypeError(`mockFetch: endpoint not mocked: ${u}`)
+    return route.respond(u, init)
+  })
+  return requests
+}
+
+const bundle = {
+  ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame(body, bin), {
+        status: 200,
+        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+      })
+    }
+  },
+  notModified() {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status: 304 }) }
+  },
+  failed(status, statusText = '', headers = {}) {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status, statusText, headers }) }
+  },
+  okRaw(body, headers = {}) {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(body, { status: 200, headers }) }
+  },
+  okWrongModel({ version, wrongModel }) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
+      })
+    }
+  },
+  networkError(message = 'network down') {
+    return { endpoint: 'getEmbeddings', respond: async () => { throw new TypeError(message) } }
+  },
+  okConcurrent(version, delayMs = 30) {
+    let concurrent = 0
+    const tracking = { maxConcurrent: 0 }
+    return {
+      endpoint: 'getEmbeddings',
+      tracking,
+      respond: async () => {
+        concurrent++
+        tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
+        await new Promise(r => setTimeout(r, delayMs))
+        concurrent--
+        return new Response(frame({ dim: 0, count: 0, chunks: [], model: 't' }, 'BIN'), {
+          status: 200,
+          headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+        })
+      }
+    }
+  }
+}
+
+const manifest = {
+  ok(body) {
+    return { endpoint: 'manifest', respond: async () => new Response(JSON.stringify(body), { status: 200 }) }
+  },
+  failed(status, statusText = '', headers = {}) {
+    return { endpoint: 'manifest', respond: async () => new Response(null, { status, statusText, headers }) }
+  }
+}
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
@@ -25,7 +112,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   // Fresh in-memory fs per test → clean slate under the embeddings dir.
   beforeEach(() => {
     mock.restoreAll()
-    installMemFs()
+    remapFs()
   })
   after(() => mock.restoreAll())
 
@@ -419,7 +506,7 @@ describe('resolveLocalVersion', () => {
 
   beforeEach(() => {
     mock.restoreAll()
-    tmpEmbeddingsDir = installMemFs()
+    tmpEmbeddingsDir = remapFs()
   })
   after(() => mock.restoreAll())
 

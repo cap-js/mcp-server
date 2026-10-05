@@ -2,7 +2,7 @@ import { test, describe, beforeEach, afterEach, after, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { installMemFs } from './helpers/remap-fs.js'
+import { remapFs } from './helpers/remap-fs.js'
 import { createEmbeddings } from '../lib/calculateEmbeddings.js'
 
 // Model max window for sentence-transformers/all-MiniLM-L6-v2 is 512 tokens
@@ -18,7 +18,7 @@ after(() => {
 
 describe('createEmbeddings truncation', () => {
   beforeEach(() => {
-    installMemFs()
+    remapFs()
   })
   afterEach(() => mock.restoreAll())
 

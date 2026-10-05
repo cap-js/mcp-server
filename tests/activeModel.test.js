@@ -2,9 +2,69 @@ import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fsp from 'node:fs/promises'
-import { installMemFs } from './helpers/remap-fs.js'
+import { remapFs } from './helpers/remap-fs.js'
 import { getManifestEtagPath } from './helpers/paths.js'
-import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
+
+function frame(body, bin) {
+  const metaBuf = Buffer.from(JSON.stringify(body))
+  const binBuf = Buffer.isBuffer(bin) ? bin : Buffer.from(bin)
+  const hdr = Buffer.alloc(4)
+  hdr.writeUInt32BE(metaBuf.length, 0)
+  return Buffer.concat([hdr, metaBuf, binBuf])
+}
+
+function mockFetch(...handlers) {
+  const routes = {}
+  for (const h of handlers) {
+    if (routes[h.endpoint]) throw new Error(`mockFetch: duplicate handler for ${h.endpoint}`)
+    routes[h.endpoint] = h
+  }
+  const requests = []
+  mock.method(globalThis, 'fetch', async (url, init = {}) => {
+    const u = String(url)
+    requests.push({ url: u, headers: init.headers || {} })
+    const { pathname } = new URL(u)
+    const key = pathname.endsWith('/manifest.json') ? 'manifest'
+      : pathname.endsWith('/getEmbeddings') ? 'getEmbeddings' : null
+    const route = key && routes[key]
+    if (!route) throw new TypeError(`mockFetch: endpoint not mocked: ${u}`)
+    return route.respond(u, init)
+  })
+  return requests
+}
+
+const bundle = {
+  ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame(body, bin), {
+        status: 200,
+        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+      })
+    }
+  },
+  notModified() {
+    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status: 304 }) }
+  },
+  okWrongModel({ version, wrongModel }) {
+    return {
+      endpoint: 'getEmbeddings',
+      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
+      })
+    }
+  }
+}
+
+const manifest = {
+  ok(body) {
+    return { endpoint: 'manifest', respond: async () => new Response(JSON.stringify(body), { status: 200 }) }
+  },
+  failed(status, statusText = '') {
+    return { endpoint: 'manifest', respond: async () => new Response(null, { status, statusText }) }
+  }
+}
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
@@ -28,7 +88,7 @@ describe('active model wiring into download', () => {
   beforeEach(() => {
     mock.restoreAll()
     setActiveModel('foo/bar')
-    installMemFs()
+    remapFs()
   })
 
   // Mock: 200 framed bundle whose model matches the active model.

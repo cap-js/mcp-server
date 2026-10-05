@@ -1,15 +1,25 @@
-// Node.js test runner (test) for lib/tools.js
 import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { installMemFs } from './helpers/remap-fs.js'
-import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
+import { remapFs } from './helpers/remap-fs.js'
+import { buildTestBundle } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-installMemFs()
-mockFetch(bundle.okReal())
+remapFs()
+
+// Serve the real embeddings bundle for this file's in-process fetch calls.
+let _frame = null
+mock.method(globalThis, 'fetch', async () => {
+  if (!_frame) _frame = buildTestBundle()
+  const f = await _frame
+  const version = '__test_bundle__'
+  return new Response(f, {
+    status: 200,
+    headers: { etag: `W/"${version}"`, 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+  })
+})
 
 const tools = (await import('../lib/tools.js')).default
 

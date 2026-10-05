@@ -12,7 +12,22 @@ import { TEST_COMMIT_ID } from './helpers/paths.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
-const mockFetchUrl = new URL('./helpers/mock-fetch.mjs', import.meta.url).href
+
+// Subprocess fetch mock — injected via NODE_OPTIONS=--import into child processes.
+// Reads a prebuilt bundle from CDS_MCP_TEST_BUNDLE_PATH and serves it for /getEmbeddings.
+const bundleMockScript = `
+import { readFileSync } from 'node:fs'
+import { mock } from 'node:test'
+const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
+const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
+mock.method(globalThis, 'fetch', async () =>
+  new Response(prebuilt, {
+    status: 200,
+    headers: { etag: \`W/"\${commitId}"\`, 'x-embeddings-version': commitId, 'content-type': 'application/octet-stream' }
+  })
+)
+`
+const mockFetchUrl = `data:text/javascript,${encodeURIComponent(bundleMockScript)}`
 
 let ctx
 

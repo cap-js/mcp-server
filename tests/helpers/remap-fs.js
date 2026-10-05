@@ -1,4 +1,4 @@
-// installMemFs() creates a tmp dir and intercepts fs/promises, remapping paths
+// remapFs() creates a tmp dir and intercepts fs/promises, remapping paths
 // that fall under DEFAULT_DIR into tmpRoot. All other paths (e.g. .cds/models/)
 // pass through to the real disk unchanged. Returns tmpRoot so tests can write
 // seed files directly with fsp.writeFile.
@@ -14,7 +14,7 @@ const require = createRequire(import.meta.url)
 // Same object the source holds via `import fsp from 'fs/promises'`.
 const fsp = require('fs/promises')
 
-export function installMemFs() {
+export function remapFs() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-test-'))
 
   after(() => { try { fs.rmSync(tmpRoot, { recursive: true, force: true }) } catch {} })
