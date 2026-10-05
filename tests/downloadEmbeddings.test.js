@@ -266,7 +266,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const correctModelName = 'sentence-transformers/different-model'
     const correctModelFolderName = toDirName(correctModelName)
     mockFetch(
-      bundle.wrongModel({ version: testVer, wrongModel }),
+      bundle.okWrongModel({ version: testVer, wrongModel }),
       manifest.ok({ [correctModelFolderName]: [{ model: correctModelName }] })
     )
     await assert.rejects(downloadEmbeddings(), err => {
@@ -280,7 +280,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   test('model mismatch without available models omits suffix', async () => {
     const wrongModel = 'sentence-transformers--different-model'
-    mockFetch(bundle.wrongModel({ version: testVer, wrongModel }), manifest.failed(503))
+    mockFetch(bundle.okWrongModel({ version: testVer, wrongModel }), manifest.failed(503))
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /not found/)
       assert.doesNotMatch(err.message, /Available models/)
@@ -290,7 +290,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   test('throws when bundle response lacks X-Embeddings-Version header', async () => {
     mockFetch(
-      bundle.raw(
+      bundle.okRaw(
         JSON.stringify({
           dim: 0,
           count: 0,
@@ -307,7 +307,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(9999, 0)
     mockFetch(
-      bundle.raw(Buffer.concat([hdr, Buffer.from('short')]), {
+      bundle.okRaw(Buffer.concat([hdr, Buffer.from('short')]), {
         'x-embeddings-version': testVer,
         'content-type': 'application/octet-stream'
       })
@@ -345,7 +345,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('concurrent calls are serialized with at most one in-flight fetch', async () => {
-    const c = bundle.concurrent(testVer)
+    const c = bundle.okConcurrent(testVer)
     mockFetch(c)
     const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
     const anyRejected = results.some(r => r.status === 'rejected')
@@ -360,7 +360,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
     mockFetch(
-      bundle.raw(Buffer.concat([hdr, meta]), {
+      bundle.okRaw(Buffer.concat([hdr, meta]), {
         'x-embeddings-version': testVer,
         'content-type': 'application/octet-stream'
       })
@@ -374,7 +374,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   test('body shorter than 4 bytes rejects with "too short" error', async () => {
     mockFetch(
-      bundle.raw(Buffer.from([0x00, 0x01, 0x02]), {
+      bundle.okRaw(Buffer.from([0x00, 0x01, 0x02]), {
         'x-embeddings-version': testVer,
         'content-type': 'application/octet-stream'
       })
@@ -386,7 +386,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(0, 0)
     mockFetch(
-      bundle.raw(hdr, {
+      bundle.okRaw(hdr, {
         'x-embeddings-version': testVer,
         'content-type': 'application/octet-stream'
       })
@@ -399,7 +399,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
     mockFetch(
-      bundle.raw(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
+      bundle.okRaw(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
         etag: 'W/"ok"',
         'x-embeddings-version': testVer,
         'content-type': 'application/octet-stream'

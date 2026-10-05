@@ -75,7 +75,7 @@ describe('active model wiring into download', () => {
   describe('model mismatch (bundle wrongModel + manifest)', () => {
     test('server returns different model → throws with available models listed', async () => {
       mockFetch(
-        bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
+        bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
         manifest.ok({
           [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [{ model: 'sentence-transformers/all-MiniLM-L6-v2' }],
           [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
@@ -92,7 +92,7 @@ describe('active model wiring into download', () => {
     })
 
     test('manifest fetch failure → still throws, without Available list', async () => {
-      mockFetch(bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }), manifest.failed(500))
+      mockFetch(bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }), manifest.failed(500))
 
       await assert.rejects(
         downloadEmbeddings(),
@@ -102,7 +102,7 @@ describe('active model wiring into download', () => {
 
     test('mismatch throw hits /manifest.json for available list', async () => {
       const requests = mockFetch(
-        bundle.wrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
+        bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
         manifest.ok({ [toDirName('a/b')]: [{ model: 'a/b' }] })
       )
 

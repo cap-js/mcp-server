@@ -66,12 +66,12 @@ export const bundle = {
   },
 
   // 200 with a raw body — for framing edge cases.
-  raw(body, headers = {}) {
+  okRaw(body, headers = {}) {
     return { endpoint: 'getEmbeddings', respond: async () => new Response(body, { status: 200, headers }) }
   },
 
   // 200 framed bundle that reports a different model via x-embeddings-model.
-  wrongModel({ version, wrongModel }) {
+  okWrongModel({ version, wrongModel }) {
     return {
       endpoint: 'getEmbeddings',
       respond: async () =>
@@ -94,7 +94,7 @@ export const bundle = {
 
   // 200 framed bundle after a delay; the returned object's `.tracking.maxConcurrent`
   // records the peak number of overlapping fetch calls.
-  concurrent(version, delayMs = 30) {
+  okConcurrent(version, delayMs = 30) {
     let concurrent = 0
     const tracking = { maxConcurrent: 0 }
     return {
@@ -143,7 +143,7 @@ if (process.env.CDS_MCP_TEST_BUNDLE_PATH) {
   const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
   const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
   mockFetch(
-    bundle.raw(prebuilt, {
+    bundle.okRaw(prebuilt, {
       etag: `W/"${commitId}"`,
       'x-embeddings-version': commitId,
       'content-type': 'application/octet-stream'

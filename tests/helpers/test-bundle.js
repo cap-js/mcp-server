@@ -73,7 +73,7 @@ export async function installTestBundle(memFsOptions) {
   const frame = await buildTestBundle()
   const mem = installMemFs(memFsOptions)
   mockFetch(
-    bundle.raw(frame, {
+    bundle.okRaw(frame, {
       etag: `W/"${TEST_COMMIT_ID}"`,
       'x-embeddings-version': TEST_COMMIT_ID,
       'content-type': 'application/octet-stream'
