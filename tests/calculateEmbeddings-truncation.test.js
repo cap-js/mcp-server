@@ -11,7 +11,7 @@ import { createEmbeddings, getActiveEmbeddingsDir, setEmbeddingsDir } from '../l
 const LONG = 'banana '.repeat(10000).trim()
 const SHORT = 'banana'
 
-const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-truncation-'))
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'calculateEmbeddings-truncation-'))
 setEmbeddingsDir(tmpDir)
 
 let testPassed = false

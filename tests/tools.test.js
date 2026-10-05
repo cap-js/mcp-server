@@ -9,7 +9,7 @@ import { buildTestBundle } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-const tmpDir = await fsp.mkdtemp(join(os.tmpdir(), 'cds-mcp-test-tools-'))
+const tmpDir = await fsp.mkdtemp(join(os.tmpdir(), 'tools-'))
 setEmbeddingsDir(tmpDir)
 
 // Serve the real embeddings bundle for this file's in-process fetch calls.

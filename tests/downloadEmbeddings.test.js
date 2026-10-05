@@ -19,7 +19,7 @@ async function seedFile(p, data) {
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
-const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-downloadembeddings-'))
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'downloadEmbeddings-'))
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
 const { getActiveModel, getActiveModelFolder, getActiveEmbeddingsDir, toDirName, setEmbeddingsDir } =

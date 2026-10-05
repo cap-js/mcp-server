@@ -10,7 +10,7 @@ const TEST_COMMIT_ID = '__test_bundle__'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-searchmd-'))
+const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'searchMarkdownDocs-'))
 setEmbeddingsDir(tmpDir)
 
 const embeddingsDir = getActiveEmbeddingsDir()

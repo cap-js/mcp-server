@@ -40,7 +40,7 @@ mock.module('@huggingface/transformers', {
     }
 })
 
-const tmpDir = await fsp.mkdtemp(os.tmpdir() + '/cds-mcp-test-rerank-config-')
+const tmpDir = await fsp.mkdtemp(os.tmpdir() + '/rerank-config-')
 setEmbeddingsDir(tmpDir)
 
 // Satisfy the module-load-time downloadEmbeddings() call in searchMarkdownDocs.js.

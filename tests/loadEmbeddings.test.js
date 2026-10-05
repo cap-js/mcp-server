@@ -6,7 +6,7 @@ import os from 'node:os'
 import { loadChunks } from '../lib/embeddings.js'
 import { getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 
-const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-loadchunks-'))
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'loadEmbeddings-'))
 setEmbeddingsDir(tmpDir)
 
 after(async () => {

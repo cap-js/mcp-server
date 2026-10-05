@@ -1,0 +1,9 @@
+{
+  "nodejs-testing.extensions": [
+    {
+      "extensions": ["js", "mjs", "cjs"],
+      "parameters": ["--experimental-test-module-mocks"]
+    }
+  ],
+  "jestrunner.nodeTestRunOptions": ["--experimental-test-module-mocks"]
+}

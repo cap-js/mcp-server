@@ -139,7 +139,7 @@ describe('embeddings', () => {
     let tmpDir
 
     before(async () => {
-      tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-embeddings-'))
+      tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'embeddings-'))
       setEmbeddingsDir(tmpDir)
     })
 
