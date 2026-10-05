@@ -1,92 +1,76 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { pathToFileURL } from 'node:url'
-import { test } from 'node:test'
+import { realpath, lstat } from 'node:fs/promises'
+import { join, dirname } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { test, describe } from 'node:test'
 import { createMcpProjectPathResolver, resolvePathsWithinRoots, resolveProjectPath } from '../lib/projectPath.js'
 
-test.describe('project path authorization', () => {
-  test('accepts projects inside a canonical workspace root', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const project = join(directory, 'project')
-    await mkdir(project)
+// Committed fixture — the test reads it and exercises the REAL realpath/symlink
+// behaviour. It creates, edits, or removes nothing at runtime.
+//
+//   project-path/
+//     workspace/              a workspace root
+//       project/              a valid project inside the root
+//       linked-project -> ../escapes   symlink that escapes the root
+//     workspace-secret/       sibling with a shared "workspace" prefix
+//     escapes/                dir outside the root (the symlink target)
+//     private-model.cds       file outside the root
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const fixtures = join(__dirname, 'fixtures', 'project-path')
+const workspace = join(fixtures, 'workspace')
+const project = join(workspace, 'project')
+const sibling = join(fixtures, 'workspace-secret')
+const escapingLink = join(workspace, 'linked-project')
+const outsideFile = join(fixtures, 'private-model.cds')
 
-    assert.equal(await resolveProjectPath(project, [directory]), await realpath(project))
+describe('project path authorization', () => {
+  test('accepts projects inside a canonical workspace root', async () => {
+    assert.equal(await resolveProjectPath(project, [workspace]), await realpath(project))
   })
 
-  test('rejects paths outside roots and sibling paths with a shared prefix', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const root = join(directory, 'workspace')
-    const sibling = join(directory, 'workspace-secret')
-    await Promise.all([mkdir(root), mkdir(sibling)])
-
-    await assert.rejects(resolveProjectPath(sibling, [root]), /outside the configured workspace roots/)
+  test('rejects paths outside roots and sibling paths with a shared prefix', async () => {
+    await assert.rejects(resolveProjectPath(sibling, [workspace]), /outside the configured workspace roots/)
   })
 
-  test('rejects a symlink that escapes a workspace root', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const root = join(directory, 'workspace')
-    const outside = join(directory, 'outside')
-    await Promise.all([mkdir(root), mkdir(outside)])
-    const link = join(root, 'linked-project')
-    await symlink(outside, link)
-
-    await assert.rejects(resolveProjectPath(link, [root]), /outside the configured workspace roots/)
+  test('rejects a symlink that escapes a workspace root', async () => {
+    // Guard: the fixture must be a real symlink, else realpath() can't escape
+    // the root and this test would pass for the wrong reason.
+    assert.ok((await lstat(escapingLink)).isSymbolicLink(), `${escapingLink} must be a symlink`)
+    await assert.rejects(resolveProjectPath(escapingLink, [workspace]), /outside the configured workspace roots/)
   })
 
-  test('does not expose rejected source paths in workspace errors', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const root = join(directory, 'workspace')
-    const outside = join(directory, 'private-model.cds')
-    await Promise.all([mkdir(root), writeFile(outside, 'entity Private { key ID: Integer; }')])
-
-    await assert.rejects(resolvePathsWithinRoots([outside], [root]), error => {
+  test('does not expose rejected source paths in workspace errors', async () => {
+    await assert.rejects(resolvePathsWithinRoots([outsideFile], [workspace]), error => {
       assert.match(error.message, /outside the configured workspace roots/)
-      assert(!error.message.includes(outside))
+      assert(!error.message.includes(outsideFile))
       return true
     })
   })
 
-  test('uses MCP file roots when the client advertises them', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const root = join(directory, 'workspace')
-    const project = join(root, 'project')
-    await mkdir(project, { recursive: true })
+  test('uses MCP file roots when the client advertises them', async () => {
     let requestOptions
     const server = {
       getClientCapabilities: () => ({ roots: {} }),
       listRoots: async (_params, options) => {
         requestOptions = options
-        return { roots: [{ uri: pathToFileURL(root).href }] }
+        return { roots: [{ uri: pathToFileURL(workspace).href }] }
       }
     }
 
-    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory, timeout: 123 })
+    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: fixtures, timeout: 123 })
     assert.equal((await resolver(project)).projectPath, await realpath(project))
     assert.deepEqual(requestOptions, { timeout: 123, maxTotalTimeout: 123 })
-    await assert.rejects(resolver(directory), /outside the configured workspace roots/)
+    await assert.rejects(resolver(fixtures), /outside the configured workspace roots/)
   })
 
-  test('falls back to the server working directory for clients without roots support', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const project = join(directory, 'project')
-    await mkdir(project)
+  test('falls back to the server working directory for clients without roots support', async () => {
     const server = { getClientCapabilities: () => ({}) }
 
-    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
+    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: workspace })
     assert.equal((await resolver(project)).projectPath, await realpath(project))
   })
 
-  test('fails closed when MCP roots cannot be obtained', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
+  test('fails closed when MCP roots cannot be obtained', async () => {
     const server = {
       getClientCapabilities: () => ({ roots: {} }),
       listRoots: async () => {
@@ -94,25 +78,21 @@ test.describe('project path authorization', () => {
       }
     }
 
-    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
-    await assert.rejects(resolver(directory), error => {
+    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: fixtures })
+    await assert.rejects(resolver(fixtures), error => {
       assert.equal(error.message, 'Unable to determine MCP workspace roots')
       assert.equal(error.cause.message, 'client unavailable')
       return true
     })
   })
 
-  test('fails closed with a specific error when all advertised roots are invalid', async t => {
-    const directory = await mkdtemp(join(tmpdir(), 'cds-mcp-root-'))
-    t.after(() => rm(directory, { recursive: true, force: true }))
-    const project = join(directory, 'project')
-    await mkdir(project)
+  test('fails closed with a specific error when all advertised roots are invalid', async () => {
     const server = {
       getClientCapabilities: () => ({ roots: {} }),
-      listRoots: async () => ({ roots: [{ uri: pathToFileURL(join(directory, 'missing')).href }] })
+      listRoots: async () => ({ roots: [{ uri: pathToFileURL(join(fixtures, 'missing')).href }] })
     }
 
-    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: directory })
+    const resolver = createMcpProjectPathResolver(server, { fallbackRoot: fixtures })
     await assert.rejects(resolver(project), /No valid workspace roots are configured/)
   })
 })
