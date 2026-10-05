@@ -1,0 +1,42 @@
+name: "CodeQL"
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "27 4 * * 1"
+
+jobs:
+  analyze:
+    name: Analyze (javascript-typescript)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # This is an MCP server, so enable the "mcp-server" threat model: CodeQL
+      # treats handler-function arguments (tool, resource-template, prompt
+      # requests) and the return values of sampling/elicitation calls as
+      # untrusted, surfacing injection vulnerabilities (SQL, command, path
+      # traversal). Triage results for intentional behavior (false positives).
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          languages: javascript-typescript
+          config: |
+            threat-models: mcp-server
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@1190a975f95ce23525efb6a3fc21ea29567c1b52 # v3
+        with:
+          category: "/language:javascript-typescript"
