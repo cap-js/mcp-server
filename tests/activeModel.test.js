@@ -19,7 +19,7 @@ process.env.CDS_MCP_OFFLINE = 'true'
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'activeModel-'))
 
 const { downloadEmbeddings } = await import('../lib/searchMarkdownDocs.js')
-const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir, setEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
+const { setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir, setEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 setEmbeddingsDir(tmpDir)

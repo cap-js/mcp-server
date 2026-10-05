@@ -1,5 +1,4 @@
-import { fileURLToPath } from 'url'
-import { getActiveEmbeddingsDir, getActiveModel, toDirName, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import { getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
@@ -7,8 +6,6 @@ import assert from 'node:assert'
 import os from 'node:os'
 import { buildTestBundle } from './helpers/test-bundle.js'
 const TEST_COMMIT_ID = '__test_bundle__'
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'searchMarkdownDocs-'))
 setEmbeddingsDir(tmpDir)
