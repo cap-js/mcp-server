@@ -22,7 +22,7 @@ const fsp = require('fs/promises')
 
 const EMBEDDINGS_DIR = path.resolve(DEFAULT_DIR)
 
-export function installMemFs({ seed } = {}) {
+export function installMemFs() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-test-'))
   const writes = new Map()
   const mocks = {}
@@ -99,36 +99,19 @@ export function installMemFs({ seed } = {}) {
     fs.writeFileSync(mapped, Buffer.isBuffer(content) ? content : Buffer.from(String(content)))
   }
 
-  function seedDir(p) { fs.mkdirSync(remap(p), { recursive: true }) }
-
-  function seedTree(tree) {
-    for (const [p, v] of Object.entries(tree)) {
-      if (v === null) seedDir(p)
-      else seedFile(p, v)
-    }
-  }
-
   const handle = {
     mocks,
-    writes,
     seedFile,
-    seedDir,
-    seedTree,
     exists:   p => fs.existsSync(remap(p)),
     readFile: (p, enc) => fs.readFileSync(remap(p), enc),
     readJson: p => JSON.parse(fs.readFileSync(remap(p), 'utf-8')),
-    mtime:    p => fs.statSync(remap(p)).mtimeMs,
     setMtime(p, t) { fs.utimesSync(remap(p), new Date(t), new Date(t)) },
     writtenJson(suffix = '.json') {
       for (const [k, data] of writes) {
         if (k.endsWith(suffix)) return JSON.parse(data.toString('utf-8'))
       }
-    },
-    remove() {
-      fs.rmSync(tmpRoot, { recursive: true, force: true })
     }
   }
 
-  if (seed) seedTree(seed)
   return handle
 }
