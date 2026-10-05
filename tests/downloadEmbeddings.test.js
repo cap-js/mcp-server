@@ -12,10 +12,7 @@ function frame(body, bin) {
   return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
-async function seedFile(p, data) {
-  await fsp.mkdir(path.dirname(p), { recursive: true })
-  return fsp.writeFile(p, data)
-}
+const seedFile = (p, d) => fsp.mkdir(path.dirname(p), { recursive: true }).then(() => fsp.writeFile(p, d))
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
