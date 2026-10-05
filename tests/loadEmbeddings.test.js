@@ -1,171 +1,87 @@
-import { test, describe, beforeEach, afterEach, after } from 'node:test'
+import { test, describe, afterEach, mock } from 'node:test'
 import assert from 'node:assert'
-import fs from 'fs/promises'
-import path from 'path'
-import { mkdtempSync } from 'node:fs'
-import os from 'node:os'
+import { mockReadFile, mockUnlink } from './helpers/mock-fs.js'
 import { loadChunks } from '../lib/embeddings.js'
 
-const TEST_EMBEDDINGSDIR = mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-load-test-'))
-after(async () => { await fs.rm(TEST_EMBEDDINGSDIR, { recursive: true, force: true }).catch(() => {}) })
+describe('loadChunks', () => {
+  afterEach(() => mock.restoreAll())
 
-describe('loadEmbeddings tests', () => {
-  beforeEach(async () => {
-    await fs.rm(TEST_EMBEDDINGSDIR, { recursive: true, force: true })
+  test('throws ENOENT when embedding files are missing', async () => {
+    await assert.rejects(loadChunks('nonexistent'), err => err.code === 'ENOENT')
   })
 
-  afterEach(async () => {
-    await fs.rm(TEST_EMBEDDINGSDIR, { recursive: true, force: true })
+  test('throws EMBEDDINGS_CORRUPTED and deletes both files when JSON is invalid', async () => {
+    mockReadFile('invalid json content', new Float32Array([1, 2, 3, 4]))
+    const unlinkMock = mockUnlink()
+
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+
+    const paths = unlinkMock.mock.calls.map(c => String(c.arguments[0]))
+    assert.ok(paths.some(p => p.endsWith('.json')), 'json file must be unlinked')
+    assert.ok(paths.some(p => p.endsWith('.bin')), 'bin file must be unlinked')
   })
 
-  test('should handle missing embedding files', async () => {
-    // Try to load chunks from non-existent directory
-    await assert.rejects(loadChunks('nonexistent', TEST_EMBEDDINGSDIR), err => err.code === 'ENOENT')
+  test('throws EMBEDDINGS_CORRUPTED when JSON is valid but missing dim field', async () => {
+    mockReadFile({ chunks: ['test'] }, new Float32Array([1, 2, 3, 4])) // missing dim
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle corrupted JSON metadata', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    // Create corrupted JSON file
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), 'invalid json content')
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4])))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
-
-    // Verify corrupted files were cleaned up
-    const jsonExists = await fs
-      .access(path.join(TEST_EMBEDDINGSDIR, 'code.json'))
-      .then(() => true)
-      .catch(() => false)
-    const binExists = await fs
-      .access(path.join(TEST_EMBEDDINGSDIR, 'code.bin'))
-      .then(() => true)
-      .catch(() => false)
-    assert.strictEqual(jsonExists, false)
-    assert.strictEqual(binExists, false)
+  test('throws EMBEDDINGS_CORRUPTED when binary size does not match dim × count', async () => {
+    mockReadFile({ dim: 4, count: 2, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3])) // 12 bytes, needs 32
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle malformed JSON structure', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    // Create JSON with missing required fields
-    const badMeta = { chunks: ['test'] } // Missing dim
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(badMeta))
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4])))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  test('throws EMBEDDINGS_CORRUPTED when chunk count mismatches metadata count', async () => {
+    mockReadFile({ dim: 2, count: 5, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3, 4]))
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle mismatched binary file size', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    // Create metadata expecting 4 dimensions but binary has wrong size
-    const meta = { dim: 4, count: 2, chunks: ['test1', 'test2'] }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-
-    // Binary should be 2 chunks * 4 dims * 4 bytes = 32 bytes, but provide less
-    const wrongSizeBinary = new Float32Array([1, 2, 3]) // Only 12 bytes
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(wrongSizeBinary.buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  test('throws EMBEDDINGS_CORRUPTED when embedding vector contains NaN', async () => {
+    mockReadFile({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([NaN, 2.0]))
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle count mismatch in metadata', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    // Create metadata with mismatched count
-    const meta = { dim: 2, count: 5, chunks: ['test1', 'test2'] } // count != chunks.length
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-
-    const binary = new Float32Array([1, 2, 3, 4]) // 2 chunks * 2 dims
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  test('throws EMBEDDINGS_CORRUPTED when embedding vector contains Infinity', async () => {
+    mockReadFile({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([Infinity, 2.0]))
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
-  test('should handle NaN values in embeddings', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    const meta = { dim: 2, count: 1, chunks: ['test'] }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-
-    // Create binary with NaN values
-    const binary = new Float32Array([NaN, 2.0])
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
-  })
-
-  test('should handle Infinity values in embeddings', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    const meta = { dim: 2, count: 1, chunks: ['test'] }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-
-    // Create binary with Infinity values
-    const binary = new Float32Array([Infinity, 2.0])
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
-  })
-
-  test('should load valid embeddings correctly', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
+  test('returns chunks with correct content and sliced float32 vectors', async () => {
     const chunks = ['Hello world', 'Test content']
-    const meta = { dim: 3, count: 2, chunks }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
+    mockReadFile({ dim: 3, count: 2, chunks }, new Float32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
 
-    // Create valid binary data
-    const binary = new Float32Array([
-      1.0,
-      2.0,
-      3.0, // First chunk embeddings
-      4.0,
-      5.0,
-      6.0 // Second chunk embeddings
-    ])
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
-
-    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+    const result = await loadChunks('code')
 
     assert.strictEqual(result.length, 2)
     assert.strictEqual(result[0].content, 'Hello world')
     assert.strictEqual(result[1].content, 'Test content')
-
-    // Check embeddings
     assert.deepStrictEqual(Array.from(result[0].embeddings), [1.0, 2.0, 3.0])
     assert.deepStrictEqual(Array.from(result[1].embeddings), [4.0, 5.0, 6.0])
   })
 
-  test('should handle non-string chunk content', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    const meta = { dim: 2, count: 1, chunks: [123] } // Non-string content
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-
-    const binary = new Float32Array([1.0, 2.0])
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(binary.buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+  test('throws EMBEDDINGS_CORRUPTED when chunk content is not a string', async () => {
+    mockReadFile({ dim: 2, count: 1, chunks: [123] }, new Float32Array([1.0, 2.0]))
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 
   test('loads parallel metadata[] matched by index', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+    mockReadFile(
+      {
+        dim: 3,
+        count: 2,
+        chunks: ['Hello world', 'Test content'],
+        metadata: [{ source: 'a.md', breadcrumb: 'Root > A' }, { source: 'b.md' }]
+      },
+      new Float32Array([1, 2, 3, 4, 5, 6])
+    )
 
-    const meta = {
-      dim: 3,
-      count: 2,
-      chunks: ['Hello world', 'Test content'],
-      metadata: [
-        { source: 'a.md', breadcrumb: 'Root > A' },
-        { source: 'b.md' }
-      ]
-    }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4, 5, 6]).buffer))
-
-    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+    const result = await loadChunks('code')
     assert.strictEqual(result[0].content, 'Hello world')
     assert.deepStrictEqual(result[0].meta, { source: 'a.md', breadcrumb: 'Root > A' })
     assert.strictEqual(result[1].content, 'Test content')
@@ -173,31 +89,20 @@ describe('loadEmbeddings tests', () => {
   })
 
   test('files without metadata[] load unchanged (backward compat)', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
+    mockReadFile({ dim: 2, count: 2, chunks: ['a', 'b'] }, new Float32Array([1, 2, 3, 4]))
 
-    // Legacy on-disk shape: no `metadata` field at all.
-    const meta = { dim: 2, count: 2, chunks: ['a', 'b'] }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4]).buffer))
-
-    const result = await loadChunks('code', TEST_EMBEDDINGSDIR)
+    const result = await loadChunks('code')
     assert.strictEqual(result[0].content, 'a')
     assert.strictEqual('meta' in result[0], false)
     assert.strictEqual('meta' in result[1], false)
   })
 
   test('metadata[] with wrong length is treated as corrupted', async () => {
-    await fs.mkdir(TEST_EMBEDDINGSDIR, { recursive: true })
-
-    const meta = {
-      dim: 2,
-      count: 2,
-      chunks: ['a', 'b'],
-      metadata: [{ source: 'a.md' }] // length mismatch
-    }
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.json'), JSON.stringify(meta))
-    await fs.writeFile(path.join(TEST_EMBEDDINGSDIR, 'code.bin'), Buffer.from(new Float32Array([1, 2, 3, 4]).buffer))
-
-    await assert.rejects(loadChunks('code', TEST_EMBEDDINGSDIR), err => err.code === 'EMBEDDINGS_CORRUPTED')
+    mockReadFile(
+      { dim: 2, count: 2, chunks: ['a', 'b'], metadata: [{ source: 'a.md' }] },
+      new Float32Array([1, 2, 3, 4])
+    )
+    mockUnlink()
+    await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
   })
 })

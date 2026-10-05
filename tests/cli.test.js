@@ -82,7 +82,7 @@ after(async () => {
 })
 
 describe('CLI usage', () => {
-  test('search_model subcommand works', async () => {
+  test('search_model returns matching definitions for a project path', async () => {
     const result = await runCliCommand(['search_model', sampleProjectPath, 'Books', 'entity'])
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
@@ -123,7 +123,7 @@ describe('CLI usage', () => {
     assert.equal(JSON.parse(result.stdout)[0].name, 'SharedBooks')
   })
 
-  test('search_docs subcommand works', async () => {
+  test('search_docs returns document chunks separated by --- for a query', async () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
       env: {
         ...process.env,
@@ -137,6 +137,22 @@ describe('CLI usage', () => {
     assert(result.stdout.length > 0, 'Should produce output')
     assert(typeof result.stdout === 'string', 'Output should be a string')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
+  })
+
+  test('search_docs produces no output on stderr', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'], {
+      env: {
+        ...process.env,
+        CDS_MCP_TEST_BUNDLE_PATH: bundlePath,
+        CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
+        NODE_OPTIONS: `--import "${mockFetchUrl}"`
+      }
+    })
+
+    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.stderr, '', `Expected no stderr output, got: ${result.stderr}`)
+    const lines = result.stdout.split('\n')
+    assert.equal(lines[0].includes('headingPath:'), true, 'stdout should start with output and nothing else')
   })
 
   test('invalid tool name shows error', async () => {
@@ -221,20 +237,16 @@ describe('CLI usage', () => {
   })
 
   test('no arguments starts MCP server mode', async () => {
-    const child = spawn('node', [cdsMcpPath], {
-      stdio: 'pipe'
-    })
+    let stderr = ''
+    const child = spawn('node', [cdsMcpPath], { stdio: 'pipe' })
+    child.stderr.on('data', d => { stderr += d })
 
-    // Give the server a moment to start
     await new Promise(resolve => setTimeout(resolve, 100))
 
-    // Kill the process
     child.kill('SIGTERM')
+    const exitCode = await new Promise(resolve => child.on('close', resolve))
 
-    // Wait for it to close
-    await new Promise(resolve => child.on('close', resolve))
-
-    assert(true, 'MCP server should start and be killable')
+    assert(exitCode === 0 || exitCode === null, `server crashed on startup (code=${exitCode}): ${stderr}`)
   })
 
   test('--model flag routes bundle download under model-scoped dir', async () => {
