@@ -97,23 +97,22 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const bin = mem.readFile(path.join(testDir, 'code-chunks.bin'))
       assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
     })
-  })
 
-  test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
-    mockFetch(bundle.ok({ version: testVer }))
-    await downloadEmbeddings()
-    const saved = mem.readJson(manifestEtagPath)
-    assert.strictEqual(saved.etag, 'W/"seed"')
-    assert.strictEqual(saved.commitId, testVer)
+    test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
+      await downloadEmbeddings()
+      const saved = mem.readJson(manifestEtagPath)
+      assert.strictEqual(saved.etag, 'W/"seed"')
+      assert.strictEqual(saved.commitId, testVer)
 
-    // Stale lastChecked so the daily skip does not swallow the next call.
-    mem.seedFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
+      // Stale lastChecked so the daily skip does not swallow the next call.
+      mem.seedFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
 
-    const requests = mockFetch(bundle.notModified())
-    const r = await downloadEmbeddings()
-    assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
-    assert.strictEqual(r.updated, false)
-    assert.strictEqual(r.commitId, testVer, '304 returns the commit id stored alongside the etag')
+      requests = mockFetch(bundle.notModified())
+      const r = await downloadEmbeddings()
+      assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
+      assert.strictEqual(r.updated, false)
+      assert.strictEqual(r.commitId, testVer, '304 returns the commit id stored alongside the etag')
+    })
   })
 
   test('304 returns the stored commit id, not the newest local dir', async () => {
