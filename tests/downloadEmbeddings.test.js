@@ -249,6 +249,25 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
   })
 
+  test('server 404 problem+json (model not found) includes available models from manifest', async () => {
+    mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+        return new Response(JSON.stringify({ 'model-a': [{ model: 'model-a' }] }), { status: 200 })
+      }
+      const activeModel = getActiveModel()
+      return new Response(
+        JSON.stringify({ title: 'Model Not Found', status: 404, detail: `Model not found: ${activeModel}`, model: activeModel }),
+        { status: 404, statusText: 'Not Found', headers: { 'content-type': 'application/problem+json' } }
+      )
+    })
+    await assert.rejects(downloadEmbeddings(), err => {
+      assert.match(err.message, /Failed to fetch bundle: 404/)
+      assert.match(err.message, /Available models/)
+      assert.match(err.message, /model-a/)
+      return true
+    })
+  })
+
   test('non-OK error has no suffix when manifest is unreachable', async () => {
     mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503, statusText: 'Unavailable' }))
     await assert.rejects(downloadEmbeddings(), err => {
