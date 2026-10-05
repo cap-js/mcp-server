@@ -6,9 +6,12 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_DIR } from '../lib/calculateEmbeddings.js'
-import { seedCliTestBundle } from './helpers/test-bundle.js'
-import { TEST_COMMIT_ID } from './helpers/paths.js'
+import { DEFAULT_DIR, getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import { buildTestBundle } from './helpers/test-bundle.js'
+import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
+
+const TEST_COMMIT_ID = '__test_bundle__'
+const cds = (await import('@sap/cds')).default
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
@@ -28,6 +31,43 @@ mock.method(globalThis, 'fetch', async () =>
 )
 `
 const mockFetchUrl = `data:text/javascript,${encodeURIComponent(bundleMockScript)}`
+
+// Seed the REAL disk for subprocess-based CLI tests. Those tests spawn child
+// `node` processes, so the in-process fs mock never reaches them — the child reads
+// real files. The writes use named fs imports, so they stay on the real disk even
+// if a test also calls remapFs().
+function unframeBundle(frame) {
+  const metaLen = frame.readUInt32BE(0)
+  return { meta: frame.subarray(4, 4 + metaLen), bin: frame.subarray(4 + metaLen) }
+}
+
+async function seedCliTestBundle() {
+  const frame = await buildTestBundle()
+  const { meta, bin } = unframeBundle(frame)
+
+  const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
+  const dir = join(getActiveEmbeddingsDir(), TEST_COMMIT_ID)
+  const etagPath = join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
+  const savedEtag = await readFile(etagPath, 'utf-8').catch(() => null)
+
+  await writeFile(bundlePath, frame)
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'code-chunks.json'), meta)
+  await writeFile(join(dir, 'code-chunks.bin'), bin)
+
+  async function cleanup() {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+    await unlink(bundlePath).catch(() => {})
+    if (savedEtag !== null) {
+      await mkdir(dirname(etagPath), { recursive: true })
+      await writeFile(etagPath, savedEtag)
+    } else {
+      await rm(dirname(etagPath), { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  return { bundlePath, commitId: TEST_COMMIT_ID, versionDir: dir, cleanup }
+}
 
 let ctx
 

@@ -17,7 +17,7 @@ const fsp = require('fs/promises')
 export function remapFs() {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'cds-mcp-test-'))
 
-  after(() => { try { fs.rmSync(tmpRoot, { recursive: true, force: true }) } catch {} })
+  after(() => { try { fs.rmSync(tmpRoot, { recursive: true, force: true }) } catch { /* ignore */ } })
 
   const remap = p => path.join(tmpRoot, path.resolve(String(p)).slice(1))
 

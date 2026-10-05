@@ -6,7 +6,7 @@ import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
 import { remapFs } from './helpers/remap-fs.js'
 import { buildTestBundle } from './helpers/test-bundle.js'
-import { TEST_COMMIT_ID } from './helpers/paths.js'
+const TEST_COMMIT_ID = '__test_bundle__'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

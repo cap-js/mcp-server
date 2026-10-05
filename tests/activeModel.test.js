@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import path from 'path'
 import fsp from 'node:fs/promises'
 import { remapFs } from './helpers/remap-fs.js'
-import { getManifestEtagPath } from './helpers/paths.js'
 
 function frame(body, bin) {
   const metaBuf = Buffer.from(JSON.stringify(body))
@@ -13,68 +12,18 @@ function frame(body, bin) {
   return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
-function mockFetch(...handlers) {
-  const routes = {}
-  for (const h of handlers) {
-    if (routes[h.endpoint]) throw new Error(`mockFetch: duplicate handler for ${h.endpoint}`)
-    routes[h.endpoint] = h
-  }
-  const requests = []
-  mock.method(globalThis, 'fetch', async (url, init = {}) => {
-    const u = String(url)
-    requests.push({ url: u, headers: init.headers || {} })
-    const { pathname } = new URL(u)
-    const key = pathname.endsWith('/manifest.json') ? 'manifest'
-      : pathname.endsWith('/getEmbeddings') ? 'getEmbeddings' : null
-    const route = key && routes[key]
-    if (!route) throw new TypeError(`mockFetch: endpoint not mocked: ${u}`)
-    return route.respond(u, init)
-  })
-  return requests
-}
-
-const bundle = {
-  ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
-    return {
-      endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame(body, bin), {
-        status: 200,
-        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-      })
-    }
-  },
-  notModified() {
-    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status: 304 }) }
-  },
-  okWrongModel({ version, wrongModel }) {
-    return {
-      endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
-        status: 200,
-        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
-      })
-    }
-  }
-}
-
-const manifest = {
-  ok(body) {
-    return { endpoint: 'manifest', respond: async () => new Response(JSON.stringify(body), { status: 200 }) }
-  },
-  failed(status, statusText = '') {
-    return { endpoint: 'manifest', respond: async () => new Response(null, { status, statusText }) }
-  }
-}
-
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings } = await import('../lib/searchMarkdownDocs.js')
-const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName } = await import('../lib/calculateEmbeddings.js')
+const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
+const cds = (await import('@sap/cds')).default
 
 const DEFAULT_MODEL = getActiveModel()
 
+const getManifestEtagPath = () => path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
+
 // Etag path for the module-default model (captured before we switch models).
-const defaultEtagPath = getManifestEtagPath()
+const defaultEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
 after(() => {
   mock.restoreAll()
@@ -95,7 +44,14 @@ describe('active model wiring into download', () => {
   describe('bundle 200, server model matches', () => {
     let requests
     beforeEach(() => {
-      requests = mockFetch(bundle.ok({ version: testVer }))
+      requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        requests.push({ url: String(url), headers: init.headers || {} })
+        return new Response(frame({ dim: 1, count: 1, chunks: [] }, 'BIN'), {
+          status: 200,
+          headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
+      })
     })
 
     test('bundle URL model= param reflects active model', async () => {
@@ -134,13 +90,18 @@ describe('active model wiring into download', () => {
   // Mock: bundle reports a different model (wrongModel) + manifest endpoint.
   describe('model mismatch (bundle wrongModel + manifest)', () => {
     test('server returns different model → throws with available models listed', async () => {
-      mockFetch(
-        bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
-        manifest.ok({
-          [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [{ model: 'sentence-transformers/all-MiniLM-L6-v2' }],
-          [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(JSON.stringify({
+            [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [{ model: 'sentence-transformers/all-MiniLM-L6-v2' }],
+            [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
+          }), { status: 200 })
+        }
+        return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
         })
-      )
+      })
 
       await assert.rejects(
         downloadEmbeddings(),
@@ -152,7 +113,15 @@ describe('active model wiring into download', () => {
     })
 
     test('manifest fetch failure → still throws, without Available list', async () => {
-      mockFetch(bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }), manifest.failed(500))
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(null, { status: 500 })
+        }
+        return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
+        })
+      })
 
       await assert.rejects(
         downloadEmbeddings(),
@@ -161,10 +130,18 @@ describe('active model wiring into download', () => {
     })
 
     test('mismatch throw hits /manifest.json for available list', async () => {
-      const requests = mockFetch(
-        bundle.okWrongModel({ version: testVer, wrongModel: DEFAULT_MODEL }),
-        manifest.ok({ [toDirName('a/b')]: [{ model: 'a/b' }] })
-      )
+      const requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        const u = String(url)
+        requests.push({ url: u, headers: init.headers || {} })
+        if (new URL(u).pathname.endsWith('/manifest.json')) {
+          return new Response(JSON.stringify({ [toDirName('a/b')]: [{ model: 'a/b' }] }), { status: 200 })
+        }
+        return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
+        })
+      })
 
       await assert.rejects(downloadEmbeddings())
       const manifestHits = requests.filter(r => r.url.endsWith('/manifest.json'))
@@ -190,7 +167,11 @@ describe('active model wiring into download', () => {
       await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
       await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
-      const requests = mockFetch(bundle.notModified())
+      const requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        requests.push({ url: String(url), headers: init.headers || {} })
+        return new Response(null, { status: 304 })
+      })
 
       const r = await downloadEmbeddings()
       assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')

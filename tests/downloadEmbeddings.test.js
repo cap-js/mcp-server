@@ -3,7 +3,6 @@ import assert from 'node:assert'
 import path from 'path'
 import fsp from 'node:fs/promises'
 import { remapFs } from './helpers/remap-fs.js'
-import { getManifestEtagPath, modelEtagsRoot as computeModelEtagsRoot } from './helpers/paths.js'
 
 function frame(body, bin) {
   const metaBuf = Buffer.from(JSON.stringify(body))
@@ -11,86 +10,6 @@ function frame(body, bin) {
   const hdr = Buffer.alloc(4)
   hdr.writeUInt32BE(metaBuf.length, 0)
   return Buffer.concat([hdr, metaBuf, binBuf])
-}
-
-function mockFetch(...handlers) {
-  const routes = {}
-  for (const h of handlers) {
-    if (routes[h.endpoint]) throw new Error(`mockFetch: duplicate handler for ${h.endpoint}`)
-    routes[h.endpoint] = h
-  }
-  const requests = []
-  mock.method(globalThis, 'fetch', async (url, init = {}) => {
-    const u = String(url)
-    requests.push({ url: u, headers: init.headers || {} })
-    const { pathname } = new URL(u)
-    const key = pathname.endsWith('/manifest.json') ? 'manifest'
-      : pathname.endsWith('/getEmbeddings') ? 'getEmbeddings' : null
-    const route = key && routes[key]
-    if (!route) throw new TypeError(`mockFetch: endpoint not mocked: ${u}`)
-    return route.respond(u, init)
-  })
-  return requests
-}
-
-const bundle = {
-  ok({ version = '__test_bundle__', body = { dim: 1, count: 1, chunks: [] }, bin = 'BIN' } = {}) {
-    return {
-      endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame(body, bin), {
-        status: 200,
-        headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-      })
-    }
-  },
-  notModified() {
-    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status: 304 }) }
-  },
-  failed(status, statusText = '', headers = {}) {
-    return { endpoint: 'getEmbeddings', respond: async () => new Response(null, { status, statusText, headers }) }
-  },
-  okRaw(body, headers = {}) {
-    return { endpoint: 'getEmbeddings', respond: async () => new Response(body, { status: 200, headers }) }
-  },
-  okWrongModel({ version, wrongModel }) {
-    return {
-      endpoint: 'getEmbeddings',
-      respond: async () => new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
-        status: 200,
-        headers: { etag: 'W/"x"', 'x-embeddings-version': version, 'x-embeddings-model': wrongModel }
-      })
-    }
-  },
-  networkError(message = 'network down') {
-    return { endpoint: 'getEmbeddings', respond: async () => { throw new TypeError(message) } }
-  },
-  okConcurrent(version, delayMs = 30) {
-    let concurrent = 0
-    const tracking = { maxConcurrent: 0 }
-    return {
-      endpoint: 'getEmbeddings',
-      tracking,
-      respond: async () => {
-        concurrent++
-        tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
-        await new Promise(r => setTimeout(r, delayMs))
-        concurrent--
-        return new Response(frame({ dim: 0, count: 0, chunks: [], model: 't' }, 'BIN'), {
-          status: 200,
-          headers: { etag: 'W/"seed"', 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
-        })
-      }
-    }
-  }
-}
-
-const manifest = {
-  ok(body) {
-    return { endpoint: 'manifest', respond: async () => new Response(JSON.stringify(body), { status: 200 }) }
-  },
-  failed(status, statusText = '', headers = {}) {
-    return { endpoint: 'manifest', respond: async () => new Response(null, { status, statusText, headers }) }
-  }
 }
 
 process.env.CDS_MCP_OFFLINE = 'true'
@@ -102,8 +21,8 @@ const cds = (await import('@sap/cds')).default
 
 const MODEL_FOLDER = getActiveModelFolder()
 const DEFAULT_EMBEDDINGS_DIR = getActiveEmbeddingsDir()
-const modelEtagsRoot = computeModelEtagsRoot()
-const manifestEtagPath = getManifestEtagPath()
+const modelEtagsRoot = path.join(getActiveEmbeddingsDir(), 'etags')
+const manifestEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
 describe('downloadEmbeddings (bundle endpoint)', () => {
   const testVer = '__test_bundle__'
@@ -120,13 +39,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   describe('200 bundle, no prior state', () => {
     let requests
     beforeEach(() => {
-      requests = mockFetch(
-        bundle.ok({
-          version: testVer,
-          body: { dim: 1, count: 1, chunks: ['hi'] },
-          bin: Buffer.from(new Float32Array([1.5]).buffer)
+      requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        requests.push({ url: String(url), headers: init.headers || {} })
+        return new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
+          status: 200,
+          headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
         })
-      )
+      })
     })
 
     test('sends cds and model query params', async () => {
@@ -146,13 +66,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('when detection misses, etag lands under "latest" pseudo-version, never "unknown"', async () => {
-      const os = await import('node:os')
-      const originalCwd = process.cwd()
       const newestEtag = path.join(modelEtagsRoot, 'latest', 'manifest.etag')
       const unknownEtag = path.join(modelEtagsRoot, 'unknown', 'manifest.etag')
+      const savedVersion = cds.version
 
       try {
-        process.chdir(os.tmpdir())
+        cds.version = undefined
         await downloadEmbeddings()
 
         assert.strictEqual(
@@ -170,7 +89,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
           'stored commitId must be the x-embeddings-version returned by the server'
         )
       } finally {
-        process.chdir(originalCwd)
+        cds.version = savedVersion
       }
     })
 
@@ -196,7 +115,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       // Stale lastChecked so the daily skip does not swallow the next call.
       await fsp.writeFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
 
-      requests = mockFetch(bundle.notModified())
+      requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        requests.push({ url: String(url), headers: init.headers || {} })
+        return new Response(null, { status: 304 })
+      })
       const r = await downloadEmbeddings()
       assert.strictEqual(requests[0].headers['If-None-Match'], 'W/"seed"')
       assert.strictEqual(r.updated, false)
@@ -241,7 +164,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const prev = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
       await fsp.writeFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
       const before = Date.now()
-      mockFetch(bundle.notModified())
+      mock.method(globalThis, 'fetch', async () => new Response(null, { status: 304 }))
       await downloadEmbeddings()
       const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
       assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
@@ -253,7 +176,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   describe('304 not modified', () => {
     let requests
     beforeEach(() => {
-      requests = mockFetch(bundle.notModified())
+      requests = []
+      mock.method(globalThis, 'fetch', async (url, init = {}) => {
+        requests.push({ url: String(url), headers: init.headers || {} })
+        return new Response(null, { status: 304 })
+      })
     })
 
     test('304 returns the stored commit id, not the newest local dir', async () => {
@@ -300,18 +227,20 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('throws when bundle response is non-OK', async () => {
-    mockFetch(bundle.failed(500, 'Server Err'))
+    mock.method(globalThis, 'fetch', async () => new Response(null, { status: 500, statusText: 'Server Err' }))
     await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
   })
 
   test('non-OK error includes available models when manifest is reachable', async () => {
-    mockFetch(
-      bundle.failed(404, 'Not Found'),
-      manifest.ok({
-        'model-a': [{ model: 'model-a' }],
-        'model-b': [{ model: 'model-b' }]
-      })
-    )
+    mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+        return new Response(
+          JSON.stringify({ 'model-a': [{ model: 'model-a' }], 'model-b': [{ model: 'model-b' }] }),
+          { status: 200 }
+        )
+      }
+      return new Response(null, { status: 404, statusText: 'Not Found' })
+    })
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /Failed to fetch bundle: 404/)
       assert.match(err.message, /Available models/)
@@ -321,7 +250,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('non-OK error has no suffix when manifest is unreachable', async () => {
-    mockFetch(bundle.failed(503, 'Unavailable'))
+    mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503, statusText: 'Unavailable' }))
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /Failed to fetch bundle: 503/)
       assert.doesNotMatch(err.message, /Available models/)
@@ -330,12 +259,16 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('non-OK with x-embeddings-model header throws non-OK error, not model-mismatch', async () => {
-    mockFetch(
-      bundle.failed(400, 'Bad Request', {
-        'x-embeddings-model': 'some--other-model'
-      }),
-      manifest.ok({})
-    )
+    mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+        return new Response(JSON.stringify({}), { status: 200 })
+      }
+      return new Response(null, {
+        status: 400,
+        statusText: 'Bad Request',
+        headers: { 'x-embeddings-model': 'some--other-model' }
+      })
+    })
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /Failed to fetch bundle: 400/)
       assert.doesNotMatch(err.message, /not found/)
@@ -347,10 +280,18 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const wrongModel = 'sentence-transformers--different-model'
     const correctModelName = 'sentence-transformers/different-model'
     const correctModelFolderName = toDirName(correctModelName)
-    mockFetch(
-      bundle.okWrongModel({ version: testVer, wrongModel }),
-      manifest.ok({ [correctModelFolderName]: [{ model: correctModelName }] })
-    )
+    mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+        return new Response(
+          JSON.stringify({ [correctModelFolderName]: [{ model: correctModelName }] }),
+          { status: 200 }
+        )
+      }
+      return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+      })
+    })
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /not found/)
       assert.match(err.message, /Available models/)
@@ -362,7 +303,15 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   test('model mismatch without available models omits suffix', async () => {
     const wrongModel = 'sentence-transformers--different-model'
-    mockFetch(bundle.okWrongModel({ version: testVer, wrongModel }), manifest.failed(503))
+    mock.method(globalThis, 'fetch', async (url) => {
+      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+        return new Response(null, { status: 503 })
+      }
+      return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+        status: 200,
+        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+      })
+    })
     await assert.rejects(downloadEmbeddings(), err => {
       assert.match(err.message, /not found/)
       assert.doesNotMatch(err.message, /Available models/)
@@ -371,15 +320,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('throws when bundle response lacks X-Embeddings-Version header', async () => {
-    mockFetch(
-      bundle.okRaw(
-        JSON.stringify({
-          dim: 0,
-          count: 0,
-          chunks: [],
-          embeddings: Buffer.from('X').toString('base64')
-        }),
-        { etag: 'W/"x"' }
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(
+        JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
+        { status: 200, headers: { etag: 'W/"x"' } }
       )
     )
     await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
@@ -388,10 +332,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   test('throws when bundle frame is truncated (metaLen exceeds body)', async () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(9999, 0)
-    mockFetch(
-      bundle.okRaw(Buffer.concat([hdr, Buffer.from('short')]), {
-        'x-embeddings-version': testVer,
-        'content-type': 'application/octet-stream'
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(Buffer.concat([hdr, Buffer.from('short')]), {
+        status: 200,
+        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
       })
     )
     await assert.rejects(downloadEmbeddings(), /framing/)
@@ -400,7 +344,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   // Group: network error — shares the same mock response.
   describe('network error', () => {
     beforeEach(() => {
-      mockFetch(bundle.networkError('network down'))
+      mock.method(globalThis, 'fetch', async () => { throw new TypeError('network down') })
     })
 
     test('falls back to local version on network error', async () => {
@@ -432,13 +376,23 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('concurrent calls are serialized with at most one in-flight fetch', async () => {
-    const c = bundle.okConcurrent(testVer)
-    mockFetch(c)
+    let concurrent = 0
+    const tracking = { maxConcurrent: 0 }
+    mock.method(globalThis, 'fetch', async () => {
+      concurrent++
+      tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
+      await new Promise(r => setTimeout(r, 30))
+      concurrent--
+      return new Response(frame({ dim: 0, count: 0, chunks: [], model: 't' }, 'BIN'), {
+        status: 200,
+        headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+      })
+    })
     const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
     const anyRejected = results.some(r => r.status === 'rejected')
     assert.ok(
-      !anyRejected && c.tracking.maxConcurrent === 1,
-      `downloadEmbeddings must serialize concurrent callers. maxConcurrent=${c.tracking.maxConcurrent}, rejected=${anyRejected}`
+      !anyRejected && tracking.maxConcurrent === 1,
+      `downloadEmbeddings must serialize concurrent callers. maxConcurrent=${tracking.maxConcurrent}, rejected=${anyRejected}`
     )
   })
 
@@ -446,10 +400,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
-    mockFetch(
-      bundle.okRaw(Buffer.concat([hdr, meta]), {
-        'x-embeddings-version': testVer,
-        'content-type': 'application/octet-stream'
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(Buffer.concat([hdr, meta]), {
+        status: 200,
+        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
       })
     )
     await assert.rejects(
@@ -460,10 +414,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   })
 
   test('body shorter than 4 bytes rejects with "too short" error', async () => {
-    mockFetch(
-      bundle.okRaw(Buffer.from([0x00, 0x01, 0x02]), {
-        'x-embeddings-version': testVer,
-        'content-type': 'application/octet-stream'
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(Buffer.from([0x00, 0x01, 0x02]), {
+        status: 200,
+        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
       })
     )
     await assert.rejects(downloadEmbeddings(), /too short/)
@@ -472,10 +426,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   test('exactly-4-byte body with metaLen=0 rejects as empty bin', async () => {
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(0, 0)
-    mockFetch(
-      bundle.okRaw(hdr, {
-        'x-embeddings-version': testVer,
-        'content-type': 'application/octet-stream'
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(hdr, {
+        status: 200,
+        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
       })
     )
     await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
@@ -485,11 +439,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
     const hdr = Buffer.alloc(4)
     hdr.writeUInt32BE(meta.length, 0)
-    mockFetch(
-      bundle.okRaw(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
-        etag: 'W/"ok"',
-        'x-embeddings-version': testVer,
-        'content-type': 'application/octet-stream'
+    mock.method(globalThis, 'fetch', async () =>
+      new Response(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
+        status: 200,
+        headers: { etag: 'W/"ok"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
       })
     )
     const r = await downloadEmbeddings()
