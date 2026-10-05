@@ -4,7 +4,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { installTestBundle } from './helpers/test-bundle.js'
+import { installMemFs } from './helpers/mem-fs-mock.js'
+import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
 import { TEST_COMMIT_ID } from './helpers/paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -15,7 +16,8 @@ const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
 // Install the test bundle in-process (clean in-memory fs + a fetch mock that
 // serves the frame) BEFORE importing searchMarkdownDocs.js — that module fires
 // downloadEmbeddings() at module load time, so the setup must be in place first.
-await installTestBundle()
+installMemFs()
+mockFetch(bundle.okReal())
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default

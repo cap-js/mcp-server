@@ -3,14 +3,13 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { installTestBundle } from './helpers/test-bundle.js'
+import { installMemFs } from './helpers/mem-fs-mock.js'
+import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-// Install the test bundle in-process (clean in-memory fs + a fetch mock that
-// serves the frame) BEFORE importing tools.js — it statically imports
-// searchMarkdownDocs.js, which fires downloadEmbeddings() at module load.
-await installTestBundle()
+installMemFs()
+mockFetch(bundle.okReal())
 
 const tools = (await import('../lib/tools.js')).default
 

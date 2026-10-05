@@ -1,76 +1,25 @@
 // Test bundle fixtures and setup helpers.
 //
 // A "bundle" is the server's binary frame: [4-byte BE meta length][meta JSON][bin].
-// `buildTestBundle` makes one from real embeddings of TEST_CHUNKS. Two install
-// helpers put it in front of the code under test:
+// `buildTestBundle` (exported from mock-fetch.mjs) makes one from real embeddings.
 //
-//   - installTestBundle()  — IN-PROCESS. Installs a clean in-memory fs and a
-//     fetch mock that serves the frame. Use it for tests that import the server
-//     modules directly.
 //   - seedCliTestBundle()  — REAL DISK. The CLI tests spawn child `node`
 //     processes, which the in-process mock cannot reach, so the frame must sit
 //     on the real disk. Use it for subprocess tests.
+//
+// For in-process tests, call installMemFs() + mockFetch(bundle.okReal()) directly.
 
 import path from 'node:path'
 import os from 'node:os'
 import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
-import calculateEmbeddings from '../../lib/calculateEmbeddings.js'
-import { installMemFs } from './mem-fs-mock.js'
-import { mockFetch, bundle } from './mock-fetch.mjs'
+import { buildTestBundle } from './mock-fetch.mjs'
 import { TEST_COMMIT_ID, getManifestEtagPath, versionDir } from './paths.js'
-
-// Small CAP-relevant chunks covering the search assertions:
-//   - 'cds init' for query 'how to create a new cap project'
-//   - 'enterprise-messaging' for query 'event mesh config'
-const TEST_CHUNKS = [
-  'To create a new CAP project, run: cds init my-project. The cds init command scaffolds a minimal project.',
-  'Use cds add hana to add HANA support. First run cds init to bootstrap the project structure.',
-  'Enterprise messaging in CAP uses enterprise-messaging as the service binding kind in package.json under cds.requires.',
-  'SAP Event Mesh (enterprise-messaging) enables async messaging between microservices in CAP applications.',
-  'Define CDS entities: entity Books { key ID: Integer; title: String; author: Association to Authors; }',
-  'Expose entities via services: service CatalogService { entity Books as projection on my.Books; }',
-  'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc'
-]
-
-// Build the server's binary frame — [4-byte BE meta length][meta JSON][bin] —
-// from real embeddings of TEST_CHUNKS. The embedder reads its real model; the
-// frame needs no committed bundle, so this works on a clean CI checkout.
-export async function buildTestBundle() {
-  const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
-  const dim = vecs[0].length
-  const flat = new Float32Array(TEST_CHUNKS.length * dim)
-  for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
-  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS }
-  const metaBuf = Buffer.from(JSON.stringify(meta))
-  const header = Buffer.alloc(4)
-  header.writeUInt32BE(metaBuf.length, 0)
-  return Buffer.concat([header, metaBuf, Buffer.from(flat.buffer)])
-}
 
 // Split the server frame — [4-byte BE meta length][meta JSON][bin] — back into
 // its two parts. Inverse of the layout buildTestBundle writes.
 export function unframeBundle(frame) {
   const metaLen = frame.readUInt32BE(0)
   return { meta: frame.subarray(4, 4 + metaLen), bin: frame.subarray(4 + metaLen) }
-}
-
-// Install the test bundle IN-PROCESS: a clean in-memory fs (the embeddings/ dir
-// is virtual) plus a fetch mock that serves the frame, so a module's load-time
-// downloadEmbeddings() succeeds without touching the real disk or network. Build
-// the frame BEFORE installing the mock fs, so the embedder reads its real model.
-// Call this BEFORE importing the module under test. Teardown stays the suite's
-// own mock.restoreAll(). Returns the mem handle and the frame.
-export async function installTestBundle(memFsOptions) {
-  const frame = await buildTestBundle()
-  const mem = installMemFs(memFsOptions)
-  mockFetch(
-    bundle.okRaw(frame, {
-      etag: `W/"${TEST_COMMIT_ID}"`,
-      'x-embeddings-version': TEST_COMMIT_ID,
-      'content-type': 'application/octet-stream'
-    })
-  )
-  return { mem, frame }
 }
 
 // Seed the REAL disk for the subprocess-based CLI tests. Those tests spawn child
