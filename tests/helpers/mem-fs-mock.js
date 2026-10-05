@@ -7,9 +7,9 @@
 // model from .cds/models). Writes always go to the tmp dir.
 //
 // Teardown: mock.restoreAll() in afterEach/after (same as before).
-// The tmp dir is removed automatically on process exit.
+// The tmp dir is removed automatically by a registered after() hook.
 
-import { mock } from 'node:test'
+import { mock, after } from 'node:test'
 import { createRequire } from 'node:module'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -28,7 +28,7 @@ export function installMemFs({ seed } = {}) {
   const mocks = {}
 
   const cleanup = () => { try { fs.rmSync(tmpRoot, { recursive: true, force: true }) } catch {} }
-  process.once('exit', cleanup)
+  after(cleanup)
 
   function remap(p) {
     const abs = path.resolve(String(p))
@@ -125,7 +125,6 @@ export function installMemFs({ seed } = {}) {
       }
     },
     remove() {
-      process.off('exit', cleanup)
       fs.rmSync(tmpRoot, { recursive: true, force: true })
     }
   }
