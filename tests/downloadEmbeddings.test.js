@@ -113,95 +113,90 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer, '304 returns the commit id stored alongside the etag')
     })
-  })
 
-  test('304 returns the stored commit id, not the newest local dir', async () => {
-    // Seed two local versioned dirs — a newer one and an older one.
-    const older = '__test_bundle_1.0.0__'
-    const newer = '__test_bundle_9.9.9__'
-    for (const v of [older, newer]) {
-      const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
-      mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
-      mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
-    }
-    // Etag file says: for THIS cds version, server would serve `older`.
-    mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: older }))
+    test('skips fetch when lastChecked is within 24h and local files exist', async () => {
+      const etagData = {
+        etag: 'W/"seed"',
+        runtime: 'node',
+        commitId: testVer,
+        model: getActiveModel(),
+        lastChecked: Date.now()
+      }
+      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
+      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-    mockFetch(bundle.notModified())
-    const r = await downloadEmbeddings()
-    assert.strictEqual(r.commitId, older, '304 must return stored version, not newest-local')
-    assert.strictEqual(r.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, older))
-  })
+      const r = await downloadEmbeddings()
+      assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
+      assert.strictEqual(r.updated, false)
+      assert.strictEqual(r.commitId, testVer)
+    })
 
-  test('skips fetch when lastChecked is within 24h and local files exist', async () => {
-    const etagData = {
-      etag: 'W/"seed"',
-      runtime: 'node',
-      commitId: testVer,
-      model: getActiveModel(),
-      lastChecked: Date.now()
-    }
-    mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
-    mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-    mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+    test('daily skip falls through to fetch when local files are missing', async () => {
+      const etagData = {
+        etag: 'W/"seed"',
+        commitId: testVer,
+        model: getActiveModel(),
+        lastChecked: Date.now()
+      }
+      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
+      // testDir intentionally absent
 
-    const requests = mockFetch(bundle.ok({ version: testVer }))
+      await downloadEmbeddings()
+      assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
+    })
 
-    const r = await downloadEmbeddings()
-    assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
-    assert.strictEqual(r.updated, false)
-    assert.strictEqual(r.commitId, testVer)
-  })
-
-  test('proceeds with fetch when lastChecked is stale (>24h)', async () => {
-    const etagData = {
-      etag: 'W/"seed"',
-      commitId: testVer,
-      model: getActiveModel(),
-      lastChecked: Date.now() - 86_400_001
-    }
-    mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
-    mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-    mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
-
-    const requests = mockFetch(bundle.notModified())
-    await downloadEmbeddings()
-    assert.ok(requests.length > 0, 'fetch must be called when lastChecked is stale')
-  })
-
-  test('daily skip falls through to fetch when local files are missing', async () => {
-    const etagData = {
-      etag: 'W/"seed"',
-      commitId: testVer,
-      model: getActiveModel(),
-      lastChecked: Date.now()
-    }
-    mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
-    // testDir intentionally absent
-
-    const requests = mockFetch(bundle.ok({ version: testVer }))
-    await downloadEmbeddings()
-    assert.strictEqual(requests.length, 1, 'must fall through to fetch when local files are missing')
-  })
-
-  test('304 response stamps lastChecked in etag file', async () => {
-    mockFetch(bundle.ok({ version: testVer }))
-    await downloadEmbeddings()
-    // Stale lastChecked so the daily skip does not swallow the 304 call.
-    const prev = mem.readJson(manifestEtagPath)
-    mem.seedFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
-    const before = Date.now()
-    mockFetch(bundle.notModified())
-    await downloadEmbeddings()
-    const saved = mem.readJson(manifestEtagPath)
-    assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
-    assert.ok(saved.lastChecked >= before)
-  })
-
-  // Group: 304 not modified with corrupt stored state — both share the same mock response.
-  describe('304 not modified, corrupt stored state', () => {
-    beforeEach(() => {
+    test('304 response stamps lastChecked in etag file', async () => {
+      await downloadEmbeddings()
+      // Stale lastChecked so the daily skip does not swallow the 304 call.
+      const prev = mem.readJson(manifestEtagPath)
+      mem.seedFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
+      const before = Date.now()
       mockFetch(bundle.notModified())
+      await downloadEmbeddings()
+      const saved = mem.readJson(manifestEtagPath)
+      assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
+      assert.ok(saved.lastChecked >= before)
+    })
+  })
+
+  // Group: 304 not modified — shares the same mock response.
+  describe('304 not modified', () => {
+    let requests
+    beforeEach(() => {
+      requests = mockFetch(bundle.notModified())
+    })
+
+    test('304 returns the stored commit id, not the newest local dir', async () => {
+      // Seed two local versioned dirs — a newer one and an older one.
+      const older = '__test_bundle_1.0.0__'
+      const newer = '__test_bundle_9.9.9__'
+      for (const v of [older, newer]) {
+        const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
+        mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
+        mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+      }
+      // Etag file says: for THIS cds version, server would serve `older`.
+      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: older }))
+
+      const r = await downloadEmbeddings()
+      assert.strictEqual(r.commitId, older, '304 must return stored version, not newest-local')
+      assert.strictEqual(r.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, older))
+    })
+
+    test('proceeds with fetch when lastChecked is stale (>24h)', async () => {
+      const etagData = {
+        etag: 'W/"seed"',
+        commitId: testVer,
+        model: getActiveModel(),
+        lastChecked: Date.now() - 86_400_001
+      }
+      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
+      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      await downloadEmbeddings()
+      assert.ok(requests.length > 0, 'fetch must be called when lastChecked is stale')
     })
 
     test('throws when bundle 304 but etag file has no commitId', async () => {
