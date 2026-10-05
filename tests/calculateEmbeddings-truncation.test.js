@@ -15,10 +15,8 @@ const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'calculateEmbeddings-tru
 setEmbeddingsDir(tmpDir)
 
 let testPassed = false
-after(() => {
-  if (testPassed) process.exit(0)
-})
 after(async () => {
+  if (testPassed) process.exit(0)
   setEmbeddingsDir()
   await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })

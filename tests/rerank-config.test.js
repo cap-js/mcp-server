@@ -1,4 +1,4 @@
-import { test, mock, after } from 'node:test'
+import { test, describe, mock, after } from 'node:test'
 import assert from 'node:assert'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
@@ -13,7 +13,6 @@ process.env.CDS_MCP_RERANK_DTYPE = 'fp32'
 process.env.CDS_MCP_RERANK_EXTERNAL_DATA = 'true'
 process.env.CDS_MCP_RERANK_BATCH_SIZE = '2'
 
-// Capture every from_pretrained call so tests can assert on model name and options.
 const pretrainedCalls = []
 let modelCallCount = 0
 
@@ -62,46 +61,50 @@ after(async () => {
     await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
-test('RERANK_ENABLED is true when env var is "true"', () => {
-    assert.strictEqual(RERANK_ENABLED, true)
+describe('env var → model options', () => {
+    test('RERANK_ENABLED is true when env var is "true"', () => {
+        assert.strictEqual(RERANK_ENABLED, true)
+    })
+
+    test('CDS_MCP_RERANK_MODEL is passed to AutoTokenizer.from_pretrained', async () => {
+        await getReranker()
+        assert.strictEqual(pretrainedCalls.find(c => c.kind === 'tokenizer')?.model, 'test-org/test-reranker')
+    })
+
+    test('CDS_MCP_RERANK_MODEL is passed to AutoModelForSequenceClassification.from_pretrained', async () => {
+        await getReranker()
+        assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.model, 'test-org/test-reranker')
+    })
+
+    test('CDS_MCP_RERANK_DTYPE is passed as dtype option to AutoModelForSequenceClassification.from_pretrained', async () => {
+        await getReranker()
+        assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.opts?.dtype, 'fp32')
+    })
+
+    test('CDS_MCP_RERANK_EXTERNAL_DATA is passed as use_external_data_format option', async () => {
+        await getReranker()
+        assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.opts?.use_external_data_format, true)
+    })
+
+    test('CDS_MCP_RERANK_BATCH_SIZE=2 processes 4 items in 2 model calls', async () => {
+        const prev = modelCallCount
+        await rerank('test query', [{ content: 'a' }, { content: 'b' }, { content: 'c' }, { content: 'd' }], 4)
+        assert.strictEqual(modelCallCount - prev, 2)
+    })
 })
 
-test('CDS_MCP_RERANK_MODEL is passed to AutoTokenizer.from_pretrained', async () => {
-    await getReranker()
-    assert.strictEqual(pretrainedCalls.find(c => c.kind === 'tokenizer')?.model, 'test-org/test-reranker')
-})
+describe('searchMarkdownDocs integration', () => {
+    test('RERANK_ENABLED=true causes searchMarkdownDocs to invoke the reranker', async () => {
+        const prev = modelCallCount
+        await searchMarkdownDocs('entity definition', 3)
+        assert.ok(modelCallCount > prev, `expected model calls during reranked search; got ${modelCallCount - prev}`)
+    })
 
-test('CDS_MCP_RERANK_MODEL is passed to AutoModelForSequenceClassification.from_pretrained', async () => {
-    await getReranker()
-    assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.model, 'test-org/test-reranker')
-})
-
-test('CDS_MCP_RERANK_DTYPE is passed as dtype option to AutoModelForSequenceClassification.from_pretrained', async () => {
-    await getReranker()
-    assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.opts?.dtype, 'fp32')
-})
-
-test('CDS_MCP_RERANK_EXTERNAL_DATA is passed as use_external_data_format option', async () => {
-    await getReranker()
-    assert.strictEqual(pretrainedCalls.find(c => c.kind === 'model')?.opts?.use_external_data_format, true)
-})
-
-test('CDS_MCP_RERANK_BATCH_SIZE=2 processes 4 items in 2 model calls', async () => {
-    const prev = modelCallCount
-    await rerank('test query', [{ content: 'a' }, { content: 'b' }, { content: 'c' }, { content: 'd' }], 4)
-    assert.strictEqual(modelCallCount - prev, 2)
-})
-
-test('RERANK_ENABLED=true causes searchMarkdownDocs to invoke the reranker', async () => {
-    const prev = modelCallCount
-    await searchMarkdownDocs('entity definition', 3)
-    assert.ok(modelCallCount > prev, `expected model calls during reranked search; got ${modelCallCount - prev}`)
-})
-
-test('RERANK_ENABLED=true over-retrieves candidates (maxResults * 5) before reranking', async () => {
-    // maxResults=1, RERANK_OVER_RETRIEVE=5 → rerank() receives up to 5 candidates.
-    // batch_size=2 → ceil(5/2) = 3 model calls. Without over-retrieve: 1 call.
-    const prev = modelCallCount
-    await searchMarkdownDocs('entity definition', 1)
-    assert.ok(modelCallCount - prev > 1, `expected >1 model call from over-retrieve; got ${modelCallCount - prev}`)
+    test('RERANK_ENABLED=true over-retrieves candidates (maxResults * 5) before reranking', async () => {
+        // maxResults=1, RERANK_OVER_RETRIEVE=5 → rerank() receives up to 5 candidates.
+        // batch_size=2 → ceil(5/2) = 3 model calls. Without over-retrieve: 1 call.
+        const prev = modelCallCount
+        await searchMarkdownDocs('entity definition', 1)
+        assert.ok(modelCallCount - prev > 1, `expected >1 model call from over-retrieve; got ${modelCallCount - prev}`)
+    })
 })

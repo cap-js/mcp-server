@@ -40,15 +40,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   const testVer = '__test_bundle__'
   const testDir = path.join(DEFAULT_EMBEDDINGS_DIR, testVer)
 
-  // Fresh real dir per test → clean slate under the embeddings dir.
   beforeEach(async () => {
     mock.restoreAll()
     await fsp.rm(DEFAULT_EMBEDDINGS_DIR, { recursive: true, force: true }).catch(() => {})
     await fsp.mkdir(DEFAULT_EMBEDDINGS_DIR, { recursive: true })
   })
-  after(() => mock.restoreAll())
 
-  // Group: 200 bundle, no prior FS state — all three share the same mock response.
   describe('200 bundle, no prior state', () => {
     let fetchMock
     beforeEach(() => {
@@ -181,7 +178,6 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
   })
 
-  // Group: 304 not modified — shares the same mock response.
   describe('304 not modified', () => {
     let fetchMock
     beforeEach(() => {
@@ -191,7 +187,6 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('304 returns the stored commit id, not the newest local dir', async () => {
-      // Seed two local versioned dirs — a newer one and an older one.
       const older = '__test_bundle_1.0.0__'
       const newer = '__test_bundle_9.9.9__'
       for (const v of [older, newer]) {
@@ -222,152 +217,213 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.ok(fetchMock.mock.calls.length > 0, 'fetch must be called when lastChecked is stale')
     })
 
-    test('throws when bundle 304 but etag file has no commitId', async () => {
+    test('throws when etag file has no commitId', async () => {
       await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
       await assert.rejects(downloadEmbeddings(), /no commitId/)
     })
 
-    test('throws when bundle 304 but the stored commit id dir is missing on disk', async () => {
+    test('throws when the stored commit id dir is missing on disk', async () => {
       await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', commitId: '__gone__' }))
       await assert.rejects(downloadEmbeddings(), /missing files/)
     })
   })
 
-  test('throws when bundle response is non-OK', async () => {
-    mock.method(globalThis, 'fetch', async () => new Response(null, { status: 500, statusText: 'Server Err' }))
-    await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
-  })
+  describe('non-OK responses', () => {
+    test('throws on non-OK status', async () => {
+      mock.method(globalThis, 'fetch', async () => new Response(null, { status: 500, statusText: 'Server Err' }))
+      await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
+    })
 
-  test('non-OK error includes available models when manifest is reachable', async () => {
-    mock.method(globalThis, 'fetch', async (url) => {
-      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+    test('includes available models when manifest is reachable', async () => {
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(
+            JSON.stringify({ 'model-a': [{ model: 'model-a' }], 'model-b': [{ model: 'model-b' }] }),
+            { status: 200 }
+          )
+        }
+        return new Response(null, { status: 404, statusText: 'Not Found' })
+      })
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /Failed to fetch bundle: 404/)
+        assert.match(err.message, /Available models/)
+        assert.match(err.message, /model-a/)
+        return true
+      })
+    })
+
+    test('problem+json 404 includes available models from manifest', async () => {
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(JSON.stringify({ 'model-a': [{ model: 'model-a' }] }), { status: 200 })
+        }
+        const activeModel = getActiveModel()
         return new Response(
-          JSON.stringify({ 'model-a': [{ model: 'model-a' }], 'model-b': [{ model: 'model-b' }] }),
-          { status: 200 }
+          JSON.stringify({ title: 'Model Not Found', status: 404, detail: `Model not found: ${activeModel}`, model: activeModel }),
+          { status: 404, statusText: 'Not Found', headers: { 'content-type': 'application/problem+json' } }
         )
-      }
-      return new Response(null, { status: 404, statusText: 'Not Found' })
+      })
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /Failed to fetch bundle: 404/)
+        assert.match(err.message, /Available models/)
+        assert.match(err.message, /model-a/)
+        return true
+      })
     })
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /Failed to fetch bundle: 404/)
-      assert.match(err.message, /Available models/)
-      assert.match(err.message, /model-a/)
-      return true
+
+    test('has no available-models suffix when manifest is unreachable', async () => {
+      mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503, statusText: 'Unavailable' }))
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /Failed to fetch bundle: 503/)
+        assert.doesNotMatch(err.message, /Available models/)
+        return true
+      })
+    })
+
+    test('x-embeddings-model header does not trigger model-mismatch error', async () => {
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(JSON.stringify({}), { status: 200 })
+        }
+        return new Response(null, {
+          status: 400,
+          statusText: 'Bad Request',
+          headers: { 'x-embeddings-model': 'some--other-model' }
+        })
+      })
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /Failed to fetch bundle: 400/)
+        assert.doesNotMatch(err.message, /not found/)
+        return true
+      })
     })
   })
 
-  test('server 404 problem+json (model not found) includes available models from manifest', async () => {
-    mock.method(globalThis, 'fetch', async (url) => {
-      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-        return new Response(JSON.stringify({ 'model-a': [{ model: 'model-a' }] }), { status: 200 })
-      }
-      const activeModel = getActiveModel()
-      return new Response(
-        JSON.stringify({ title: 'Model Not Found', status: 404, detail: `Model not found: ${activeModel}`, model: activeModel }),
-        { status: 404, statusText: 'Not Found', headers: { 'content-type': 'application/problem+json' } }
+  describe('model mismatch', () => {
+    test('throws "not found" with available models list', async () => {
+      const wrongModel = 'sentence-transformers--different-model'
+      const correctModelName = 'sentence-transformers/different-model'
+      const correctModelFolderName = toDirName(correctModelName)
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(
+            JSON.stringify({ [correctModelFolderName]: [{ model: correctModelName }] }),
+            { status: 200 }
+          )
+        }
+        return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+        })
+      })
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /not found/)
+        assert.match(err.message, /Available models/)
+        // Real model name (what --model accepts), not the on-disk folder key.
+        assert.match(err.message, /sentence-transformers\/different-model/)
+        return true
+      })
+    })
+
+    test('omits available-models suffix when manifest is unreachable', async () => {
+      const wrongModel = 'sentence-transformers--different-model'
+      mock.method(globalThis, 'fetch', async (url) => {
+        if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
+          return new Response(null, { status: 503 })
+        }
+        return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
+          status: 200,
+          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+        })
+      })
+      await assert.rejects(downloadEmbeddings(), err => {
+        assert.match(err.message, /not found/)
+        assert.doesNotMatch(err.message, /Available models/)
+        return true
+      })
+    })
+  })
+
+  describe('framing', () => {
+    test('throws on missing X-Embeddings-Version header', async () => {
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(
+          JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
+          { status: 200, headers: { etag: 'W/"x"' } }
+        )
+      )
+      await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
+    })
+
+    test('throws when body is shorter than 4 bytes', async () => {
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(Buffer.from([0x00, 0x01, 0x02]), {
+          status: 200,
+          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
+      )
+      await assert.rejects(downloadEmbeddings(), /too short/)
+    })
+
+    test('throws when metaLen exceeds body length (truncated frame)', async () => {
+      const hdr = Buffer.alloc(4)
+      hdr.writeUInt32BE(9999, 0)
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(Buffer.concat([hdr, Buffer.from('short')]), {
+          status: 200,
+          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
+      )
+      await assert.rejects(downloadEmbeddings(), /framing/)
+    })
+
+    test('throws when metaLen=0 leaves no bin bytes (exactly-4-byte body)', async () => {
+      const hdr = Buffer.alloc(4)
+      hdr.writeUInt32BE(0, 0)
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(hdr, {
+          status: 200,
+          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
+      )
+      await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
+    })
+
+    test('throws when metaLen consumes all bytes (no bin data)', async () => {
+      const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
+      const hdr = Buffer.alloc(4)
+      hdr.writeUInt32BE(meta.length, 0)
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(Buffer.concat([hdr, meta]), {
+          status: 200,
+          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
+      )
+      await assert.rejects(
+        downloadEmbeddings(),
+        /empty bin|framing|bin bytes/i,
+        'must reject empty-bin frame with a framing error, not silently write it'
       )
     })
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /Failed to fetch bundle: 404/)
-      assert.match(err.message, /Available models/)
-      assert.match(err.message, /model-a/)
-      return true
-    })
-  })
 
-  test('non-OK error has no suffix when manifest is unreachable', async () => {
-    mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503, statusText: 'Unavailable' }))
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /Failed to fetch bundle: 503/)
-      assert.doesNotMatch(err.message, /Available models/)
-      return true
-    })
-  })
-
-  test('non-OK with x-embeddings-model header throws non-OK error, not model-mismatch', async () => {
-    mock.method(globalThis, 'fetch', async (url) => {
-      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-        return new Response(JSON.stringify({}), { status: 200 })
-      }
-      return new Response(null, {
-        status: 400,
-        statusText: 'Bad Request',
-        headers: { 'x-embeddings-model': 'some--other-model' }
-      })
-    })
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /Failed to fetch bundle: 400/)
-      assert.doesNotMatch(err.message, /not found/)
-      return true
-    })
-  })
-
-  test('model mismatch throws "not found" with available models list', async () => {
-    const wrongModel = 'sentence-transformers--different-model'
-    const correctModelName = 'sentence-transformers/different-model'
-    const correctModelFolderName = toDirName(correctModelName)
-    mock.method(globalThis, 'fetch', async (url) => {
-      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-        return new Response(
-          JSON.stringify({ [correctModelFolderName]: [{ model: correctModelName }] }),
-          { status: 200 }
-        )
-      }
-      return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
-        status: 200,
-        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
-      })
-    })
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /not found/)
-      assert.match(err.message, /Available models/)
-      // Real model name (what --model accepts), not the on-disk folder key.
-      assert.match(err.message, /sentence-transformers\/different-model/)
-      return true
-    })
-  })
-
-  test('model mismatch without available models omits suffix', async () => {
-    const wrongModel = 'sentence-transformers--different-model'
-    mock.method(globalThis, 'fetch', async (url) => {
-      if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-        return new Response(null, { status: 503 })
-      }
-      return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
-        status: 200,
-        headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
-      })
-    })
-    await assert.rejects(downloadEmbeddings(), err => {
-      assert.match(err.message, /not found/)
-      assert.doesNotMatch(err.message, /Available models/)
-      return true
-    })
-  })
-
-  test('throws when bundle response lacks X-Embeddings-Version header', async () => {
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(
-        JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
-        { status: 200, headers: { etag: 'W/"x"' } }
+    test('accepts frame with exactly 1 bin byte and returns updated=true', async () => {
+      const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
+      const hdr = Buffer.alloc(4)
+      hdr.writeUInt32BE(meta.length, 0)
+      mock.method(globalThis, 'fetch', async () =>
+        new Response(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
+          status: 200,
+          headers: { etag: 'W/"ok"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        })
       )
-    )
-    await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
+      const r = await downloadEmbeddings()
+      assert.strictEqual(r.updated, true)
+      const written = await fsp.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
+      assert.strictEqual(written.length, 1)
+      assert.strictEqual(written[0], 0x01)
+    })
   })
 
-  test('throws when bundle frame is truncated (metaLen exceeds body)', async () => {
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(9999, 0)
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(Buffer.concat([hdr, Buffer.from('short')]), {
-        status: 200,
-        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-      })
-    )
-    await assert.rejects(downloadEmbeddings(), /framing/)
-  })
-
-  // Group: network error — shares the same mock response.
   describe('network error', () => {
     beforeEach(() => {
       mock.method(globalThis, 'fetch', async () => { throw new TypeError('network down') })
@@ -421,62 +477,6 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       `downloadEmbeddings must serialize concurrent callers. maxConcurrent=${tracking.maxConcurrent}, rejected=${anyRejected}`
     )
   })
-
-  test('frame with metaLen consuming all bytes and no bin bytes rejects as framing error', async () => {
-    const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(meta.length, 0)
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(Buffer.concat([hdr, meta]), {
-        status: 200,
-        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-      })
-    )
-    await assert.rejects(
-      downloadEmbeddings(),
-      /empty bin|framing|bin bytes/i,
-      'must reject empty-bin frame with a framing error, not silently write it'
-    )
-  })
-
-  test('body shorter than 4 bytes rejects with "too short" error', async () => {
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(Buffer.from([0x00, 0x01, 0x02]), {
-        status: 200,
-        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-      })
-    )
-    await assert.rejects(downloadEmbeddings(), /too short/)
-  })
-
-  test('exactly-4-byte body with metaLen=0 rejects as empty bin', async () => {
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(0, 0)
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(hdr, {
-        status: 200,
-        headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-      })
-    )
-    await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
-  })
-
-  test('frame with 1 bin byte writes the byte and returns updated=true', async () => {
-    const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
-    const hdr = Buffer.alloc(4)
-    hdr.writeUInt32BE(meta.length, 0)
-    mock.method(globalThis, 'fetch', async () =>
-      new Response(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
-        status: 200,
-        headers: { etag: 'W/"ok"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-      })
-    )
-    const r = await downloadEmbeddings()
-    assert.strictEqual(r.updated, true)
-    const written = await fsp.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
-    assert.strictEqual(written.length, 1)
-    assert.strictEqual(written[0], 0x01)
-  })
 })
 
 describe('resolveLocalVersion', () => {
@@ -487,7 +487,6 @@ describe('resolveLocalVersion', () => {
     await fsp.rm(DEFAULT_EMBEDDINGS_DIR, { recursive: true, force: true }).catch(() => {})
     await fsp.mkdir(DEFAULT_EMBEDDINGS_DIR, { recursive: true })
   })
-  after(() => mock.restoreAll())
 
   async function seedEtag(cdsVer, commitId) {
     const ep = path.join(modelEtagsRoot, cdsVer, 'manifest.etag')
@@ -504,7 +503,6 @@ describe('resolveLocalVersion', () => {
   }
 
   test('returns commitId from etag and skips incomplete embed dirs', async () => {
-    // complete dir for commit_a, incomplete for commit_b
     await seedEmbedDir(testCommits[0])
     await seedEmbedDir(testCommits[1], false) // missing .bin
     await seedEtag('1.0.0', testCommits[0])
@@ -512,7 +510,6 @@ describe('resolveLocalVersion', () => {
 
     const local = await resolveLocalVersion()
     assert.ok(local)
-    // commit_b's dir is incomplete → must resolve to commit_a (only complete one)
     assert.strictEqual(local.commitId, testCommits[0])
     assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]))
     assert.ok(await fsp.access(path.join(local.localDir, 'code-chunks.json')).then(() => true, () => false))
@@ -533,7 +530,6 @@ describe('resolveLocalVersion', () => {
     const dirs = ['bundle_alpha', 'bundle_beta']
     await seedEmbedDir(testCommits[0])
     await seedEmbedDir(testCommits[1])
-    // seed etag files under non-semver dir names
     for (let i = 0; i < dirs.length; i++) {
       await fsp.mkdir(path.join(modelEtagsRoot, dirs[i]), { recursive: true })
       await fsp.writeFile(
@@ -555,7 +551,6 @@ describe('resolveLocalVersion', () => {
 
   test('picks etag under "latest" pseudo dir when no semver dirs match', async () => {
     await seedEmbedDir(testCommits[0])
-    // Seed etag under UNKNOWN_CDS_VERSION pseudo dir only.
     await fsp.mkdir(path.join(modelEtagsRoot, 'latest'), { recursive: true })
     await fsp.writeFile(
       path.join(modelEtagsRoot, 'latest', 'manifest.etag'),
@@ -583,14 +578,12 @@ describe('resolveLocalVersion', () => {
   })
 
   test('last-resort scan skips the etags subdir inside a model folder', async () => {
-    // Seed only the etags dir (no commit dirs), plus one real commit dir.
     await seedEmbedDir(testCommits[0])
     // Etag file has NO commitId — pseudo route can't return anything.
     await fsp.mkdir(path.join(modelEtagsRoot, 'latest'), { recursive: true })
     await fsp.writeFile(path.join(modelEtagsRoot, 'latest', 'manifest.etag'), JSON.stringify({ etag: 'W/"x"' }))
 
     const local = await resolveLocalVersion()
-    // Must find real commit dir via last-resort; must NOT return 'etags' as commitId.
     assert.ok(local)
     assert.strictEqual(local.commitId, testCommits[0], 'last-resort must skip inner etags/ dir')
     assert.notStrictEqual(local.commitId, 'etags')
