@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { resolveIds } from './ids.js'
-import tools from '../../lib/tools.js'
+import searchMarkdownDocs from '../../lib/searchMarkdownDocs.js'
 
 export async function readJsonOrNull(p) {
   try {
@@ -12,9 +12,9 @@ export async function readJsonOrNull(p) {
   }
 }
 
-export async function makeSearchDocsRunner(k, sourceDb) {
+export async function makeSearchDocsRunner(k, sourceDb, versionDir, search = searchMarkdownDocs) {
   return async function (q) {
-    const out = await tools.search_docs.handler({ query: q.question, maxResults: k })
+    const out = await search(q.question, k, { versionDir })
     return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
   }
 }

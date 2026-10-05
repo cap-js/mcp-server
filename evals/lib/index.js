@@ -9,7 +9,7 @@ import { readJsonOrNull, makeSearchDocsRunner, retrieveAll, readCapireVersion, f
 
 // `deps` is a test seam: pass { makeRetriever } to score against a
 // fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
+export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', versionDir, deps = {} } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
@@ -18,7 +18,7 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, label 
     console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
-  const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
+  const retrieve = await makeRetrieverFn(cfg.k, sourceDb, versionDir)
   const perQuestionRaw = await retrieveAll(golden, retrieve)
 
   const config = { capire_version, golden_set: golden.golden_set, golden_set_size: golden.questions.length, k: cfg.k, label }
@@ -64,11 +64,10 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
     console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsDir}`)
     let worstCode = 0
     for (const dir of dirs) {
-      process.env.LOCAL_EMBEDDINGS_DIR = dir
       const label = [cfg.label, ...path.relative(cfg.embeddingsDir, dir).split(path.sep)].filter(Boolean).join('/')
       console.error(`\n→ ${label}`)
       const capire_version = await readCapireVersion(dir)
-      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
+      const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, versionDir: dir, deps })
       if (c > worstCode) worstCode = c
     }
     code = worstCode
