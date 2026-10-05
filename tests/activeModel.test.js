@@ -1,7 +1,8 @@
 import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
-import { installMemFs } from './helpers/mem-fs-mock.js'
+import fsp from 'node:fs/promises'
+import { installMemFs } from './helpers/remap-fs.js'
 import { getManifestEtagPath } from './helpers/paths.js'
 import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
 
@@ -22,13 +23,12 @@ after(() => {
 
 describe('active model wiring into download', () => {
   const testVer = '__test_model_bundle__'
-  let mem
 
   // Fresh in-memory fs per test → clean slate, no real etag/bundle in play.
   beforeEach(() => {
     mock.restoreAll()
     setActiveModel('foo/bar')
-    mem = installMemFs()
+    installMemFs()
   })
 
   // Mock: 200 framed bundle whose model matches the active model.
@@ -51,7 +51,7 @@ describe('active model wiring into download', () => {
     test('switching active model reads different etag path → no If-None-Match sent', async () => {
       // Seed etag under DEFAULT model's dir; active model is foo/bar → different etag
       // scope, so the download must not carry the default's If-None-Match.
-      mem.seedFile(
+      await fsp.writeFile(
         defaultEtagPath,
         JSON.stringify({
           etag: 'W/"seed"',
@@ -66,7 +66,7 @@ describe('active model wiring into download', () => {
 
     test('written etag records active model when server omits x-embeddings-model header', async () => {
       await downloadEmbeddings()
-      const saved = mem.readJson(getManifestEtagPath())
+      const saved = JSON.parse(await fsp.readFile(getManifestEtagPath(), 'utf-8'))
       assert.strictEqual(saved.model, 'foo/bar', 'must persist active model as fallback')
     })
   })
@@ -117,7 +117,7 @@ describe('active model wiring into download', () => {
   describe('bundle 304 not modified', () => {
     test('etag under active model dir → 304 path returns cached dir', async () => {
       const activeEtagPath = getManifestEtagPath() // points at foo--bar/<cds>/manifest.etag
-      mem.seedFile(
+      await fsp.writeFile(
         activeEtagPath,
         JSON.stringify({
           etag: 'W/"seed"',
@@ -127,8 +127,8 @@ describe('active model wiring into download', () => {
       )
 
       const dir = path.join(DEFAULT_DIR, 'foo--bar', testVer)
-      mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
-      mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+      await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+      await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
       const requests = mockFetch(bundle.notModified())
 

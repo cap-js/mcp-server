@@ -4,7 +4,7 @@ import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { installMemFs } from './helpers/mem-fs-mock.js'
+import { installMemFs } from './helpers/remap-fs.js'
 import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
 import { TEST_COMMIT_ID } from './helpers/paths.js'
 

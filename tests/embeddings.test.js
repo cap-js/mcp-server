@@ -1,11 +1,12 @@
 import { test, describe, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs'
+import fsp from 'node:fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
 import calculateEmbeddings, { getQueryDb } from '../lib/calculateEmbeddings.js'
-import { installMemFs } from './helpers/mem-fs-mock.js'
+import { installMemFs } from './helpers/remap-fs.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -135,9 +136,8 @@ describe('embeddings', () => {
   // Scoped to its own describe so the real-model calculateEmbeddings tests below
   // keep the real fs (they may install a model on demand, which needs real mkdir).
   describe('createEmbeddings', () => {
-    let mem
     beforeEach(() => {
-      mem = installMemFs()
+      installMemFs()
     })
 
     test('createEmbeddings preserves chunk order in output', async () => {
@@ -148,8 +148,8 @@ describe('embeddings', () => {
         'fourth chunk about service definitions',
         'fifth chunk about entity projections'
       ]
-      await createEmbeddings('test', chunks, '/mock-dir')
-      const meta = mem.writtenJson()
+      const { outDir } = await createEmbeddings('test', chunks)
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
     })
 
@@ -160,16 +160,16 @@ describe('embeddings', () => {
         { source: 'getting-started', label: 'java' },
         { source: 'deploy', label: 'node' }
       ]
-      await createEmbeddings('test', chunks, '/mock-dir', { metadata })
-      const meta = mem.writtenJson()
+      const { outDir } = await createEmbeddings('test', chunks, undefined, { metadata })
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
       assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
     })
 
     test('createEmbeddings without metadata produces no metadata key', async () => {
       const chunks = ['chunk about cds init']
-      await createEmbeddings('test', chunks, '/mock-dir')
-      const meta = mem.writtenJson()
+      const { outDir } = await createEmbeddings('test', chunks)
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
     })
 
@@ -179,18 +179,18 @@ describe('embeddings', () => {
         commitId: '__commit_id_1234__',
         cdsDependency: { node: '>=10.0', java: '>=5.0' }
       }
-      const { outDir } = await createEmbeddings('test', chunks, '/mock-dir', {
+      const { outDir } = await createEmbeddings('test', chunks, undefined, {
         capire
       })
       assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
-      const meta = mem.writtenJson()
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.capire, capire)
     })
 
     test('createEmbeddings without capire uses model folder only', async () => {
       const chunks = ['chunk about cds init']
-      const { outDir, modelFolderName } = await createEmbeddings('test', chunks, '/mock-dir')
-      const meta = mem.writtenJson()
+      const { outDir, modelFolderName } = await createEmbeddings('test', chunks)
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.capire, undefined)
       assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
     })
@@ -198,7 +198,7 @@ describe('embeddings', () => {
     test('createEmbeddings throws when metadata length mismatches chunks', async () => {
       await assert.rejects(
         () =>
-          createEmbeddings('test', ['a', 'b', 'c'], '/mock-dir', {
+          createEmbeddings('test', ['a', 'b', 'c'], undefined, {
             metadata: [{ x: 1 }, { x: 2 }]
           }),
         /metadata length must match chunks length/

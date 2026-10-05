@@ -1,7 +1,8 @@
 import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
-import { installMemFs } from './helpers/mem-fs-mock.js'
+import fsp from 'node:fs/promises'
+import { installMemFs } from './helpers/remap-fs.js'
 import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
 import { getManifestEtagPath, modelEtagsRoot as computeModelEtagsRoot } from './helpers/paths.js'
 
@@ -20,12 +21,11 @@ const manifestEtagPath = getManifestEtagPath()
 describe('downloadEmbeddings (bundle endpoint)', () => {
   const testVer = '__test_bundle__'
   const testDir = path.join(DEFAULT_EMBEDDINGS_DIR, testVer)
-  let mem
 
   // Fresh in-memory fs per test → clean slate under the embeddings dir.
   beforeEach(() => {
     mock.restoreAll()
-    mem = installMemFs()
+    installMemFs()
   })
   after(() => mock.restoreAll())
 
@@ -53,7 +53,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     test('200 response stamps lastChecked in etag file', async () => {
       const before = Date.now()
       await downloadEmbeddings()
-      const saved = mem.readJson(manifestEtagPath)
+      const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
       assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
       assert.ok(saved.lastChecked >= before)
     })
@@ -69,13 +69,13 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         await downloadEmbeddings()
 
         assert.strictEqual(
-          mem.exists(unknownEtag),
+          await fsp.access(unknownEtag).then(() => true, () => false),
           false,
           'no etag file may be created under <DEFAULT_DIR>/etags/unknown/'
         )
-        assert.ok(mem.exists(newestEtag), `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
+        assert.ok(await fsp.access(newestEtag).then(() => true, () => false), `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
 
-        const saved = mem.readJson(newestEtag)
+        const saved = JSON.parse(await fsp.readFile(newestEtag, 'utf-8'))
         assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
         assert.strictEqual(
           saved.commitId,
@@ -92,22 +92,22 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       assert.strictEqual(r.updated, true)
       assert.strictEqual(r.commitId, testVer)
 
-      const meta = mem.readJson(path.join(testDir, 'code-chunks.json'))
+      const meta = JSON.parse(await fsp.readFile(path.join(testDir, 'code-chunks.json'), 'utf-8'))
       assert.deepStrictEqual(meta.chunks, ['hi'])
       assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
 
-      const bin = mem.readFile(path.join(testDir, 'code-chunks.bin'))
+      const bin = await fsp.readFile(path.join(testDir, 'code-chunks.bin'))
       assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
     })
 
     test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
       await downloadEmbeddings()
-      const saved = mem.readJson(manifestEtagPath)
+      const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
       assert.strictEqual(saved.etag, 'W/"seed"')
       assert.strictEqual(saved.commitId, testVer)
 
       // Stale lastChecked so the daily skip does not swallow the next call.
-      mem.seedFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify({ ...saved, lastChecked: 0 }))
 
       requests = mockFetch(bundle.notModified())
       const r = await downloadEmbeddings()
@@ -124,9 +124,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         model: getActiveModel(),
         lastChecked: Date.now()
       }
-      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
-      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify(etagData))
+      await fsp.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await fsp.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
       const r = await downloadEmbeddings()
       assert.strictEqual(requests.length, 0, 'must not call fetch within daily window')
@@ -141,7 +141,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         model: getActiveModel(),
         lastChecked: Date.now()
       }
-      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify(etagData))
       // testDir intentionally absent
 
       await downloadEmbeddings()
@@ -151,12 +151,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     test('304 response stamps lastChecked in etag file', async () => {
       await downloadEmbeddings()
       // Stale lastChecked so the daily skip does not swallow the 304 call.
-      const prev = mem.readJson(manifestEtagPath)
-      mem.seedFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
+      const prev = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify({ ...prev, lastChecked: 0 }))
       const before = Date.now()
       mockFetch(bundle.notModified())
       await downloadEmbeddings()
-      const saved = mem.readJson(manifestEtagPath)
+      const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
       assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 304')
       assert.ok(saved.lastChecked >= before)
     })
@@ -175,11 +175,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const newer = '__test_bundle_9.9.9__'
       for (const v of [older, newer]) {
         const dir = path.join(DEFAULT_EMBEDDINGS_DIR, v)
-        mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
-        mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+        await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+        await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
       }
       // Etag file says: for THIS cds version, server would serve `older`.
-      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: older }))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: older }))
 
       const r = await downloadEmbeddings()
       assert.strictEqual(r.commitId, older, '304 must return stored version, not newest-local')
@@ -193,21 +193,21 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         model: getActiveModel(),
         lastChecked: Date.now() - 86_400_001
       }
-      mem.seedFile(manifestEtagPath, JSON.stringify(etagData))
-      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify(etagData))
+      await fsp.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await fsp.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
       await downloadEmbeddings()
       assert.ok(requests.length > 0, 'fetch must be called when lastChecked is stale')
     })
 
     test('throws when bundle 304 but etag file has no commitId', async () => {
-      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"' }))
       await assert.rejects(downloadEmbeddings(), /no commitId/)
     })
 
     test('throws when bundle 304 but the stored commit id dir is missing on disk', async () => {
-      mem.seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', commitId: '__gone__' }))
+      await fsp.writeFile(manifestEtagPath, JSON.stringify({ etag: 'W/"orphan"', commitId: '__gone__' }))
       await assert.rejects(downloadEmbeddings(), /missing files/)
     })
   })
@@ -317,7 +317,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('falls back to local version on network error', async () => {
-      mem.seedFile(
+      await fsp.writeFile(
         manifestEtagPath,
         JSON.stringify({
           etag: 'W/"seed"',
@@ -325,8 +325,8 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
           model: getActiveModel()
         })
       )
-      mem.seedFile(path.join(testDir, 'code-chunks.json'), '{}')
-      mem.seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+      await fsp.writeFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await fsp.writeFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
       const result = await downloadEmbeddings()
       assert.strictEqual(result.updated, false)
@@ -407,7 +407,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     )
     const r = await downloadEmbeddings()
     assert.strictEqual(r.updated, true)
-    const written = mem.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
+    const written = await fsp.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
     assert.strictEqual(written.length, 1)
     assert.strictEqual(written[0], 0x01)
   })
@@ -415,47 +415,47 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
 describe('resolveLocalVersion', () => {
   const testCommits = ['__local_commit_a__', '__local_commit_b__', '__local_commit_c__']
-  let mem
+  let tmpEmbeddingsDir
 
   beforeEach(() => {
     mock.restoreAll()
-    mem = installMemFs()
+    tmpEmbeddingsDir = installMemFs()
   })
   after(() => mock.restoreAll())
 
-  function seedEtag(cdsVer, commitId) {
+  async function seedEtag(cdsVer, commitId) {
     const ep = path.join(modelEtagsRoot, cdsVer, 'manifest.etag')
-    mem.seedFile(ep, JSON.stringify({ etag: 'W/"x"', commitId }))
+    await fsp.writeFile(ep, JSON.stringify({ etag: 'W/"x"', commitId }))
     return ep
   }
-  function seedEmbedDir(commitId, complete = true) {
+  async function seedEmbedDir(commitId, complete = true) {
     const dir = path.join(DEFAULT_EMBEDDINGS_DIR, commitId)
-    mem.seedFile(path.join(dir, 'code-chunks.json'), '{}')
-    if (complete) mem.seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+    await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
+    if (complete) await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
     return dir
   }
 
   test('returns commitId from etag and skips incomplete embed dirs', async () => {
     // complete dir for commit_a, incomplete for commit_b
-    seedEmbedDir(testCommits[0])
-    seedEmbedDir(testCommits[1], false) // missing .bin
-    seedEtag('1.0.0', testCommits[0])
-    seedEtag('2.5.0', testCommits[1])
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1], false) // missing .bin
+    await seedEtag('1.0.0', testCommits[0])
+    await seedEtag('2.5.0', testCommits[1])
 
     const local = await resolveLocalVersion()
     assert.ok(local)
     // commit_b's dir is incomplete → must resolve to commit_a (only complete one)
     assert.strictEqual(local.commitId, testCommits[0])
     assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]))
-    assert.ok(mem.exists(path.join(local.localDir, 'code-chunks.json')))
-    assert.ok(mem.exists(path.join(local.localDir, 'code-chunks.bin')))
+    assert.ok(await fsp.access(path.join(local.localDir, 'code-chunks.json')).then(() => true, () => false))
+    assert.ok(await fsp.access(path.join(local.localDir, 'code-chunks.bin')).then(() => true, () => false))
   })
 
   test('among two cds versions with complete dirs, returns commitId from highest cds version', async () => {
-    seedEmbedDir(testCommits[0])
-    seedEmbedDir(testCommits[1])
-    seedEtag('1.0.0', testCommits[0])
-    seedEtag('2.10.0', testCommits[1])
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1])
+    await seedEtag('1.0.0', testCommits[0])
+    await seedEtag('2.10.0', testCommits[1])
 
     const local = await resolveLocalVersion()
     assert.strictEqual(local.commitId, testCommits[1], 'must pick commitId from highest semver cds dir')
@@ -463,19 +463,21 @@ describe('resolveLocalVersion', () => {
 
   test('among non-semver cds dirs, tiebreaks by mtime not readdir order', async () => {
     const dirs = ['bundle_alpha', 'bundle_beta']
-    seedEmbedDir(testCommits[0])
-    seedEmbedDir(testCommits[1])
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1])
     // seed etag files under non-semver dir names
     for (let i = 0; i < dirs.length; i++) {
-      mem.seedFile(
+      await fsp.writeFile(
         path.join(modelEtagsRoot, dirs[i], 'manifest.etag'),
         JSON.stringify({ etag: 'W/"x"', commitId: testCommits[i] })
       )
     }
     const now = Date.now()
     // control mtime on the embed dirs themselves — last-resort uses those, not etag dirs
-    mem.setMtime(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]), now - 100000)
-    mem.setMtime(path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]), now)
+    const real0 = path.join(tmpEmbeddingsDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]).slice(1))
+    const real1 = path.join(tmpEmbeddingsDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[1]).slice(1))
+    await fsp.utimes(real0, new Date(now - 100000), new Date(now - 100000))
+    await fsp.utimes(real1, new Date(now), new Date(now))
     // both etag dirs have non-semver names → semver scan skips them → fall through to mtime last-resort
     const local = await resolveLocalVersion()
     assert.ok(local, 'last-resort must find a complete embed dir')
@@ -483,9 +485,9 @@ describe('resolveLocalVersion', () => {
   })
 
   test('picks etag under "latest" pseudo dir when no semver dirs match', async () => {
-    seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[0])
     // Seed etag under UNKNOWN_CDS_VERSION pseudo dir only.
-    mem.seedFile(
+    await fsp.writeFile(
       path.join(modelEtagsRoot, 'latest', 'manifest.etag'),
       JSON.stringify({ etag: 'W/"x"', commitId: testCommits[0] })
     )
@@ -496,14 +498,14 @@ describe('resolveLocalVersion', () => {
   })
 
   test('real semver dir beats "latest" pseudo dir', async () => {
-    seedEmbedDir(testCommits[0])
-    seedEmbedDir(testCommits[1])
+    await seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[1])
     // pseudo → commit_a; real semver → commit_b. Real wins.
-    mem.seedFile(
+    await fsp.writeFile(
       path.join(modelEtagsRoot, 'latest', 'manifest.etag'),
       JSON.stringify({ etag: 'W/"x"', commitId: testCommits[0] })
     )
-    seedEtag('1.0.0', testCommits[1])
+    await seedEtag('1.0.0', testCommits[1])
 
     const local = await resolveLocalVersion()
     assert.strictEqual(local.commitId, testCommits[1], 'real semver must beat pseudo dir')
@@ -511,9 +513,9 @@ describe('resolveLocalVersion', () => {
 
   test('last-resort scan skips the etags subdir inside a model folder', async () => {
     // Seed only the etags dir (no commit dirs), plus one real commit dir.
-    seedEmbedDir(testCommits[0])
+    await seedEmbedDir(testCommits[0])
     // Etag file has NO commitId — pseudo route can't return anything.
-    mem.seedFile(path.join(modelEtagsRoot, 'latest', 'manifest.etag'), JSON.stringify({ etag: 'W/"x"' }))
+    await fsp.writeFile(path.join(modelEtagsRoot, 'latest', 'manifest.etag'), JSON.stringify({ etag: 'W/"x"' }))
 
     const local = await resolveLocalVersion()
     // Must find real commit dir via last-resort; must NOT return 'etags' as commitId.

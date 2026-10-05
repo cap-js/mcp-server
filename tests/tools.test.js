@@ -3,7 +3,7 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { installMemFs } from './helpers/mem-fs-mock.js'
+import { installMemFs } from './helpers/remap-fs.js'
 import { mockFetch, bundle } from './helpers/mock-fetch.mjs'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
