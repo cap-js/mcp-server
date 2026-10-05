@@ -7,7 +7,8 @@ import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
 import { DEFAULT_DIR } from '../lib/calculateEmbeddings.js'
-import { seedCliTestBundle, TEST_COMMIT_ID } from './helpers/test-bundle.js'
+import { seedCliTestBundle } from './helpers/test-bundle.js'
+import { TEST_COMMIT_ID } from './helpers/paths.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')

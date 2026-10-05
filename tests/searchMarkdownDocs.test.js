@@ -4,7 +4,8 @@ import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { installTestBundle, TEST_COMMIT_ID } from './helpers/test-bundle.js'
+import { installTestBundle } from './helpers/test-bundle.js'
+import { TEST_COMMIT_ID } from './helpers/paths.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 

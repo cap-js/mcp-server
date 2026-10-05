@@ -3,17 +3,19 @@ import assert from 'node:assert'
 import path from 'path'
 import { installMemFs } from './helpers/mem-fs-mock.js'
 import { mockFetch, bundle, manifest } from './helpers/mock-fetch.mjs'
+import { getManifestEtagPath, modelEtagsRoot as computeModelEtagsRoot } from './helpers/paths.js'
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
-const { getActiveModel, getActiveModelFolder, DEFAULT_DIR, toDirName } = await import('../lib/calculateEmbeddings.js')
+const { getActiveModel, getActiveModelFolder, getActiveEmbeddingsDir, toDirName } =
+  await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 const MODEL_FOLDER = getActiveModelFolder()
-const DEFAULT_EMBEDDINGS_DIR = path.join(DEFAULT_DIR, MODEL_FOLDER)
-const modelEtagsRoot = path.join(DEFAULT_DIR, MODEL_FOLDER, 'etags')
-const manifestEtagPath = path.join(modelEtagsRoot, cds.version, 'manifest.etag')
+const DEFAULT_EMBEDDINGS_DIR = getActiveEmbeddingsDir()
+const modelEtagsRoot = computeModelEtagsRoot()
+const manifestEtagPath = getManifestEtagPath()
 
 describe('downloadEmbeddings (bundle endpoint)', () => {
   const testVer = '__test_bundle__'

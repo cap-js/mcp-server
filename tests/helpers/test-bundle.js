@@ -14,19 +14,10 @@
 import path from 'node:path'
 import os from 'node:os'
 import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
-import cds from '@sap/cds'
-import calculateEmbeddings, { DEFAULT_DIR, getActiveModelFolder } from '../../lib/calculateEmbeddings.js'
+import calculateEmbeddings from '../../lib/calculateEmbeddings.js'
 import { installMemFs } from './mem-fs-mock.js'
 import { mockFetch, bundle } from './mock-fetch.mjs'
-
-// Fixed commit id the mock server reports for the test bundle.
-export const TEST_COMMIT_ID = '__test_bundle__'
-
-// Etag path for the ACTIVE model and the installed cds version. Tracks
-// setActiveModel(); detectRuntime() resolves this project's cds version.
-export function getManifestEtagPath() {
-  return path.join(DEFAULT_DIR, getActiveModelFolder(), 'etags', cds.version, 'manifest.etag')
-}
+import { TEST_COMMIT_ID, getManifestEtagPath, versionDir } from './paths.js'
 
 // Small CAP-relevant chunks covering the search assertions:
 //   - 'cds init' for query 'how to create a new cap project'
@@ -94,17 +85,17 @@ export async function seedCliTestBundle() {
   const { meta, bin } = unframeBundle(frame)
 
   const bundlePath = path.join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
-  const versionDir = path.join(DEFAULT_DIR, getActiveModelFolder(), TEST_COMMIT_ID)
+  const dir = versionDir(TEST_COMMIT_ID)
   const etagPath = getManifestEtagPath()
   const savedEtag = await readFile(etagPath, 'utf-8').catch(() => null)
 
   await writeFile(bundlePath, frame)
-  await mkdir(versionDir, { recursive: true })
-  await writeFile(path.join(versionDir, 'code-chunks.json'), meta)
-  await writeFile(path.join(versionDir, 'code-chunks.bin'), bin)
+  await mkdir(dir, { recursive: true })
+  await writeFile(path.join(dir, 'code-chunks.json'), meta)
+  await writeFile(path.join(dir, 'code-chunks.bin'), bin)
 
   async function cleanup() {
-    await rm(versionDir, { recursive: true, force: true }).catch(() => {})
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
     await unlink(bundlePath).catch(() => {})
     if (savedEtag !== null) {
       await mkdir(path.dirname(etagPath), { recursive: true })
@@ -114,5 +105,5 @@ export async function seedCliTestBundle() {
     }
   }
 
-  return { bundlePath, commitId: TEST_COMMIT_ID, versionDir, cleanup }
+  return { bundlePath, commitId: TEST_COMMIT_ID, versionDir: dir, cleanup }
 }
