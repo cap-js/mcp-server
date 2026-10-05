@@ -2,8 +2,6 @@
 //
 // A "bundle" is the server's binary frame: [4-byte BE meta length][meta JSON][bin].
 // `buildTestBundle` builds a real embeddings frame from TEST_CHUNKS.
-//
-// For in-process tests, call remapFs() + mockFetch(bundle.okReal()) directly.
 
 const TEST_CHUNKS = [
   'To create a new CAP project, run: cds init my-project. The cds init command scaffolds a minimal project.',

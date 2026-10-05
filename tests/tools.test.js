@@ -2,12 +2,15 @@ import assert from 'node:assert'
 import { describe, test, after, mock } from 'node:test'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { remapFs } from './helpers/remap-fs.js'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import { setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle } from './helpers/test-bundle.js'
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 
-remapFs()
+const tmpDir = await fsp.mkdtemp(join(os.tmpdir(), 'cds-mcp-test-tools-'))
+setEmbeddingsDir(tmpDir)
 
 // Serve the real embeddings bundle for this file's in-process fetch calls.
 let _frame = null
@@ -23,7 +26,11 @@ mock.method(globalThis, 'fetch', async () => {
 
 const tools = (await import('../lib/tools.js')).default
 
-after(() => mock.restoreAll())
+after(async () => {
+  mock.restoreAll()
+  setEmbeddingsDir()
+  await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+})
 
 describe('tools', () => {
   test('search_model: returns AdminService with exposedEntities when querying by kind=service', async () => {

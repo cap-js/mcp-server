@@ -1,12 +1,12 @@
-import { test, describe, beforeEach, afterEach, mock } from 'node:test'
+import { test, describe, before, beforeEach, after, afterEach, mock } from 'node:test'
 import assert from 'node:assert'
 import fs from 'fs'
 import fsp from 'node:fs/promises'
 import path from 'path'
+import os from 'node:os'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings, { getQueryDb } from '../lib/calculateEmbeddings.js'
-import { remapFs } from './helpers/remap-fs.js'
+import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -132,12 +132,26 @@ describe('embeddings', () => {
     assert(Math.abs(norm - 1.0) < 0.001, `Long string embedding should be normalized: ${norm}`)
   })
 
-  // createEmbeddings tests — fs writes go to the in-memory store; no tmp dirs.
+  // createEmbeddings tests — fs writes go to a dedicated tmp dir; no real embeddings dir touched.
   // Scoped to its own describe so the real-model calculateEmbeddings tests below
   // keep the real fs (they may install a model on demand, which needs real mkdir).
   describe('createEmbeddings', () => {
-    beforeEach(() => {
-      remapFs()
+    let tmpDir
+
+    before(async () => {
+      tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-embeddings-'))
+      setEmbeddingsDir(tmpDir)
+    })
+
+    beforeEach(async () => {
+      const dir = getActiveEmbeddingsDir()
+      await fsp.rm(dir, { recursive: true, force: true }).catch(() => {})
+      await fsp.mkdir(dir, { recursive: true })
+    })
+
+    after(async () => {
+      setEmbeddingsDir()
+      await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
     })
 
     test('createEmbeddings preserves chunk order in output', async () => {

@@ -1,21 +1,22 @@
 import { fileURLToPath } from 'url'
-import { getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
+import { getActiveEmbeddingsDir, getActiveModel, toDirName, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
 import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { remapFs } from './helpers/remap-fs.js'
+import os from 'node:os'
 import { buildTestBundle } from './helpers/test-bundle.js'
 const TEST_COMMIT_ID = '__test_bundle__'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-const embeddingsDir = path.join(__dirname, '..', 'embeddings', toDirName(getActiveModel()))
+const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-searchmd-'))
+setEmbeddingsDir(tmpDir)
+
+const embeddingsDir = getActiveEmbeddingsDir()
 const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
 
 // Install the test bundle in-process BEFORE importing searchMarkdownDocs.js.
-remapFs()
-
 let _frame = null
 mock.method(globalThis, 'fetch', async () => {
   if (!_frame) _frame = buildTestBundle()
@@ -31,7 +32,11 @@ const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
 const { formatResult } = searchModule
 
-after(() => mock.restoreAll())
+after(async () => {
+  mock.restoreAll()
+  setEmbeddingsDir()
+  await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+})
 
 describe('formatResult', () => {
   test('returns content unchanged when meta is absent', () => {

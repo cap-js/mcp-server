@@ -1,6 +1,8 @@
 import { test, mock, after } from 'node:test'
 import assert from 'node:assert'
-import { remapFs } from './helpers/remap-fs.js'
+import fsp from 'node:fs/promises'
+import os from 'node:os'
+import { setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle } from './helpers/test-bundle.js'
 
 // All five rerank constants are evaluated at module load time in rerank.js.
@@ -38,8 +40,8 @@ mock.module('@huggingface/transformers', {
     }
 })
 
-// Redirect all fs writes under DEFAULT_DIR to a tmp dir.
-remapFs()
+const tmpDir = await fsp.mkdtemp(os.tmpdir() + '/cds-mcp-test-rerank-config-')
+setEmbeddingsDir(tmpDir)
 
 // Satisfy the module-load-time downloadEmbeddings() call in searchMarkdownDocs.js.
 let _frame = null
@@ -54,7 +56,11 @@ mock.method(globalThis, 'fetch', async () => {
 const { RERANK_ENABLED, getReranker, rerank } = await import('../lib/rerank.js')
 const { default: searchMarkdownDocs } = await import('../lib/searchMarkdownDocs.js')
 
-after(() => mock.restoreAll())
+after(async () => {
+    mock.restoreAll()
+    setEmbeddingsDir()
+    await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+})
 
 test('RERANK_ENABLED is true when env var is "true"', () => {
     assert.strictEqual(RERANK_ENABLED, true)

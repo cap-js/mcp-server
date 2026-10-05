@@ -2,7 +2,7 @@ import { test, describe, after, beforeEach, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'path'
 import fsp from 'node:fs/promises'
-import { remapFs } from './helpers/remap-fs.js'
+import os from 'node:os'
 
 function frame(body, bin) {
   const metaBuf = Buffer.from(JSON.stringify(body))
@@ -12,32 +12,45 @@ function frame(body, bin) {
   return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
+async function seedFile(p, data) {
+  await fsp.mkdir(path.dirname(p), { recursive: true })
+  return fsp.writeFile(p, data)
+}
+
 process.env.CDS_MCP_OFFLINE = 'true'
 
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-activemodel-'))
+
 const { downloadEmbeddings } = await import('../lib/searchMarkdownDocs.js')
-const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
+const { DEFAULT_DIR, setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir, setEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
+
+setEmbeddingsDir(tmpDir)
 
 const DEFAULT_MODEL = getActiveModel()
 
 const getManifestEtagPath = () => path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
-// Etag path for the module-default model (captured before we switch models).
+// Etag path for the module-default model (captured after setEmbeddingsDir).
 const defaultEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
-after(() => {
+after(async () => {
   mock.restoreAll()
   setActiveModel()
+  setEmbeddingsDir()
+  await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
 describe('active model wiring into download', () => {
   const testVer = '__test_model_bundle__'
 
-  // Fresh in-memory fs per test → clean slate, no real etag/bundle in play.
-  beforeEach(() => {
+  // Fresh tmp dir per test → clean slate, no real etag/bundle in play.
+  beforeEach(async () => {
     mock.restoreAll()
     setActiveModel('foo/bar')
-    remapFs()
+    setEmbeddingsDir(tmpDir)
+    await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+    await fsp.mkdir(tmpDir, { recursive: true })
   })
 
   // Mock: 200 framed bundle whose model matches the active model.
@@ -65,7 +78,7 @@ describe('active model wiring into download', () => {
     test('switching active model reads different etag path → no If-None-Match sent', async () => {
       // Seed etag under DEFAULT model's dir; active model is foo/bar → different etag
       // scope, so the download must not carry the default's If-None-Match.
-      await fsp.writeFile(
+      await seedFile(
         defaultEtagPath,
         JSON.stringify({
           etag: 'W/"seed"',
@@ -150,7 +163,7 @@ describe('active model wiring into download', () => {
   describe('bundle 304 not modified', () => {
     test('etag under active model dir → 304 path returns cached dir', async () => {
       const activeEtagPath = getManifestEtagPath() // points at foo--bar/<cds>/manifest.etag
-      await fsp.writeFile(
+      await seedFile(
         activeEtagPath,
         JSON.stringify({
           etag: 'W/"seed"',
@@ -159,9 +172,9 @@ describe('active model wiring into download', () => {
         })
       )
 
-      const dir = path.join(DEFAULT_DIR, 'foo--bar', testVer)
-      await fsp.writeFile(path.join(dir, 'code-chunks.json'), '{}')
-      await fsp.writeFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
+      const dir = path.join(getActiveEmbeddingsDir(), testVer)
+      await seedFile(path.join(dir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(dir, 'code-chunks.bin'), Buffer.alloc(0))
 
       const fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(null, { status: 304 })

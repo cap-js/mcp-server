@@ -2,8 +2,8 @@ import { test, describe, beforeEach, afterEach, after, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { remapFs } from './helpers/remap-fs.js'
-import { createEmbeddings } from '../lib/calculateEmbeddings.js'
+import os from 'node:os'
+import { createEmbeddings, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 
 // Model max window for sentence-transformers/all-MiniLM-L6-v2 is 512 tokens
 // (BERT-style). One English word ≈ 1-2 WordPiece tokens, so ~10000 words of
@@ -11,19 +11,28 @@ import { createEmbeddings } from '../lib/calculateEmbeddings.js'
 const LONG = 'banana '.repeat(10000).trim()
 const SHORT = 'banana'
 
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-truncation-'))
+setEmbeddingsDir(tmpDir)
+
 let testPassed = false
 after(() => {
   if (testPassed) process.exit(0)
 })
+after(async () => {
+  setEmbeddingsDir()
+  await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+})
 
 describe('createEmbeddings truncation', () => {
-  beforeEach(() => {
-    remapFs()
+  beforeEach(async () => {
+    const dir = getActiveEmbeddingsDir()
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {})
+    await fsp.mkdir(dir, { recursive: true })
   })
   afterEach(() => mock.restoreAll())
 
   test('too-long chunk produces exactly one row, truncated not split', async () => {
-    // Writes stay in memory; the real embedder still reads its model from disk.
+    // Writes go to real tmp dir; the real embedder still reads its model from disk.
     const result = await createEmbeddings('code-chunks', [SHORT, LONG])
 
     // Only two rows in and two rows out — no auto-split.

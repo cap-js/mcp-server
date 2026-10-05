@@ -1,14 +1,24 @@
-import { test, describe, beforeEach, afterEach, mock } from 'node:test'
+import { test, describe, beforeEach, afterEach, after, mock } from 'node:test'
 import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
-import { remapFs } from './helpers/remap-fs.js'
+import os from 'node:os'
 import { loadChunks } from '../lib/embeddings.js'
-import { getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import { getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+
+const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-test-loadchunks-'))
+setEmbeddingsDir(tmpDir)
+
+after(async () => {
+  setEmbeddingsDir()
+  await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+})
 
 describe('loadChunks', () => {
-  beforeEach(() => {
-    remapFs()
+  beforeEach(async () => {
+    const dir = getActiveEmbeddingsDir()
+    await fsp.rm(dir, { recursive: true, force: true }).catch(() => {})
+    await fsp.mkdir(dir, { recursive: true })
   })
   afterEach(() => mock.restoreAll())
 
@@ -19,7 +29,7 @@ describe('loadChunks', () => {
   }
 
   test('throws ENOENT when embedding files are missing', async () => {
-    // empty store → read rejects ENOENT
+    // empty dir → read rejects ENOENT
     await assert.rejects(loadChunks('nonexistent'), err => err.code === 'ENOENT')
   })
 
@@ -28,15 +38,11 @@ describe('loadChunks', () => {
 
     await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
 
-    const paths = fsp.unlink.mock.calls.map(c => String(c.arguments[0]))
-    assert.ok(
-      paths.some(p => p.endsWith('.json')),
-      'json file must be unlinked'
-    )
-    assert.ok(
-      paths.some(p => p.endsWith('.bin')),
-      'bin file must be unlinked'
-    )
+    const dir = getActiveEmbeddingsDir()
+    const jsonGone = await fsp.access(path.join(dir, 'code.json')).then(() => false, () => true)
+    const binGone = await fsp.access(path.join(dir, 'code.bin')).then(() => false, () => true)
+    assert.ok(jsonGone, 'json file must be deleted on CORRUPTED')
+    assert.ok(binGone, 'bin file must be deleted on CORRUPTED')
   })
 
   test('throws EMBEDDINGS_CORRUPTED when JSON is valid but missing dim field', async () => {
