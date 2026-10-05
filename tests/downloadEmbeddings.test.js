@@ -31,7 +31,13 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
   describe('200 bundle, no prior state', () => {
     let requests
     beforeEach(() => {
-      requests = mockFetch(bundle.ok({ version: testVer }))
+      requests = mockFetch(
+        bundle.ok({
+          version: testVer,
+          body: { dim: 1, count: 1, chunks: ['hi'] },
+          bin: Buffer.from(new Float32Array([1.5]).buffer)
+        })
+      )
     })
 
     test('sends cds and model query params', async () => {
@@ -78,26 +84,19 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         process.chdir(originalCwd)
       }
     })
-  })
 
-  test('writes versioned json + bin and returns updated=true', async () => {
-    mockFetch(
-      bundle.ok({
-        version: testVer,
-        body: { dim: 1, count: 1, chunks: ['hi'] },
-        bin: Buffer.from(new Float32Array([1.5]).buffer)
-      })
-    )
-    const r = await downloadEmbeddings()
-    assert.strictEqual(r.updated, true)
-    assert.strictEqual(r.commitId, testVer)
+    test('writes versioned json + bin and returns updated=true', async () => {
+      const r = await downloadEmbeddings()
+      assert.strictEqual(r.updated, true)
+      assert.strictEqual(r.commitId, testVer)
 
-    const meta = mem.readJson(path.join(testDir, 'code-chunks.json'))
-    assert.deepStrictEqual(meta.chunks, ['hi'])
-    assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
+      const meta = mem.readJson(path.join(testDir, 'code-chunks.json'))
+      assert.deepStrictEqual(meta.chunks, ['hi'])
+      assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
 
-    const bin = mem.readFile(path.join(testDir, 'code-chunks.bin'))
-    assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
+      const bin = mem.readFile(path.join(testDir, 'code-chunks.bin'))
+      assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
+    })
   })
 
   test('persists etag+commitId, sends If-None-Match on next call, 304 → returns stored version dir', async () => {
