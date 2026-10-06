@@ -10,20 +10,17 @@ const packageRoot = path.resolve(__dirname, '..')
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
-const { default: calculateEmbeddings, MODEL_CACHE_ROOT, setModelCacheRoot, getModelCacheDir, getActiveModel } = await import('../lib/calculateEmbeddings.js')
+const { default: calculateEmbeddings, setModelCacheRoot, getModelCacheDir, getActiveModel } = await import('../lib/calculateEmbeddings.js')
 
-const defaultModelCacheRoot = MODEL_CACHE_ROOT
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-cache-'))
 
 after(async () => {
-  setModelCacheRoot(defaultModelCacheRoot)
+  setModelCacheRoot(packageRoot)
   await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
 describe('model cache directory anchoring', () => {
   test('model cache resolves inside the package root, not process.cwd()', () => {
-    assert.ok(path.isAbsolute(MODEL_CACHE_ROOT))
-    assert.strictEqual(MODEL_CACHE_ROOT, packageRoot)
     assert.strictEqual(getModelCacheDir(), path.join(packageRoot, '.cds', 'models'))
   })
 
