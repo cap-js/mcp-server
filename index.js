@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+import { emitWarning } from 'node:process'
+process.emitWarning = (warning, ...args) => {
+  if (typeof warning === 'string' && warning.includes('SQLite is an experimental feature')) return
+  emitWarning(warning, ...args)
+}
+
 import { parseArgs } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'

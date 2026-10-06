@@ -1,38 +1,38 @@
-import { fileURLToPath } from 'url'
-import { getActiveModel, toDirName } from '../lib/calculateEmbeddings.js'
+import { getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
-import { test, describe, after } from 'node:test'
+import { test, describe, after, mock } from 'node:test'
 import assert from 'node:assert'
-import { buildTestBundle, makeFetchStub, getManifestEtagPath, TEST_COMMIT_ID } from './helpers/testBundle.js'
+import os from 'node:os'
+import { buildTestBundle } from './helpers/test-bundle.js'
+const TEST_COMMIT_ID = '__test_bundle__'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'searchMarkdownDocs-'))
+setEmbeddingsDir(tmpDir)
 
-const embeddingsDir = path.join(__dirname, '..', 'embeddings', toDirName(getActiveModel()))
+const embeddingsDir = getActiveEmbeddingsDir()
 const testBundleDir = path.join(embeddingsDir, TEST_COMMIT_ID)
-const manifestEtagPath = getManifestEtagPath()
 
-// Save etag that may exist before we overwrite it with the test bundle etag.
-const savedEtag = await fs.readFile(manifestEtagPath, 'utf-8').catch(() => null)
-
-// Build real embeddings and mock fetch BEFORE importing searchMarkdownDocs.js.
-// That module fires downloadEmbeddings() at module load time — mock must be in place first.
-const testFrame = await buildTestBundle()
-globalThis.fetch = makeFetchStub(testFrame)
+// Install the test bundle in-process BEFORE importing searchMarkdownDocs.js.
+let _frame = null
+mock.method(globalThis, 'fetch', async () => {
+  if (!_frame) _frame = buildTestBundle()
+  const f = await _frame
+  const version = '__test_bundle__'
+  return new Response(f, {
+    status: 200,
+    headers: { etag: `W/"${version}"`, 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+  })
+})
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
 const { formatResult, getDocContext } = searchModule
 
 after(async () => {
-  globalThis.fetch = undefined
-  await fs.rm(testBundleDir, { recursive: true, force: true }).catch(() => {})
-  if (savedEtag !== null) {
-    await fs.mkdir(path.dirname(manifestEtagPath), { recursive: true })
-    await fs.writeFile(manifestEtagPath, savedEtag)
-  } else {
-    await fs.rm(path.dirname(manifestEtagPath), { recursive: true, force: true }).catch(() => {})
-  }
+  mock.restoreAll()
+  setEmbeddingsDir()
+  await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
 describe('formatResult', () => {
@@ -73,8 +73,8 @@ describe('formatResult', () => {
   })
 })
 
-describe('searchMarkdownDocs integration tests', () => {
-  test('should download and load embeddings from server', async () => {
+describe('searchMarkdownDocs', () => {
+  test('downloads bundle, writes .json and .bin files, and returns non-empty --- separated string', async () => {
     const result = await searchMarkdownDocs('entity definition', 3)
 
     assert(typeof result === 'string', 'Result should be a string')
@@ -94,7 +94,7 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
-  test('should handle search queries and return relevant results', async () => {
+  test('returns at most maxResults chunks for multiple distinct queries', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
     for (const query of queries) {
@@ -107,7 +107,7 @@ describe('searchMarkdownDocs integration tests', () => {
     }
   })
 
-  test('should use embeddings files consistently', async () => {
+  test('embedding files are not re-written on subsequent search calls', async () => {
     const jsonPath = path.join(testBundleDir, 'code-chunks.json')
     const binPath = path.join(testBundleDir, 'code-chunks.bin')
 
@@ -140,7 +140,7 @@ describe('searchMarkdownDocs integration tests', () => {
     )
   })
 
-  test('should reuse downloaded files on subsequent calls', async () => {
+  test('reuses cached embedding files on subsequent calls', async () => {
     const result1 = await searchMarkdownDocs('entity', 1)
 
     const jsonExists = await fs
@@ -162,7 +162,20 @@ describe('searchMarkdownDocs integration tests', () => {
     assert(result2.length > 0, 'Second result should not be empty')
   })
 
-  test('should respect maxResults parameter', async () => {
+  test('LOCAL_EMBEDDINGS_DIR env var is ignored', async () => {
+    const prev = process.env.LOCAL_EMBEDDINGS_DIR
+    try {
+      process.env.LOCAL_EMBEDDINGS_DIR = '/nonexistent/path/that/does/not/exist'
+      const result = await searchMarkdownDocs('entity', 1)
+      assert(typeof result === 'string', 'Result should be a string')
+      assert(result.length > 0, 'Result should not be empty')
+    } finally {
+      if (prev === undefined) delete process.env.LOCAL_EMBEDDINGS_DIR
+      else process.env.LOCAL_EMBEDDINGS_DIR = prev
+    }
+  })
+
+  test('respects maxResults and returns at most N chunks for varying limits', async () => {
     const maxResults = 5
     const result = await searchMarkdownDocs('entity service', maxResults)
 
