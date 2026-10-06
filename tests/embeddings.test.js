@@ -6,7 +6,7 @@ import path from 'path'
 import os from 'node:os'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, MODEL_CACHE_DIR, getActiveModel } from '../lib/calculateEmbeddings.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -49,6 +49,16 @@ describe('embeddings', () => {
       const modelPath = path.join(MODEL_DIR, 'model.onnx')
       const modelStats = fs.statSync(modelPath)
       assert(modelStats.size > 1000000, 'ONNX model file should be reasonably large (>1MB)')
+    })
+
+    test('model cache is anchored to the package root, not process.cwd()', async () => {
+      const [org, name] = getActiveModel().split('/')
+      const modelDir = path.join(MODEL_CACHE_DIR, org, name)
+      const result = await calculateEmbeddings('test query')
+      assert.ok(result instanceof Float32Array, 'result must be a Float32Array')
+      assert.ok(result.length > 0, 'embedding must be non-empty')
+      const entries = await fsp.readdir(modelDir)
+      assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${modelDir}`)
     })
   })
 
