@@ -516,7 +516,25 @@ describe('dot-directory filtering', () => {
 })
 
 describe('OData containment', () => {
-  test('compiles with OData containment enabled and hides contained entities', async () => {
+  test('does not crash when odata.containment is enabled and service has no compositions', async () => {
+    const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-flat-'))
+    projects.push(project)
+    await mkdir(path.join(project, 'srv'))
+    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'srv', 'service.cds'),
+      `namespace my;
+      entity Books { key ID: Integer; }
+      service CatalogService { entity Books as projection on my.Books; }`
+    )
+
+    const model = await getModel(project)
+    const exposed = model.definitions['my.CatalogService'].exposedEntities
+    assert(exposed.includes('my.CatalogService.Books'), 'Books should be exposed')
+    assert.equal(exposed.length, 1)
+  })
+
+  test('excludes composition targets from exposedEntities when odata.containment is enabled', async () => {
     const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-model-'))
     projects.push(project)
     await mkdir(path.join(project, 'srv'))
@@ -526,14 +544,32 @@ describe('OData containment', () => {
       `namespace my;
       entity Orders { key ID: Integer; items: Composition of many Items on items.order = $self; }
       entity Items { key ID: Integer; order: Association to Orders; }
-      entity Books { key ID: Integer; }
-      service OrderService { entity Orders as projection on my.Orders; entity Items as projection on my.Items; }
-      service CatalogService { entity Books as projection on my.Books; }`
+      service OrderService { entity Orders as projection on my.Orders; entity Items as projection on my.Items; }`
     )
 
     const model = await getModel(project)
-    assert.deepEqual(model.definitions['my.OrderService'].exposedEntities, ['my.OrderService.Orders'])
-    assert.deepEqual(model.definitions['my.CatalogService'].exposedEntities, ['my.CatalogService.Books'])
+    const exposed = model.definitions['my.OrderService'].exposedEntities
+    assert(exposed.includes('my.OrderService.Orders'), 'Orders should be exposed as root')
+    assert(!exposed.includes('my.OrderService.Items'), 'Items is contained and must not be exposed as standalone entity set')
+    assert.equal(exposed.length, 1)
+  })
+
+  test('keeps a self-composing entity exposed as a root entity set when odata.containment is enabled', async () => {
+    const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-self-ref-'))
+    projects.push(project)
+    await mkdir(path.join(project, 'srv'))
+    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'srv', 'service.cds'),
+      `namespace my;
+      entity Folder { key ID: Integer; children: Composition of many Folder; }
+      service FolderService { entity Folder as projection on my.Folder; }`
+    )
+
+    const model = await getModel(project)
+    const exposed = model.definitions['my.FolderService'].exposedEntities
+    assert(exposed.includes('my.FolderService.Folder'), 'Folder must remain exposed as root entity set')
+    assert.equal(exposed.length, 1)
   })
 })
 
