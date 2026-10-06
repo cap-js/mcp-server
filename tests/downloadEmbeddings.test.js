@@ -457,6 +457,83 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
   })
 
+  describe('runtimeFilter cache key', () => {
+    test('200 response persists runtimeFilter=true in etag file when env var is set', async () => {
+      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+      try {
+        mock.method(globalThis, 'fetch', async () =>
+          new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
+            status: 200,
+            headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
+        )
+        await downloadEmbeddings()
+        const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
+        assert.strictEqual(saved.runtimeFilter, true, 'etag file must persist runtimeFilter=true when env var is set')
+      } finally {
+        delete process.env.CDS_MCP_RUNTIME_FILTER
+      }
+    })
+
+    test('daily skip is bypassed when runtimeFilter state changes from cached value', async () => {
+      const etagData = {
+        etag: 'W/"seed"',
+        runtime: 'node',
+        runtimeFilter: false,
+        commitId: testVer,
+        model: getActiveModel(),
+        lastChecked: Date.now()
+      }
+      await seedFile(manifestEtagPath, JSON.stringify(etagData))
+      await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+      try {
+        const fetchMock = mock.method(globalThis, 'fetch', async () =>
+          new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
+            status: 200,
+            headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
+        )
+        await downloadEmbeddings()
+        assert.strictEqual(fetchMock.mock.calls.length, 1, 'must call fetch when runtimeFilter state differs from cached value')
+      } finally {
+        delete process.env.CDS_MCP_RUNTIME_FILTER
+      }
+    })
+
+    test('daily skip is honored when runtimeFilter state matches cached value', async () => {
+      const etagData = {
+        etag: 'W/"seed"',
+        runtime: 'node',
+        runtimeFilter: true,
+        commitId: testVer,
+        model: getActiveModel(),
+        lastChecked: Date.now()
+      }
+      await seedFile(manifestEtagPath, JSON.stringify(etagData))
+      await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+      try {
+        const fetchMock = mock.method(globalThis, 'fetch', async () =>
+          new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
+            status: 200,
+            headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
+        )
+        const r = await downloadEmbeddings()
+        assert.strictEqual(fetchMock.mock.calls.length, 0, 'must skip fetch when runtimeFilter state matches cached value')
+        assert.strictEqual(r.updated, false)
+        assert.strictEqual(r.commitId, testVer)
+      } finally {
+        delete process.env.CDS_MCP_RUNTIME_FILTER
+      }
+    })
+  })
+
   test('concurrent calls are serialized with at most one in-flight fetch', async () => {
     let concurrent = 0
     const tracking = { maxConcurrent: 0 }
