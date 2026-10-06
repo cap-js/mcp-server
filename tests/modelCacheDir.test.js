@@ -10,36 +10,39 @@ const packageRoot = path.resolve(__dirname, '..')
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
-const { default: calculateEmbeddings, MODEL_CACHE_DIR, setModelCacheDir, getActiveModel } = await import('../lib/calculateEmbeddings.js')
+const { default: calculateEmbeddings, MODEL_CACHE_ROOT, setModelCacheRoot, getModelCacheDir, getActiveModel } = await import('../lib/calculateEmbeddings.js')
 
-const defaultModelCacheDir = MODEL_CACHE_DIR
+const defaultModelCacheRoot = MODEL_CACHE_ROOT
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-cache-'))
 
 after(async () => {
-  setModelCacheDir(defaultModelCacheDir)
+  setModelCacheRoot(defaultModelCacheRoot)
   await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
 describe('model cache directory anchoring', () => {
-  test('MODEL_CACHE_DIR resolves inside the package root, not process.cwd()', () => {
-    assert.ok(path.isAbsolute(MODEL_CACHE_DIR))
-    assert.strictEqual(MODEL_CACHE_DIR, path.join(packageRoot, '.cds', 'models'))
+  test('model cache resolves inside the package root, not process.cwd()', () => {
+    assert.ok(path.isAbsolute(MODEL_CACHE_ROOT))
+    assert.strictEqual(MODEL_CACHE_ROOT, packageRoot)
+    assert.strictEqual(getModelCacheDir(), path.join(packageRoot, '.cds', 'models'))
   })
 
-  test('calculateEmbeddings uses the configured cache directory', async () => {
-    // @cap-js/ai requires the model to be pre-installed in the configured directory.
-    // Copy the default model into tmpDir so the test is self-contained.
+  test('calculateEmbeddings reads the model from the configured cache root', async () => {
+    // @cap-js/ai resolves the model under <cds.root>/.cds/models and requires it to be
+    // pre-installed when offline. Copy the default model into the tmp root so the test
+    // is self-contained, then point the cache root at the tmp dir.
     const [org, name] = getActiveModel().split('/')
     const srcModelDir = path.join(packageRoot, '.cds', 'models', org, name)
-    const dstModelDir = path.join(tmpDir, org, name)
+    const dstModelDir = path.join(tmpDir, '.cds', 'models', org, name)
     await fsp.cp(srcModelDir, dstModelDir, { recursive: true })
 
-    setModelCacheDir(tmpDir)
+    setModelCacheRoot(tmpDir)
     const result = await calculateEmbeddings('test query')
 
     assert.ok(result instanceof Float32Array, 'result must be a Float32Array')
     assert.ok(result.length > 0, 'embedding must be non-empty')
-    // Verify the model files are present in tmpDir — confirming that is where it was read from.
+    // Confirm the model was read from the configured tmp root.
+    assert.strictEqual(getModelCacheDir(), path.join(tmpDir, '.cds', 'models'))
     const entries = await fsp.readdir(dstModelDir)
     assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${dstModelDir}`)
   })
