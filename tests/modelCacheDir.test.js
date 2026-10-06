@@ -12,10 +12,11 @@ process.env.CDS_MCP_OFFLINE = 'true'
 
 const { default: calculateEmbeddings, MODEL_CACHE_DIR, setModelCacheDir, getActiveModel } = await import('../lib/calculateEmbeddings.js')
 
+const defaultModelCacheDir = MODEL_CACHE_DIR
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'cds-mcp-model-cache-'))
 
 after(async () => {
-  setModelCacheDir()
+  setModelCacheDir(defaultModelCacheDir)
   await fsp.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
 })
 
