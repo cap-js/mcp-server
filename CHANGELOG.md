@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
-## Version 0.0.7 - 2026-10-06
+## Version 0.0.7 - 2026-10-07
 
 ### Added
 
@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 - Read the RFC 9457 `detail` field from non-OK bundle fetch responses for clearer error messages
 - Filter `.cds` build-output directories out of `cds.resolve` results to avoid `EISDIR` from `cds.load`
 - Anchor the ONNX model cache to the package root instead of the caller's working directory
+- Exclude OData-contained entities from the exposed model by computing the contained set from the compiled model (the runtime `_containedEntities` getter is absent on compiled definitions)
 
 ## Version 0.0.6 - 2026-09-21
 
