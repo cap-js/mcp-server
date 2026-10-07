@@ -4,6 +4,25 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.7 - 2026-10-06
+
+### Added
+
+- Hybrid search for `search_docs`: semantic cosine similarity combined with BM25 keyword search (SQLite FTS5, with a pure-JS fallback when FTS5 is not compiled into `node:sqlite`) via weighted Reciprocal Rank Fusion
+- Optional local cross-encoder reranking of `search_docs` results, opt-in via `RERANK_ENABLED`
+- Fall back to the globally installed `cds-dk`'s `@sap/cds` runtime version when the project provides no local CDS
+
+### Changed
+
+- Skip the daily embeddings-bundle re-check when the local files are fresh (within one day), scoped to the detected runtime
+
+### Fixed
+
+- Fall back to local embeddings when the bundle download fails due to a network error
+- Read the RFC 9457 `detail` field from non-OK bundle fetch responses for clearer error messages
+- Filter `.cds` build-output directories out of `cds.resolve` results to avoid `EISDIR` from `cds.load`
+- Anchor the ONNX model cache to the package root instead of the caller's working directory
+
 ## Version 0.0.6 - 2026-09-21
 
 ### Added
