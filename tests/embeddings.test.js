@@ -267,6 +267,17 @@ describe('embeddings', () => {
         /metadata length must match chunks length/
       )
     })
+
+    test('createEmbeddings writes a valid ISO 8601 createdAt timestamp', async () => {
+      const before = new Date()
+      const { outDir } = await createEmbeddings('test', ['chunk about cds init'])
+      const after = new Date()
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
+      assert.ok(typeof meta.createdAt === 'string', 'createdAt must be a string')
+      const ts = new Date(meta.createdAt)
+      assert.ok(!isNaN(ts.getTime()), 'createdAt must parse to a valid date')
+      assert.ok(ts >= before && ts <= after, `createdAt must be between test start and end, got: ${meta.createdAt}`)
+    })
   })
 })
 
