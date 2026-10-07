@@ -457,9 +457,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
   })
 
-  describe('runtimeFilter cache key', () => {
-    test('200 response persists runtimeFilter=true in etag file when env var is set', async () => {
-      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+  describe('genericEmbeddings cache key', () => {
+    test('200 response persists genericEmbeddings=true in etag file when env var is set', async () => {
+      process.env.CDS_MCP_GENERIC_EMBEDDINGS = '1'
       try {
         mock.method(globalThis, 'fetch', async () =>
           new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
@@ -469,17 +469,17 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         )
         await downloadEmbeddings()
         const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
-        assert.strictEqual(saved.runtimeFilter, true, 'etag file must persist runtimeFilter=true when env var is set')
+        assert.strictEqual(saved.genericEmbeddings, true, 'etag file must persist genericEmbeddings=true when env var is set')
       } finally {
-        delete process.env.CDS_MCP_RUNTIME_FILTER
+        delete process.env.CDS_MCP_GENERIC_EMBEDDINGS
       }
     })
 
-    test('daily skip is bypassed when runtimeFilter state changes from cached value', async () => {
+    test('daily skip is bypassed when genericEmbeddings state changes from cached value', async () => {
       const etagData = {
         etag: 'W/"seed"',
         runtime: 'node',
-        runtimeFilter: false,
+        genericEmbeddings: false,
         commitId: testVer,
         model: getActiveModel(),
         lastChecked: Date.now()
@@ -488,7 +488,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
       await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+      process.env.CDS_MCP_GENERIC_EMBEDDINGS = '1'
       try {
         const fetchMock = mock.method(globalThis, 'fetch', async () =>
           new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
@@ -497,17 +497,17 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
           })
         )
         await downloadEmbeddings()
-        assert.strictEqual(fetchMock.mock.calls.length, 1, 'must call fetch when runtimeFilter state differs from cached value')
+        assert.strictEqual(fetchMock.mock.calls.length, 1, 'must call fetch when genericEmbeddings state differs from cached value')
       } finally {
-        delete process.env.CDS_MCP_RUNTIME_FILTER
+        delete process.env.CDS_MCP_GENERIC_EMBEDDINGS
       }
     })
 
-    test('daily skip is honored when runtimeFilter state matches cached value', async () => {
+    test('daily skip is honored when genericEmbeddings state matches cached value', async () => {
       const etagData = {
         etag: 'W/"seed"',
         runtime: 'node',
-        runtimeFilter: true,
+        genericEmbeddings: true,
         commitId: testVer,
         model: getActiveModel(),
         lastChecked: Date.now()
@@ -516,7 +516,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
       await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-      process.env.CDS_MCP_RUNTIME_FILTER = '1'
+      process.env.CDS_MCP_GENERIC_EMBEDDINGS = '1'
       try {
         const fetchMock = mock.method(globalThis, 'fetch', async () =>
           new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
@@ -525,11 +525,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
           })
         )
         const r = await downloadEmbeddings()
-        assert.strictEqual(fetchMock.mock.calls.length, 0, 'must skip fetch when runtimeFilter state matches cached value')
+        assert.strictEqual(fetchMock.mock.calls.length, 0, 'must skip fetch when genericEmbeddings state matches cached value')
         assert.strictEqual(r.updated, false)
         assert.strictEqual(r.commitId, testVer)
       } finally {
-        delete process.env.CDS_MCP_RUNTIME_FILTER
+        delete process.env.CDS_MCP_GENERIC_EMBEDDINGS
       }
     })
   })
