@@ -276,6 +276,7 @@ describe('embeddings', () => {
       assert.ok(typeof meta.createdAt === 'string', 'createdAt must be a string')
       const ts = new Date(meta.createdAt)
       assert.ok(!isNaN(ts.getTime()), 'createdAt must parse to a valid date')
+      assert.strictEqual(meta.createdAt, ts.toISOString(), 'createdAt must use canonical ISO 8601 format')
       assert.ok(ts >= before && ts <= after, `createdAt must be between test start and end, got: ${meta.createdAt}`)
     })
   })
