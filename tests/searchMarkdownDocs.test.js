@@ -241,6 +241,12 @@ describe('selectCompleteSections', () => {
   const SRC_A = 'https://x.com/docs#section-a'
   const SRC_B = 'https://x.com/docs#section-b'
 
+  test('maxResults <= 0 returns empty array', () => {
+    const a = chunk('### A\n\nBody.', { groupID: GRP_A, source: SRC_A }, 0.9)
+    assert.deepStrictEqual(selectCompleteSections([a], [a], 0), [])
+    assert.deepStrictEqual(selectCompleteSections([a], [a], -1), [])
+  })
+
   test('two results with the same groupID collapse to one; loop backfills to maxResults', () => {
     const a1 = chunk('### A\n\nPart 1.', { groupID: GRP_A, source: SRC_A }, 0.9)
     const a2 = chunk('### A\n\nPart 2.', { groupID: GRP_A, source: SRC_A }, 0.8)
