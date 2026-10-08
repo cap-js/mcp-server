@@ -12,7 +12,7 @@ describe('rerank', () => {
       { content: 'Mars is the fourth planet from the Sun.' },
       { content: 'Mix flour, sugar, cocoa powder, eggs and butter. Bake at 180C for 35 minutes.' },
     ]
-    const ranked = await rerank(query, docs, 2)
+    const ranked = await rerank(query, docs)
 
     assert.strictEqual(ranked.length, 2)
     assert(ranked[0].score > ranked[1].score, 'results must be sorted by descending score')
@@ -32,7 +32,7 @@ describe('rerank', () => {
       { content: 'Paris is the capital and most populous city of France.' },
       { content: 'Node.js is a JavaScript runtime built on V8 for server-side code.' },
     ]
-    const ranked = await rerank(query, docs, 2)
+    const ranked = await rerank(query, docs)
 
     assert.notStrictEqual(
       ranked[0].score, ranked[1].score,
@@ -41,16 +41,16 @@ describe('rerank', () => {
     assert(ranked[0].score > ranked[1].score, 'results must be sorted by descending score')
   })
 
-  test('topK limits returned results to the most relevant', async () => {
+  test('returns all documents sorted by score (no topK cut)', async () => {
     const query = 'What is the capital of France?'
     const docs = [
       { content: 'Paris is the capital of France.' },
       { content: 'Berlin is the capital of Germany.' },
       { content: 'Node.js is a JavaScript runtime built on V8.' },
     ]
-    const ranked = await rerank(query, docs, 1)
-    assert.strictEqual(ranked.length, 1)
-    assert(ranked[0].content.includes('Paris'), 'most relevant result must be returned')
+    const ranked = await rerank(query, docs)
+    assert.strictEqual(ranked.length, 3, 'all documents must be returned')
+    assert(ranked[0].content.includes('Paris'), 'most relevant result must be first')
   })
 
   test('original result properties are preserved in output', async () => {
@@ -59,7 +59,7 @@ describe('rerank', () => {
       { content: 'Mix flour and eggs.', meta: { title: 'Baking' } },
       { content: 'Mars is far from Earth.', meta: { title: 'Astronomy' } },
     ]
-    const ranked = await rerank(query, docs, 2)
+    const ranked = await rerank(query, docs)
     for (const r of ranked) {
       const original = docs.find(d => d.content === r.content)
       assert.deepStrictEqual(r.meta, original.meta, 'meta must be preserved')
