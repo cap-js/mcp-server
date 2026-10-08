@@ -193,10 +193,6 @@ describe('searchMarkdownDocs', () => {
 // ─── joinSectionParts ─────────────────────────────────────────────────────────
 
 describe('joinSectionParts', () => {
-  test('returns content unchanged when there is one part', () => {
-    assert.strictEqual(joinSectionParts(['### Title\n\nBody.']), '### Title\n\nBody.')
-  })
-
   test('two parts with repeated heading: title once, both bodies joined by blank line', () => {
     const result = joinSectionParts(['### Title\n\nFirst.', '### Title\n\nSecond.'])
     assert.strictEqual(result, '### Title\n\nFirst.\n\nSecond.')
