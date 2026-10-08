@@ -378,7 +378,7 @@ function renderLeaderboard(runs) {
       return `<td class="${medalClass(rk)}">${r.aggregate[k].value.toFixed(2)}</td>`
     }).join('')
     const searchStr = escHtml(runDisplay(r).toLowerCase())
-    return `<tr data-search="${searchStr}"><td class="lb-rank">${medal(rank)}</td><td class="mono lb-run" title="${escHtml(runDisplay(r))}">${escHtml(shortLabel(r))}</td>${cells}</tr>`
+    return `<tr data-search="${searchStr}"><td class="lb-rank">${medal(rank)}</td><td class="mono lb-run" title="${escHtml(runDisplay(r))}">${escHtml(runDisplay(r))}</td>${cells}</tr>`
   }).join('')
 
   const hint = `${runs.length} runs · ranked by total score on gated metrics · scrollable`
