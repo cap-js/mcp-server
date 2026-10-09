@@ -13,13 +13,18 @@ const TEST_CHUNKS = [
   'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc'
 ]
 
+const TEST_METADATA = TEST_CHUNKS.map((_, i) => ({
+  headingPath: `Test Section ${i + 1}`,
+  source: 'https://cap.cloud.sap/docs/test'
+}))
+
 export async function buildTestBundle() {
   const { default: calculateEmbeddings } = await import('../../lib/calculateEmbeddings.js')
   const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
   const dim = vecs[0].length
   const flat = new Float32Array(TEST_CHUNKS.length * dim)
   for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
-  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS }
+  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS, metadata: TEST_METADATA }
   const metaBuf = Buffer.from(JSON.stringify(meta))
   const header = Buffer.alloc(4)
   header.writeUInt32BE(metaBuf.length, 0)
