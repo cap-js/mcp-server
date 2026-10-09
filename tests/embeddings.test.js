@@ -6,7 +6,8 @@ import path from 'path'
 import os from 'node:os'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, MODEL_CACHE_DIR, getActiveModel } from '../lib/calculateEmbeddings.js'
+import cds from '@sap/cds'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
@@ -49,6 +50,24 @@ describe('embeddings', () => {
       const modelPath = path.join(MODEL_DIR, 'model.onnx')
       const modelStats = fs.statSync(modelPath)
       assert(modelStats.size > 1000000, 'ONNX model file should be reasonably large (>1MB)')
+    })
+
+    test('model cache is anchored to the package root, not process.cwd()', async () => {
+      const [org, name] = getActiveModel().split('/')
+      const modelDir = path.join(MODEL_CACHE_DIR, org, name)
+      const prevRoot = cds.root
+      cds.root = os.tmpdir()
+      try {
+        const result = await calculateEmbeddings('test query')
+        assert.ok(result instanceof Float32Array, 'result must be a Float32Array')
+        assert.ok(result.length > 0, 'embedding must be non-empty')
+        const entries = await fsp.readdir(modelDir)
+        assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${modelDir}`)
+        const strayDir = path.join(os.tmpdir(), '.cds', 'models')
+        assert.ok(!fs.existsSync(strayDir), `model must not be created under cds.root (${strayDir})`)
+      } finally {
+        cds.root = prevRoot
+      }
     })
   })
 
@@ -247,6 +266,18 @@ describe('embeddings', () => {
           }),
         /metadata length must match chunks length/
       )
+    })
+
+    test('createEmbeddings writes a valid ISO 8601 createdAt timestamp', async () => {
+      const before = new Date()
+      const { outDir } = await createEmbeddings('test', ['chunk about cds init'])
+      const after = new Date()
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
+      assert.ok(typeof meta.createdAt === 'string', 'createdAt must be a string')
+      const ts = new Date(meta.createdAt)
+      assert.ok(!isNaN(ts.getTime()), 'createdAt must parse to a valid date')
+      assert.strictEqual(meta.createdAt, ts.toISOString(), 'createdAt must use canonical ISO 8601 format')
+      assert.ok(ts >= before && ts <= after, `createdAt must be between test start and end, got: ${meta.createdAt}`)
     })
   })
 })
