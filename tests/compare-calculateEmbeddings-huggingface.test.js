@@ -1,6 +1,18 @@
 import { test, describe, after } from 'node:test'
 import assert from 'node:assert'
-import calculateEmbeddings from '../lib/calculateEmbeddings.js'
+import { readFileSync } from 'node:fs'
+import path from 'node:path'
+import calculateEmbeddings, { getActiveModel, MODEL_CACHE_DIR } from '../lib/calculateEmbeddings.js'
+
+function readLockConfig() {
+  const model = getActiveModel()
+  const lockPath = path.join(MODEL_CACHE_DIR, ...model.split('/'), 'embedding.lock.json')
+  try {
+    return JSON.parse(readFileSync(lockPath, 'utf-8')).output ?? {}
+  } catch {
+    return {}
+  }
+}
 
 let testPassed = false
 
@@ -15,11 +27,16 @@ after(() => {
 describe('calculateEmbeddings vs HuggingFace parity', () => {
 
 test('produces cosine similarity > 0.9 against HuggingFace pipeline on 30 code snippets', async () => {
-  // Load HuggingFace pipeline
+  const activeModel = getActiveModel()
+  const lockOutput = readLockConfig()
+  const pooling = lockOutput.pooling ?? 'mean'
+  const normalize = lockOutput.normalize ?? true
+
+  // Load HuggingFace pipeline using the same model and settings as @cap-js/ai
   const { pipeline } = await import('@huggingface/transformers')
-  const hfPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
-    pooling: 'mean',
-    normalize: true,
+  const hfPipeline = await pipeline('feature-extraction', activeModel, {
+    pooling,
+    normalize,
     dtype: 'fp32'
   })
 
