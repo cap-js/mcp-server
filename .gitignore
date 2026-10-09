@@ -8,3 +8,4 @@ evals/runs/
 
 # local file for source map generation
 llms-full.txt
+EmbeddingsPerModel
