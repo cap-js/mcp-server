@@ -17,7 +17,7 @@ describe('calculateEmbeddings vs HuggingFace parity', () => {
 test('produces cosine similarity > 0.9 against HuggingFace pipeline on 30 code snippets', async () => {
   // Load HuggingFace pipeline
   const { pipeline } = await import('@huggingface/transformers')
-  const hfPipeline = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2', {
+  const hfPipeline = await pipeline('feature-extraction', 'Xenova/bge-small-en-v1.5', {
     pooling: 'mean',
     normalize: true,
     dtype: 'fp32'
