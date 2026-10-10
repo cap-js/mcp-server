@@ -13,16 +13,20 @@ const TEST_CHUNKS = [
   'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc'
 ]
 
-export async function buildTestBundle() {
+// Builds a binary bundle frame.
+// Options:
+//   chunks   — array of chunk text strings (defaults to TEST_CHUNKS)
+//   metadata — optional array of metadata objects, parallel to chunks
+export async function buildTestBundle({ chunks = TEST_CHUNKS, metadata } = {}) {
   const { default: calculateEmbeddings } = await import('../../lib/calculateEmbeddings.js')
-  const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
+  const vecs = await Promise.all(chunks.map(chunk => calculateEmbeddings(chunk)))
   const dim = vecs[0].length
-  const flat = new Float32Array(TEST_CHUNKS.length * dim)
+  const flat = new Float32Array(chunks.length * dim)
   for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
-  const meta = { dim, count: TEST_CHUNKS.length, chunks: TEST_CHUNKS }
+  const meta = { dim, count: chunks.length, chunks }
+  if (metadata) meta.metadata = metadata
   const metaBuf = Buffer.from(JSON.stringify(meta))
   const header = Buffer.alloc(4)
   header.writeUInt32BE(metaBuf.length, 0)
   return Buffer.concat([header, metaBuf, Buffer.from(flat.buffer)])
 }
-

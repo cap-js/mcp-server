@@ -88,7 +88,7 @@ describe('env var → model options', () => {
 
     test('CDS_MCP_RERANK_BATCH_SIZE=2 processes 4 items in 2 model calls', async () => {
         const prev = modelCallCount
-        await rerank('test query', [{ content: 'a' }, { content: 'b' }, { content: 'c' }, { content: 'd' }], 4)
+        await rerank('test query', [{ content: 'a' }, { content: 'b' }, { content: 'c' }, { content: 'd' }])
         assert.strictEqual(modelCallCount - prev, 2)
     })
 })
