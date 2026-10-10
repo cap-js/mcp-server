@@ -216,6 +216,15 @@ describe('embeddings', () => {
       assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
     })
 
+    test('createEmbeddings writes canonicalChunks when provided', async () => {
+      const chunks = ['context\n\nfirst canonical chunk', 'context\n\nsecond canonical chunk']
+      const canonicalChunks = ['first canonical chunk', 'second canonical chunk']
+      const { outDir } = await createEmbeddings('test', chunks, undefined, { canonicalChunks })
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
+
+      assert.deepStrictEqual(meta.chunks, canonicalChunks)
+    })
+
     test('createEmbeddings writes metadata when provided', async () => {
       const chunks = ['chunk about cds init', 'chunk about cds watch', 'chunk about cds deploy']
       const metadata = [
