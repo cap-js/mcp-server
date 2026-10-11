@@ -12,7 +12,7 @@
 import assert from 'node:assert'
 import { test, describe, before, after } from 'node:test'
 import { execFileSync, spawnSync } from 'node:child_process'
-import { mkdtemp, rm, writeFile, readFile, readdir, realpath } from 'node:fs/promises'
+import { mkdtemp, rm, writeFile, readFile, readdir } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
