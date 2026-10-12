@@ -18,7 +18,7 @@ process.env.CDS_MCP_OFFLINE = 'true'
 
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'downloadEmbeddings-'))
 
-const { downloadEmbeddings, resolveLocalVersion } = await import('../lib/searchMarkdownDocs.js')
+const { downloadEmbeddings, resolveLocalVersion, fetchTimeouts } = await import('../lib/searchMarkdownDocs.js')
 const { getActiveModel, getActiveModelFolder, getActiveEmbeddingsDir, toDirName, setEmbeddingsDir } =
   await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
@@ -452,6 +452,72 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await assert.rejects(downloadEmbeddings(), err => {
         assert.match(err.message, /Offline mode/)
         assert.match(err.cause?.message, /network down/)
+        return true
+      })
+    })
+  })
+
+  describe('timeout handling', () => {
+    const TIMEOUT_MS = 1000
+
+    // Simulates a server that accepts the connection but never sends a response.
+    // Propagates the AbortSignal so the real timeout mechanism fires naturally.
+    const hungFetch = (_url, opts) => {
+      if (opts?.signal?.aborted) return Promise.reject(opts.signal.reason)
+      return new Promise((_resolve, reject) =>
+        opts?.signal?.addEventListener('abort', () => reject(opts.signal.reason), { once: true })
+      )
+    }
+
+    beforeEach(() => {
+      fetchTimeouts.manifest = TIMEOUT_MS
+      fetchTimeouts.bundle = TIMEOUT_MS
+      mock.method(globalThis, 'fetch', hungFetch)
+    })
+
+    after(() => {
+      fetchTimeouts.manifest = 5_000
+      fetchTimeouts.bundle = 10_000
+    })
+
+    test('bundle timeout fires after the configured duration then falls back to local version', async () => {
+      await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+      await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+
+      const t0 = performance.now()
+      const result = await downloadEmbeddings()
+      const elapsed = performance.now() - t0
+
+      assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+      assert.strictEqual(result.updated, false)
+      assert.strictEqual(result.commitId, testVer)
+    })
+
+    test('bundle timeout fires after the configured duration then throws offline error', async () => {
+      const t0 = performance.now()
+      await assert.rejects(downloadEmbeddings(), err => {
+        const elapsed = performance.now() - t0
+        assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+        assert.match(err.message, /Offline mode/)
+        assert.strictEqual(err.cause?.name, 'TimeoutError')
+        return true
+      })
+    })
+
+    test('manifest timeout fires after the configured duration and is silenced — no Available models suffix', async () => {
+      // Bundle returns 500 instantly; manifest hangs until the timeout fires.
+      mock.method(globalThis, 'fetch', (_url, opts) => {
+        if (String(_url).includes('manifest.json')) return hungFetch(_url, opts)
+        return Promise.resolve(new Response(null, { status: 500, statusText: 'Server Error' }))
+      })
+
+      const t0 = performance.now()
+      await assert.rejects(downloadEmbeddings(), err => {
+        const elapsed = performance.now() - t0
+        assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+        assert.match(err.message, /Failed to fetch bundle: 500/)
+        assert.doesNotMatch(err.message, /Available models/)
         return true
       })
     })
