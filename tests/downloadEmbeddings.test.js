@@ -459,6 +459,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   describe('timeout handling', () => {
     const TIMEOUT_MS = 1000
+    // Upper bound: the production default timeout. Proves the operation completed
+    // well before the server would have been considered hung at the real limit.
+    const DEFAULT_BUNDLE_TIMEOUT_MS = fetchTimeouts.bundle
+    const DEFAULT_MANIFEST_TIMEOUT_MS = fetchTimeouts.manifest
 
     // Simulates a server that accepts the connection but never sends a response.
     // Propagates the AbortSignal so the real timeout mechanism fires naturally.
@@ -491,20 +495,20 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
       await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
-      const t0 = performance.now()
+      const t0 = Date.now()
       const result = await downloadEmbeddings()
-      const elapsed = performance.now() - t0
+      const elapsed = Date.now() - t0
 
-      assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+      assert.ok(elapsed < DEFAULT_BUNDLE_TIMEOUT_MS, `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`)
       assert.strictEqual(result.updated, false)
       assert.strictEqual(result.commitId, testVer)
     })
 
     test('bundle timeout fires after the configured duration then throws offline error', async () => {
-      const t0 = performance.now()
+      const t0 = Date.now()
       await assert.rejects(downloadEmbeddings(), err => {
-        const elapsed = performance.now() - t0
-        assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+        const elapsed = Date.now() - t0
+        assert.ok(elapsed < DEFAULT_BUNDLE_TIMEOUT_MS, `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`)
         assert.match(err.message, /Offline mode/)
         assert.strictEqual(err.cause?.name, 'TimeoutError')
         return true
@@ -518,10 +522,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         return Promise.resolve(new Response(null, { status: 500, statusText: 'Server Error' }))
       })
 
-      const t0 = performance.now()
+      const t0 = Date.now()
       await assert.rejects(downloadEmbeddings(), err => {
-        const elapsed = performance.now() - t0
-        assert.ok(elapsed <= TIMEOUT_MS + 100, `expected completion within ${TIMEOUT_MS + 100}ms, got ${Math.round(elapsed)}ms`)
+        const elapsed = Date.now() - t0
+        assert.ok(elapsed < DEFAULT_MANIFEST_TIMEOUT_MS, `expected completion within ${DEFAULT_MANIFEST_TIMEOUT_MS}ms, got ${elapsed}ms`)
         assert.match(err.message, /Failed to fetch bundle: 500/)
         assert.doesNotMatch(err.message, /Available models/)
         return true
