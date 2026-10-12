@@ -35,7 +35,7 @@
     "@huggingface/transformers": "4.3.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@sap/cds": ">=10.1.0",
-    "onnxruntime-node": "^1.30.0"
+    "onnxruntime-node": "^1.20.1"
   },
   "devDependencies": {
     "prettier": "^3.9.6"
