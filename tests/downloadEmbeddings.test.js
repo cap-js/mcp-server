@@ -462,11 +462,17 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     // Simulates a server that accepts the connection but never sends a response.
     // Propagates the AbortSignal so the real timeout mechanism fires naturally.
+    // A ref'd setInterval keeps the event loop alive until the signal fires —
+    // required because AbortSignal.timeout() uses an unref'd timer internally.
     const hungFetch = (_url, opts) => {
       if (opts?.signal?.aborted) return Promise.reject(opts.signal.reason)
-      return new Promise((_resolve, reject) =>
-        opts?.signal?.addEventListener('abort', () => reject(opts.signal.reason), { once: true })
-      )
+      return new Promise((_resolve, reject) => {
+        const keepAlive = setInterval(() => {}, 100)
+        opts?.signal?.addEventListener('abort', () => {
+          clearInterval(keepAlive)
+          reject(opts.signal.reason)
+        }, { once: true })
+      })
     }
 
     beforeEach(() => {
