@@ -1,6 +1,6 @@
 {
   "golden_set": "cap-golden-v3",
-  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. Each entry may be a string (single relevant doc) or an array of strings (an OR-group of alternate docs — any one match satisfies the group and counts as one relevant doc for every metric). IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
+  "description": "Frozen golden set for CAP MCP search_docs retrieval eval. Relevance ('relevant_doc_ids') is authored ONCE by a human and stored here; never recomputed at eval time. Each entry may be a string (single relevant doc) or an array of strings (an OR-group of alternate docs \u2014 any one match satisfies the group and counts as one relevant doc for every metric). IDs are the deterministic 'Source:' URL parsed from each chunk's first line (which already carries the #section anchor; see evals/lib/ids.js). Ranking of retrieved docs comes from the embedding retriever, but identity/matching is pure string parsing. Labels favour canonical reference/guide pages over release-notes where a canonical page exists. If a re-index changes a page's URL, the id changes and the runner's pre-flight check flags it.",
   "questions": [
     {
       "id": "capire-1",
@@ -13,7 +13,7 @@
     },
     {
       "id": "capire-2",
-      "question": "How to model relationships between entities in cds files?",
+      "question": "How to model relationships between entities?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/domain/#associations",
         "https://cap.cloud.sap/docs/cds/cdl#associations"
@@ -29,7 +29,7 @@
     },
     {
       "id": "capire-4",
-      "question": "How do I register a before handler in CAP Node.js to validate incoming request data before the on handler runs?",
+      "question": "How do I register a before handler in Node.js to validate incoming request data before the on handler runs?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/core-services#srv-before-request",
         "https://cap.cloud.sap/docs/guides/services/custom-code#hooks-on-before-after"
@@ -37,7 +37,7 @@
     },
     {
       "id": "capire-5",
-      "question": "What is the difference between on, before, and after event handlers in CAP Node.js?",
+      "question": "What is the difference between on, before, and after event handlers in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/core-services#srv-on-before-after",
         "https://cap.cloud.sap/docs/guides/services/custom-code#hooks-on-before-after"
@@ -45,7 +45,7 @@
     },
     {
       "id": "capire-6",
-      "question": "How do I define a calculated element in CDS?",
+      "question": "How do I define a calculated element?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/cds/cql#exists-predicate",
         "https://cap.cloud.sap/docs/cds/cdl#calculated-elements",
@@ -54,7 +54,7 @@
     },
     {
       "id": "capire-7",
-      "question": "How do I query for Authors that have Books with a specific stock level in CAP?",
+      "question": "How do I query for Authors that have Books with a specific stock level?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/cds/cxl#exists-infix-filter",
         "https://cap.cloud.sap/docs/cds/cxl#in-exists-predicates"
@@ -62,7 +62,7 @@
     },
     {
       "id": "capire-8",
-      "question": "What type should I use for a currency field in my CDS entity?",
+      "question": "What type should I use for a currency field in my entity?",
       "relevant_doc_ids": [
         [
           "https://cap.cloud.sap/docs/cds/types",
@@ -73,7 +73,7 @@
     },
     {
       "id": "capire-9",
-      "question": "How do I configure messaging in my CAP Node.js application?",
+      "question": "How do I configure messaging in my Node.js application?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/messaging#configuring-message-brokers",
         "https://cap.cloud.sap/docs/guides/events/event-queues#by-configuration"
@@ -81,7 +81,7 @@
     },
     {
       "id": "capire-10",
-      "question": "What is the difference between IAS and XSUAA authentication in CAP?",
+      "question": "What is the difference between IAS and XSUAA authentication in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/authentication#ias",
         "https://cap.cloud.sap/docs/node.js/authentication#xsuaa"
@@ -89,7 +89,7 @@
     },
     {
       "id": "capire-11",
-      "question": "How do I set up IAS or XSUAA authentication in CAP?",
+      "question": "How do I set up IAS or XSUAA authentication in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/authentication#ias",
         "https://cap.cloud.sap/docs/node.js/authentication#xsuaa",
@@ -108,14 +108,14 @@
     },
     {
       "id": "capire-13",
-      "question": "What is the inner development loop in CAP?",
+      "question": "What is the inner development loop?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/get-started/bookshop#inner-loop"
       ]
     },
     {
       "id": "capire-14",
-      "question": "How can customers and partners extend SAP CAP applications?",
+      "question": "How can customers and partners extend applications?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/get-started/features#intrinsic-extensibility"
       ]
@@ -136,14 +136,14 @@
     },
     {
       "id": "capire-17",
-      "question": "What is the difference between capture intent and how-to in CAP documentation?",
+      "question": "What is the difference between capture intent and how-to in the documentation?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/domain/#introduction"
       ]
     },
     {
       "id": "capire-18",
-      "question": "How do I add UI annotations to my CDS entities?",
+      "question": "How do I add UI annotations to my entities?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/domain/#fiori-annotations"
       ]
@@ -157,7 +157,7 @@
     },
     {
       "id": "capire-20",
-      "question": "How do I add constraints for input validation using annotations in CAP?",
+      "question": "How do I add constraints for input validation using annotations?",
       "relevant_doc_ids": [
         [
           "https://cap.cloud.sap/docs/guides/services/constraints#input-validation",
@@ -167,14 +167,14 @@
     },
     {
       "id": "capire-21",
-      "question": "How are localized models constructed in CAP?",
+      "question": "How are localized models constructed?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/uis/i18n#merging-algorithm"
       ]
     },
     {
       "id": "capire-22",
-      "question": "How do I use the common CDS annotations @title and @description?",
+      "question": "How do I use the common annotations @title and @description?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/uis/fiori#prefer-title-and-description"
       ]
@@ -188,7 +188,7 @@
     },
     {
       "id": "capire-24",
-      "question": "How do I skip generating a table for a CDS entity?",
+      "question": "How do I skip generating a table for an entity?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#customizing-options"
       ]
@@ -202,14 +202,14 @@
     },
     {
       "id": "capire-26",
-      "question": "How do I use a persistent SQLite database with CAP?",
+      "question": "How do I use a persistent SQLite database?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/sqlite#using-persistent-databases"
       ]
     },
     {
       "id": "capire-27",
-      "question": "How do I enable automatic schema evolution in my CAP application?",
+      "question": "How do I enable automatic schema evolution in my application?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/schema-evolution#automatic-migration"
       ]
@@ -223,35 +223,35 @@
     },
     {
       "id": "capire-29",
-      "question": "How are JSON payloads deserialized to Java types in CAP?",
+      "question": "How are JSON payloads deserialized to Java types?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/protocols/odata#simple-types"
       ]
     },
     {
       "id": "capire-30",
-      "question": "How are CDS types mapped to AsyncAPI supported types?",
+      "question": "How are types mapped to AsyncAPI supported types?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/protocols/asyncapi#mapping"
       ]
     },
     {
       "id": "capire-31",
-      "question": "How do I create a denormalized view in a CAP service?",
+      "question": "How do I create a denormalized view in a service?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/integration/calesi#defining-service-apis"
       ]
     },
     {
       "id": "capire-32",
-      "question": "What are the prerequisites for using SAP CAP?",
+      "question": "What are the prerequisites?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/integration/data-federation#preliminaries"
       ]
     },
     {
       "id": "capire-33",
-      "question": "How do I replace a service implementation in SAP CAP?",
+      "question": "How do I replace a service implementation?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/integration/reuse-and-compose#in-nodejs"
       ]
@@ -272,14 +272,14 @@
     },
     {
       "id": "capire-36",
-      "question": "How do I override CAP's default security configuration?",
+      "question": "How do I override the default security configuration?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/security/overview#key-concept-secure-by-default"
       ]
     },
     {
       "id": "capire-37",
-      "question": "How do I configure the Application Router with XSUAA in a CAP project?",
+      "question": "How do I configure the Application Router with XSUAA in a project?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/security/authentication#ui-level-testing-1"
       ]
@@ -300,7 +300,7 @@
     },
     {
       "id": "capire-40",
-      "question": "How do I set up an Audit Log Service on SAP BTP for my CAP application?",
+      "question": "How do I set up an Audit Log Service on SAP BTP for my application?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/security/dpp-audit-logging#use-sap-audit-log-service"
       ]
@@ -314,23 +314,16 @@
     },
     {
       "id": "capire-42",
-      "question": "How do I add test data for local testing in CAP?",
+      "question": "How do I add test data for local testing?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/extensibility/customization#add-test-data"
       ]
     },
     {
       "id": "capire-43",
-      "question": "How can SaaS providers extend base CAP models with new fields, entities, and annotations?",
+      "question": "How can SaaS providers extend base models with new fields, entities, and annotations?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/extensibility/feature-toggles#introduction-and-overview"
-      ]
-    },
-    {
-      "id": "capire-44",
-      "question": "How does CAP select the native fetch client for outgoing requests?",
-      "relevant_doc_ids": [
-        "https://cap.cloud.sap/docs/guides/deploy/to-cf#native-fetch"
       ]
     },
     {
@@ -349,7 +342,7 @@
     },
     {
       "id": "capire-47",
-      "question": "How do I configure an application using profiles in SAP CAP?",
+      "question": "How do I configure an application using profiles?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/multitenancy/mtxs#presets"
       ]
@@ -370,266 +363,266 @@
     },
     {
       "id": "capire-50",
-      "question": "How can I develop CAP applications using Java?",
+      "question": "How can I develop applications using Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/getting-started#introduction"
       ]
     },
     {
       "id": "capire-51",
-      "question": "How is the active feature set represented in CAP Java requests?",
+      "question": "How is the active feature set represented in Java requests?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/reflection-api#feature-toggles-info-provider"
       ]
     },
     {
       "id": "capire-52",
-      "question": "How can I use typed access to process query results in SAP CAP?",
+      "question": "How can I use typed access to process query results in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/cds-data#typed-access-to-query-results"
       ]
     },
     {
       "id": "capire-53",
-      "question": "How can I use a path expression to select from an entity set in CQl?",
+      "question": "How can I use a path expression to select from an entity set in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/working-with-cql/query-api#from-reference"
       ]
     },
     {
       "id": "capire-54",
-      "question": "How do I perform bulk upserts in CAP Java?",
+      "question": "How do I perform bulk upserts in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/working-with-cql/query-api#bulk-upsert"
       ]
     },
     {
       "id": "capire-55",
-      "question": "What types of string expressions are supported in CAP?",
+      "question": "What types of string expressions are supported in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/working-with-cql/query-api#concat-expression"
       ]
     },
     {
       "id": "capire-56",
-      "question": "How do I query parameterized views in SAP HANA with named parameters?",
+      "question": "How do I query parameterized views in SAP HANA with named parameters in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/working-with-cql/query-execution#querying-views"
       ]
     },
     {
       "id": "capire-57",
-      "question": "How do I resolve CDS entities in a CQL query?",
+      "question": "How do I resolve entities in a CQL query in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/working-with-cql/query-introspection#usage"
       ]
     },
     {
       "id": "capire-58",
-      "question": "What is an example configuration for using SQLite with CAP?",
+      "question": "What is an example configuration for using SQLite in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/cqn-services/persistence-services#file-based-storage"
       ]
     },
     {
       "id": "capire-59",
-      "question": "How do I consume a remote API exposed by a BTP reuse service in a CAP application?",
+      "question": "How do I consume a remote API exposed by a BTP reuse service in an application in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/cqn-services/remote-services#binding-to-a-reuse-service"
       ]
     },
     {
       "id": "capire-60",
-      "question": "How do I use service instances in event handlers for CDS services?",
+      "question": "How do I use service instances in event handlers in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/event-handlers/#servicearguments"
       ]
     },
     {
       "id": "capire-61",
-      "question": "How can I control how long a processing entry is held before another instance picks it up?",
+      "question": "How can I control how long a processing entry is held before another instance picks it up in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/event-queues#status-lock-timeout"
       ]
     },
     {
       "id": "capire-62",
-      "question": "How do I configure message routing between multiple message brokers in SAP CAP?",
+      "question": "How do I configure message routing between multiple message brokers in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/messaging#composite-messaging-service"
       ]
     },
     {
       "id": "capire-63",
-      "question": "How do I define advanced identifiers for associated entities in SAP CAP?",
+      "question": "How do I define advanced identifiers for associated entities in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/change-tracking#tips-and-tricks"
       ]
     },
     {
       "id": "capire-64",
-      "question": "How do I transform an authenticated user and inject it as UserInfo for a request in CAP?",
+      "question": "How do I transform an authenticated user and inject it as UserInfo for a request in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/security#custom-users"
       ]
     },
     {
       "id": "capire-65",
-      "question": "How do I use the CDS Maven plugin to watch my application and automatically rebuild on changes?",
+      "question": "How do I use the Maven plugin to watch my application and automatically rebuild on changes in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/developing-applications/running#cds-watch"
       ]
     },
     {
       "id": "capire-66",
-      "question": "How are correlation IDs handled in CAP Java SDK?",
+      "question": "How are correlation IDs handled in the Java SDK?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/operating-applications/observability#correlation-ids"
       ]
     },
     {
       "id": "capire-67",
-      "question": "How do I implement a protocol adapter in CAP?",
+      "question": "How do I implement a protocol adapter in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/building-plugins#protocol-adapter"
       ]
     },
     {
       "id": "capire-68",
-      "question": "How does the new behavior of expand and inline affect draft-enabled entities in CAP?",
+      "question": "How does the new behavior of expand and inline affect draft-enabled entities in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/migration#star-expand-and-inline-all-are-no-longer-permitted"
       ]
     },
     {
       "id": "capire-69",
-      "question": "How do I get the CdsModelProvider with user info and feature toggles?",
+      "question": "How do I get the CdsModelProvider with user info and feature toggles in Java?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/java/migration#comsapcdsservicesruntime"
       ]
     },
     {
       "id": "capire-70",
-      "question": "What are the submodules referenced in the cds object?",
+      "question": "What are the submodules referenced in the cds object in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-facade#refs-to-submodules"
       ]
     },
     {
       "id": "capire-71",
-      "question": "What are the convenient shortcuts for accessing entity definitions in CAP?",
+      "question": "What are the convenient shortcuts for accessing entity definitions in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-reflect#-actions-1"
       ]
     },
     {
       "id": "capire-72",
-      "question": "How can I customize server startup using the cds-plugin package?",
+      "question": "How can I customize server startup using the cds-plugin package in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-server#see-also"
       ]
     },
     {
       "id": "capire-73",
-      "question": "How do I specify a service name in the requires configuration?",
+      "question": "How do I specify a service name in the requires configuration in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-connect#cdsrequiressrvservice"
       ]
     },
     {
       "id": "capire-74",
-      "question": "What is executed before a request is handled in an SAP CAP service?",
+      "question": "What is executed before a request is handled in a service in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/core-services#srv-before-request"
       ]
     },
     {
       "id": "capire-75",
-      "question": "How do I configure CSRF-token handling for a remote service in CAP?",
+      "question": "How do I configure CSRF-token handling for a remote service in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/remote-services#remoteservice-configuration"
       ]
     },
     {
       "id": "capire-76",
-      "question": "How do I start a transaction manually in SAP CAP?",
+      "question": "How do I start a transaction manually in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/databases#db-begin"
       ]
     },
     {
       "id": "capire-77",
-      "question": "How do I record multiple errors in a CAP request?",
+      "question": "How do I record multiple errors in a request in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/events#req-error"
       ]
     },
     {
       "id": "capire-78",
-      "question": "How do I create an object stream and call a callback for each object in SAP CAP?",
+      "question": "How do I create an object stream and call a callback for each object in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-ql#foreach"
       ]
     },
     {
       "id": "capire-79",
-      "question": "How do I set the format for new loggers in CAP?",
+      "question": "How do I set the format for new loggers in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-log#cds-log-format"
       ]
     },
     {
       "id": "capire-80",
-      "question": "How do I customize the default locale in CDS?",
+      "question": "How do I customize the default locale in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-i18n#using-default-locales"
       ]
     },
     {
       "id": "capire-81",
-      "question": "How do I set environment variables for the CDS server on UNIX-based systems?",
+      "question": "How do I set environment variables for the server on UNIX-based systems in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-env#on-the-command-line"
       ]
     },
     {
       "id": "capire-82",
-      "question": "How do I delete messages from the outbox in SAP CAP?",
+      "question": "How do I delete messages from the outbox in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/event-queues#inspecting-cdsoutboxmessages"
       ]
     },
     {
       "id": "capire-83",
-      "question": "How can I check if a user has a specific role in my CAP application?",
+      "question": "How can I check if a user has a specific role in my application in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/authentication#user-is"
       ]
     },
     {
       "id": "capire-84",
-      "question": "How do I test my CAP application with cds.test?",
+      "question": "How do I test my application with cds.test in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/cds-plugins#usage-in-a-cap-project"
       ]
     },
     {
       "id": "capire-85",
-      "question": "How do I add TypeScript support to my SAP CAP project?",
+      "question": "How do I add TypeScript support to my project in Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/node.js/typescript#enable-typescript-support"
       ]
     },
     {
       "id": "capire-86",
-      "question": "How do I use the Audit Logging plugin for CAP Node.js?",
+      "question": "How do I use the Audit Logging plugin for Node.js?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/plugins/#as-cds-plugins-for-nodejs"
       ]
     },
     {
       "id": "capire-87",
-      "question": "How do I define custom actions and functions in a CDS service?",
+      "question": "How do I define custom actions and functions in a service?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/services/custom-actions#defining-custom-actions",
         "https://cap.cloud.sap/docs/cds/cdl#actions"
@@ -637,14 +630,14 @@
     },
     {
       "id": "capire-88",
-      "question": "How does the Fiori draft choreography work in CAP?",
+      "question": "How does the Fiori draft choreography work?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/uis/fiori#draft-choreography"
       ]
     },
     {
       "id": "capire-89",
-      "question": "How can I run required services as local mocks in a CAP application?",
+      "question": "How can I run required services as local mocks in an application?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/integration/reuse-and-compose#mocking-required-services",
         "https://cap.cloud.sap/docs/guides/integration/inner-loops"
@@ -652,7 +645,7 @@
     },
     {
       "id": "capire-90",
-      "question": "How do I define a view or projection on an entity in CDS?",
+      "question": "How do I define a view or projection on an entity?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/cds/cdl#views--projections",
         "https://cap.cloud.sap/docs/guides/domain/#views--projections"
@@ -660,14 +653,14 @@
     },
     {
       "id": "capire-91",
-      "question": "What resources are available for learning SAP CAP?",
+      "question": "What resources are available?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/resources/#if-you-are-new-to-cap"
       ]
     },
     {
       "id": "capire-92",
-      "question": "How do I check the installed version of the SAP CAP packages?",
+      "question": "How do I check the installed version?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/tools/cds-cli#cds-version"
       ]
@@ -688,42 +681,42 @@
     },
     {
       "id": "capire-95",
-      "question": "How do I use Markdown rendering in CAP code?",
+      "question": "How do I use Markdown rendering in code?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/tools/cds-editors#github-integration"
       ]
     },
     {
       "id": "capire-96",
-      "question": "What is the purpose of the CDL Compilation to Database-Specific DDLs guide in CAP?",
+      "question": "What is the purpose of the CDL Compilation to Database-Specific DDLs guide?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl"
       ]
     },
     {
       "id": "capire-97",
-      "question": "What types of database constraints can CAP generate from CDS model definitions?",
+      "question": "What types of database constraints can be generated from model definitions?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#keys-constraints"
       ]
     },
     {
       "id": "capire-98",
-      "question": "How does CAP automatically generate foreign key constraints for managed to-one associations?",
+      "question": "How are foreign key constraints automatically generated for managed to-one associations?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#foreign-key-constraints"
       ]
     },
     {
       "id": "capire-99",
-      "question": "When is referential integrity enforced for foreign key constraints in CAP databases?",
+      "question": "When is referential integrity enforced for foreign key constraints in databases?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#deferred-enforcement"
       ]
     },
     {
       "id": "capire-100",
-      "question": "Why should CAP database constraints not be used for end user-facing input validation?",
+      "question": "Why should database constraints not be used for end user-facing input validation?",
       "relevant_doc_ids": [
         "https://cap.cloud.sap/docs/guides/databases/cdl-to-ddl#database-constraints"
       ]
