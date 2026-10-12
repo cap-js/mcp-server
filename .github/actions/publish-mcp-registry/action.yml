@@ -10,6 +10,32 @@ runs:
       shell: bash
       run: |
         curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+    - name: Wait for npm propagation
+      shell: bash
+      # The MCP Registry rejects a server whose npm version isn't yet visible on
+      # registry.npmjs.org's read API, which lags a few seconds behind publish.
+      # Poll each npm package in server.json until its version resolves (or give up).
+      run: |
+        node -e '
+          const s = require("./server.json");
+          for (const p of s.packages ?? [])
+            if (p.registryType === "npm") console.log(`${p.identifier}@${p.version}`);
+        ' | while read -r pkg; do
+          url="https://registry.npmjs.org/${pkg%@*}/${pkg##*@}"
+          echo "Waiting for $pkg to appear at $url"
+          for attempt in $(seq 1 30); do
+            code=$(curl -fsS -o /dev/null -w '%{http_code}' "$url" || true)
+            if [ "$code" = "200" ]; then
+              echo "✓ $pkg is live (attempt $attempt)"
+              break
+            fi
+            if [ "$attempt" = "30" ]; then
+              echo "::error::$pkg not visible on npm after $attempt attempts (last status $code)"
+              exit 1
+            fi
+            sleep 10
+          done
+        done
     - name: Publish to MCP Registry
       shell: bash
       run: |
