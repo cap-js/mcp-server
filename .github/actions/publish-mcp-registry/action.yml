@@ -24,7 +24,7 @@ runs:
           url="https://registry.npmjs.org/${pkg%@*}/${pkg##*@}"
           echo "Waiting for $pkg to appear at $url"
           for attempt in $(seq 1 30); do
-            code=$(curl -fsS -o /dev/null -w '%{http_code}' "$url" || true)
+            code=$(curl --connect-timeout 5 --max-time 10 -fsS -o /dev/null -w '%{http_code}' "$url" || true)
             if [ "$code" = "200" ]; then
               echo "✓ $pkg is live (attempt $attempt)"
               break
