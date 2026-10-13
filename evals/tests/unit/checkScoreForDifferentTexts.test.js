@@ -78,7 +78,7 @@ function cosineSimilarity(a, b) {
 async function scoreUnder(model) {
   const dir = path.join(os.tmpdir(), `embed-score-${model.replace(/\//g, '--')}-${Date.now()}`)
   try {
-    const result = await createEmbeddings('code-chunks', [PROBE_TEXT], dir, { model })
+    const result = await createEmbeddings('code-chunks', [PROBE_TEXT], [PROBE_TEXT], { dir, model })
     const [chunk] = await loadChunks('code-chunks', result.outDir)
     const keptVec = await getEmbeddings(KEPT_QUERY, model)
     const droppedVec = await getEmbeddings(DROPPED_QUERY, model)
