@@ -6,7 +6,7 @@
     "url": "https://github.com/cap-js/mcp-server",
     "source": "github"
   },
-  "version": "0.0.6",
+  "version": "0.0.7",
   "Icon": {
     "src": "https://github.com/cap-js/mcp-server/blob/main/icon.png"
   },
@@ -14,7 +14,7 @@
     {
       "registryType": "npm",
       "identifier": "@cap-js/mcp-server",
-      "version": "0.0.6",
+      "version": "0.0.7",
       "transport": {
         "type": "stdio"
       }

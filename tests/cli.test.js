@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
 import { DEFAULT_DIR, getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle } from './helpers/test-bundle.js'
+import { buildTestBundle, TEST_CHUNKS } from './helpers/test-bundle.js'
 import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
 
 const TEST_COMMIT_ID = '__test_bundle__'
@@ -41,7 +41,12 @@ function unframeBundle(frame) {
 }
 
 async function seedCliTestBundle() {
-  const frame = await buildTestBundle()
+  const frame = await buildTestBundle({
+    metadata: TEST_CHUNKS.map((_, i) => ({
+      headingPath: `Test Section ${i + 1}`,
+      source: 'https://cap.cloud.sap/docs/test'
+    }))
+  })
   const { meta, bin } = unframeBundle(frame)
 
   const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
