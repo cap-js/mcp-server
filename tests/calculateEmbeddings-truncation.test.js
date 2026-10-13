@@ -6,7 +6,7 @@ import os from 'node:os'
 import calculateEmbeddings, { createEmbeddings, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import { discoverModel } from '@cap-js/ai/lib/vector_embedding/model-discovery.js'
 
-// Model max window for sentence-transformers/all-MiniLM-L6-v2 is 512 tokens
+// Model max window for BAAI/bge-small-en-v1.5 is 512 tokens
 // (BERT-style). One English word ≈ 1-2 WordPiece tokens, so ~10000 words of
 // "banana" is comfortably past the window.
 const LONG = 'banana '.repeat(10000).trim()

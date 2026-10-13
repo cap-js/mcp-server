@@ -21,7 +21,7 @@ Options:
   -v, --version              Show version number
       --download             Download latest embeddings and model files
       --offline              Skip downloading of embeddings updates
-      --model <name>         Embedding model (e.g. org/model); default: sentence-transformers/all-MiniLM-L6-v2
+      --model <name>         Embedding model (e.g. org/model); default: BAAI/bge-small-en-v1.5
 
 Environment variables:
   CDS_MCP_OFFLINE=true       Same as --offline

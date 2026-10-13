@@ -10,7 +10,7 @@ import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsD
 import cds from '@sap/cds'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'sentence-transformers', 'all-MiniLM-L6-v2')
+const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'BAAI', 'bge-small-en-v1.5')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {

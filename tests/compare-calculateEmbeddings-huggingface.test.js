@@ -2,6 +2,8 @@ import { test, describe, after } from 'node:test'
 import assert from 'node:assert'
 import calculateEmbeddings from '../lib/calculateEmbeddings.js'
 
+const DEFAULT_MODEL = 'BAAI/bge-small-en-v1.5'
+
 let testPassed = false
 
 after(() => {
@@ -15,9 +17,9 @@ after(() => {
 describe('calculateEmbeddings vs HuggingFace parity', () => {
 
 test('produces cosine similarity > 0.9 against HuggingFace pipeline on 30 code snippets', async () => {
-  // Load HuggingFace pipeline
+  // Load HuggingFace pipeline using the default model and settings
   const { pipeline } = await import('@huggingface/transformers')
-  const hfPipeline = await pipeline('feature-extraction', 'Xenova/bge-small-en-v1.5', {
+  const hfPipeline = await pipeline('feature-extraction', DEFAULT_MODEL, {
     pooling: 'mean',
     normalize: true,
     dtype: 'fp32'
