@@ -94,6 +94,24 @@ describe('searchMarkdownDocs', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
+  test('CDS_MCP_EMBEDDINGS_DIR overrides the search directory', async () => {
+    const prev = process.env.CDS_MCP_EMBEDDINGS_DIR
+    try {
+      // A directory without embedding files makes the search fail. This proves
+      // the env var is read: the downloaded localDir would otherwise succeed.
+      process.env.CDS_MCP_EMBEDDINGS_DIR = path.join(tmpDir, 'does-not-exist')
+      await assert.rejects(() => searchMarkdownDocs('entity', 1))
+
+      // The real leaf bundle directory returns results.
+      process.env.CDS_MCP_EMBEDDINGS_DIR = testBundleDir
+      const result = await searchMarkdownDocs('entity', 1)
+      assert(typeof result === 'string' && result.length > 0, 'Override dir should return results')
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_EMBEDDINGS_DIR
+      else process.env.CDS_MCP_EMBEDDINGS_DIR = prev
+    }
+  })
+
   test('returns at most maxResults chunks for multiple distinct queries', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
@@ -160,19 +178,6 @@ describe('searchMarkdownDocs', () => {
     assert(typeof result2 === 'string', 'Second result should be a string')
     assert(result1.length > 0, 'First result should not be empty')
     assert(result2.length > 0, 'Second result should not be empty')
-  })
-
-  test('LOCAL_EMBEDDINGS_DIR env var is ignored', async () => {
-    const prev = process.env.LOCAL_EMBEDDINGS_DIR
-    try {
-      process.env.LOCAL_EMBEDDINGS_DIR = '/nonexistent/path/that/does/not/exist'
-      const result = await searchMarkdownDocs('entity', 1)
-      assert(typeof result === 'string', 'Result should be a string')
-      assert(result.length > 0, 'Result should not be empty')
-    } finally {
-      if (prev === undefined) delete process.env.LOCAL_EMBEDDINGS_DIR
-      else process.env.LOCAL_EMBEDDINGS_DIR = prev
-    }
   })
 
   test('respects maxResults and returns at most N chunks for varying limits', async () => {

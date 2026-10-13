@@ -12,9 +12,9 @@ export async function readJsonOrNull(p) {
   }
 }
 
-export async function makeSearchDocsRunner(k, sourceDb, versionDir, search = searchMarkdownDocs) {
+export async function makeSearchDocsRunner(k, sourceDb, search = searchMarkdownDocs) {
   return async function (q) {
-    const out = await search(q.question, k, { versionDir })
+    const out = await search(q.question, k)
     return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
   }
 }
