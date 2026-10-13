@@ -211,9 +211,18 @@ describe('embeddings', () => {
         'fourth chunk about service definitions',
         'fifth chunk about entity projections'
       ]
-      const { outDir } = await createEmbeddings('test', chunks)
+      const { outDir } = await createEmbeddings('test', chunks, chunks)
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.chunks, chunks, 'output chunks must match input order exactly')
+    })
+
+    test('createEmbeddings writes canonicalChunks when provided', async () => {
+      const chunks = ['context\n\nfirst canonical chunk', 'context\n\nsecond canonical chunk']
+      const canonicalChunks = ['first canonical chunk', 'second canonical chunk']
+      const { outDir } = await createEmbeddings('test', chunks, canonicalChunks)
+      const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
+
+      assert.deepStrictEqual(meta.chunks, canonicalChunks)
     })
 
     test('createEmbeddings writes metadata when provided', async () => {
@@ -223,7 +232,7 @@ describe('embeddings', () => {
         { source: 'getting-started', label: 'java' },
         { source: 'deploy', label: 'node' }
       ]
-      const { outDir } = await createEmbeddings('test', chunks, undefined, { metadata })
+      const { outDir } = await createEmbeddings('test', chunks, chunks, { metadata })
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.metadata, metadata, 'metadata must be written as-is')
       assert.deepStrictEqual(meta.chunks, chunks, 'chunks must still be present alongside metadata')
@@ -231,20 +240,17 @@ describe('embeddings', () => {
 
     test('createEmbeddings without metadata produces no metadata key', async () => {
       const chunks = ['chunk about cds init']
-      const { outDir } = await createEmbeddings('test', chunks)
+      const { outDir } = await createEmbeddings('test', chunks, chunks)
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.metadata, undefined, 'metadata key must be absent when not provided')
     })
-
     test('createEmbeddings places output under capire.version folder', async () => {
       const chunks = ['chunk about cds init']
       const capire = {
         commitId: '__commit_id_1234__',
         cdsDependency: { node: '>=10.0', java: '>=5.0' }
       }
-      const { outDir } = await createEmbeddings('test', chunks, undefined, {
-        capire
-      })
+      const { outDir } = await createEmbeddings('test', chunks, chunks, { capire })
       assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.capire, capire)
@@ -252,7 +258,7 @@ describe('embeddings', () => {
 
     test('createEmbeddings without capire uses model folder only', async () => {
       const chunks = ['chunk about cds init']
-      const { outDir, modelFolderName } = await createEmbeddings('test', chunks)
+      const { outDir, modelFolderName } = await createEmbeddings('test', chunks, chunks)
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.capire, undefined)
       assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
@@ -270,7 +276,8 @@ describe('embeddings', () => {
 
     test('createEmbeddings writes a valid ISO 8601 createdAt timestamp', async () => {
       const before = new Date()
-      const { outDir } = await createEmbeddings('test', ['chunk about cds init'])
+      const chunks = ['chunk about cds init']
+      const { outDir } = await createEmbeddings('test', chunks, chunks)
       const after = new Date()
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.ok(typeof meta.createdAt === 'string', 'createdAt must be a string')

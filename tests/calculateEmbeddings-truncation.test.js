@@ -31,7 +31,7 @@ describe('createEmbeddings truncation', () => {
 
   test('too-long chunk produces exactly one row, truncated not split', async () => {
     // Writes go to real tmp dir; the real embedder still reads its model from disk.
-    const result = await createEmbeddings('code-chunks', [SHORT, LONG])
+    const result = await createEmbeddings('code-chunks', [SHORT, LONG], [SHORT, LONG])
 
     // Only two rows in and two rows out — no auto-split.
     assert.strictEqual(result.count, 2, 'input rows == output rows (no splitting)')
