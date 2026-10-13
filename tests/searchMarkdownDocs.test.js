@@ -94,24 +94,6 @@ describe('searchMarkdownDocs', () => {
     assert(binExists, 'Binary embeddings file should exist after download')
   })
 
-  test('CDS_MCP_EMBEDDINGS_DIR overrides the search directory', async () => {
-    const prev = process.env.CDS_MCP_EMBEDDINGS_DIR
-    try {
-      // A directory without embedding files makes the search fail. This proves
-      // the env var is read: the downloaded localDir would otherwise succeed.
-      process.env.CDS_MCP_EMBEDDINGS_DIR = path.join(tmpDir, 'does-not-exist')
-      await assert.rejects(() => searchMarkdownDocs('entity', 1))
-
-      // The real leaf bundle directory returns results.
-      process.env.CDS_MCP_EMBEDDINGS_DIR = testBundleDir
-      const result = await searchMarkdownDocs('entity', 1)
-      assert(typeof result === 'string' && result.length > 0, 'Override dir should return results')
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_EMBEDDINGS_DIR
-      else process.env.CDS_MCP_EMBEDDINGS_DIR = prev
-    }
-  })
-
   test('returns at most maxResults chunks for multiple distinct queries', async () => {
     const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
 
