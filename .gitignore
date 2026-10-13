@@ -2,3 +2,7 @@ models/
 embeddings/
 node_modules/
 .claude
+testEmbeddingsModels
+.DS_Store
+llms-full.txt
+evals/runs
