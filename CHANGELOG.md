@@ -6,7 +6,19 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ## Version 0.0.8 - 2026-10-14
 
+### Added
 
+- Accept precomputed `canonicalChunks` in `createEmbeddings`, validated as an array at creation time
+- Export the default `MODEL` constant from `calculateEmbeddings`
+
+### Changed
+
+- Changed the default embedding model from `sentence-transformers/all-MiniLM-L6-v2` to `BAAI/bge-small-en-v1.5` for improved retrieval quality
+- Clarified the `search_docs` tool and query parameter descriptions, guiding term choice toward specific concepts and away from corpus-wide terms
+
+### Fixed
+
+- Bound all network requests with `AbortSignal.timeout` (manifest 6 s, bundle download 10 s) so hung or slow upstream servers cannot block the server indefinitely
 
 ## Version 0.0.7 - 2026-10-09
 
