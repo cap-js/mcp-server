@@ -15,7 +15,7 @@ export const TEST_CHUNKS = [
 
 export async function buildTestBundle({ metadata } = {}) {
   const { default: calculateEmbeddings } = await import('../../lib/calculateEmbeddings.js')
-  const vecs = await Promise.all(TEST_CHUNKS.map(chunk => calculateEmbeddings(chunk)))
+  const vecs = await Promise.all(TEST_CHUNKS.map((chunk) => calculateEmbeddings(chunk)))
   const dim = vecs[0].length
   const flat = new Float32Array(TEST_CHUNKS.length * dim)
   for (let i = 0; i < vecs.length; i++) flat.set(vecs[i], i * dim)
@@ -26,4 +26,3 @@ export async function buildTestBundle({ metadata } = {}) {
   header.writeUInt32BE(metaBuf.length, 0)
   return Buffer.concat([header, metaBuf, Buffer.from(flat.buffer)])
 }
-

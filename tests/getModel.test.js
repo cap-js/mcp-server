@@ -25,7 +25,9 @@ afterEach(async () => {
   cds.root = originalCdsRoot
   cds.model = originalCdsModel
   cds.env = originalCdsEnv
-  await Promise.all(projects.splice(0).map(project => rm(project, { recursive: true, force: true })))
+  await Promise.all(
+    projects.splice(0).map((project) => rm(project, { recursive: true, force: true }))
+  )
 })
 
 describe('compiler isolation and concurrency', () => {
@@ -111,11 +113,12 @@ describe('compiler isolation and concurrency', () => {
 
     cds.model = previousModel
     mock.method(fs.promises, 'readdir', async (directory, ...args) => {
-      if (!projectRoots.has(path.resolve(directory))) return originalReaddir.call(fs.promises, directory, ...args)
+      if (!projectRoots.has(path.resolve(directory)))
+        return originalReaddir.call(fs.promises, directory, ...args)
       activeScans++
       maxActiveScans = Math.max(maxActiveScans, activeScans)
       try {
-        await new Promise(resolve => setTimeout(resolve, 20))
+        await new Promise((resolve) => setTimeout(resolve, 20))
         return await originalReaddir.call(fs.promises, directory, ...args)
       } finally {
         activeScans--
@@ -184,17 +187,28 @@ describe('cache refresh', () => {
     const packagePath = path.join(packageProject, 'package.json')
     const packageModel = await getModel(packageProject)
 
-    assert.equal(packageModel.definitions.PackageConfigService.endpoints[0].path, 'first/package-config/')
+    assert.equal(
+      packageModel.definitions.PackageConfigService.endpoints[0].path,
+      'first/package-config/'
+    )
 
     await writeFile(
       packagePath,
-      JSON.stringify({ cds: { fiori: { draft_new_action: 'newItem' }, protocols: { 'odata-v4': { path: '/second' } } } })
+      JSON.stringify({
+        cds: {
+          fiori: { draft_new_action: 'newItem' },
+          protocols: { 'odata-v4': { path: '/second' } }
+        }
+      })
     )
     await utimes(packagePath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
 
     const refreshedPackageModel = await getModel(packageProject)
     assert.notStrictEqual(refreshedPackageModel, packageModel)
-    assert.equal(refreshedPackageModel.definitions.PackageConfigService.endpoints[0].path, 'second/package-config/')
+    assert.equal(
+      refreshedPackageModel.definitions.PackageConfigService.endpoints[0].path,
+      'second/package-config/'
+    )
 
     const cdsrcProject = await createProject('CdsrcConfigService', 'CdsrcConfigBooks')
     const cdsrcPath = path.join(cdsrcProject, '.cdsrc.js')
@@ -203,29 +217,47 @@ describe('cache refresh', () => {
 
     assert.equal(cdsrcModel.definitions.CdsrcConfigService.endpoints[0].path, 'first/cdsrc-config/')
 
-    await writeFile(cdsrcPath, "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }")
+    await writeFile(
+      cdsrcPath,
+      "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }"
+    )
     await utimes(cdsrcPath, new Date(Date.now() + 4000), new Date(Date.now() + 4000))
 
     const refreshedCdsrcModel = await getModel(cdsrcProject)
     assert.notStrictEqual(refreshedCdsrcModel, cdsrcModel)
-    assert.equal(refreshedCdsrcModel.definitions.CdsrcConfigService.endpoints[0].path, 'second/cdsrc-config/')
+    assert.equal(
+      refreshedCdsrcModel.definitions.CdsrcConfigService.endpoints[0].path,
+      'second/cdsrc-config/'
+    )
   })
 
   test('refreshes cached models when transitive CAP configuration dependencies change', async () => {
     const project = await createProject('TransitiveConfigService', 'TransitiveConfigBooks')
     const configPath = path.join(project, 'cds-config.js')
     await writeFile(path.join(project, '.cdsrc.js'), "module.exports = require('./cds-config')")
-    await writeFile(configPath, "module.exports = { protocols: { 'odata-v4': { path: '/first' } } }")
+    await writeFile(
+      configPath,
+      "module.exports = { protocols: { 'odata-v4': { path: '/first' } } }"
+    )
 
     const model = await getModel(project)
-    assert.equal(model.definitions.TransitiveConfigService.endpoints[0].path, 'first/transitive-config/')
+    assert.equal(
+      model.definitions.TransitiveConfigService.endpoints[0].path,
+      'first/transitive-config/'
+    )
 
-    await writeFile(configPath, "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }")
+    await writeFile(
+      configPath,
+      "module.exports = { protocols: { 'odata-v4': { path: '/second' } } }"
+    )
     await utimes(configPath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
 
     const refreshedModel = await getModel(project)
     assert.notStrictEqual(refreshedModel, model)
-    assert.equal(refreshedModel.definitions.TransitiveConfigService.endpoints[0].path, 'second/transitive-config/')
+    assert.equal(
+      refreshedModel.definitions.TransitiveConfigService.endpoints[0].path,
+      'second/transitive-config/'
+    )
   })
 
   test('refreshes cached models when directory-valued CDS_CONFIG files change', async () => {
@@ -241,14 +273,20 @@ describe('cache refresh', () => {
 
     try {
       const model = await getModel(project)
-      assert.equal(model.definitions.DirectoryConfigService.endpoints[0].path, 'first/directory-config/')
+      assert.equal(
+        model.definitions.DirectoryConfigService.endpoints[0].path,
+        'first/directory-config/'
+      )
 
       await writeFile(protocolPath, '/second')
       await utimes(protocolPath, new Date(Date.now() + 2000), new Date(Date.now() + 2000))
 
       const refreshedModel = await getModel(project)
       assert.notStrictEqual(refreshedModel, model)
-      assert.equal(refreshedModel.definitions.DirectoryConfigService.endpoints[0].path, 'second/directory-config/')
+      assert.equal(
+        refreshedModel.definitions.DirectoryConfigService.endpoints[0].path,
+        'second/directory-config/'
+      )
     } finally {
       if (previousConfig === undefined) delete process.env.CDS_CONFIG
       else process.env.CDS_CONFIG = previousConfig
@@ -295,7 +333,11 @@ describe('race conditions and resilience', () => {
     const originalLstat = fs.promises.lstat
     let changedDuringSnapshot = false
     mock.method(fs.promises, 'lstat', async (file, ...args) => {
-      if (!changedDuringSnapshot && path.resolve(file) === servicePath && fs.existsSync(markerPath)) {
+      if (
+        !changedDuringSnapshot &&
+        path.resolve(file) === servicePath &&
+        fs.existsSync(markerPath)
+      ) {
         changedDuringSnapshot = true
         fs.writeFileSync(
           servicePath,
@@ -326,7 +368,10 @@ describe('race conditions and resilience', () => {
     const sharedDirectory = path.join(workspace, 'shared')
     const sharedModelPath = path.join(sharedDirectory, 'model.cds')
     const markerPath = path.join(project, 'compile-started')
-    await Promise.all([mkdir(path.join(project, 'srv'), { recursive: true }), mkdir(sharedDirectory)])
+    await Promise.all([
+      mkdir(path.join(project, 'srv'), { recursive: true }),
+      mkdir(sharedDirectory)
+    ])
     await writeFile(
       path.join(project, '.cdsrc.js'),
       `require('node:fs').writeFileSync(${JSON.stringify(markerPath)}, ''); module.exports = {}`
@@ -341,7 +386,11 @@ describe('race conditions and resilience', () => {
     const originalLstat = fs.promises.lstat
     let changedDuringSnapshot = false
     mock.method(fs.promises, 'lstat', async (file, ...args) => {
-      if (!changedDuringSnapshot && path.resolve(file) === canonicalSharedModelPath && fs.existsSync(markerPath)) {
+      if (
+        !changedDuringSnapshot &&
+        path.resolve(file) === canonicalSharedModelPath &&
+        fs.existsSync(markerPath)
+      ) {
         changedDuringSnapshot = true
         fs.writeFileSync(sharedModelPath, 'entity SharedBooks { key ID: Integer; latest: String; }')
         const latestMtime = new Date(Date.now() + 2000)
@@ -381,7 +430,8 @@ describe('race conditions and resilience', () => {
     await mkdir(unreadableDirectory)
     const originalReaddir = fs.promises.readdir
     mock.method(fs.promises, 'readdir', async (directory, ...args) => {
-      if (path.resolve(directory) === unreadableDirectory) throw new Error('directory temporarily unavailable')
+      if (path.resolve(directory) === unreadableDirectory)
+        throw new Error('directory temporarily unavailable')
       return originalReaddir.call(fs.promises, directory, ...args)
     })
 
@@ -408,7 +458,7 @@ describe('workspace security', () => {
     await writeFile(outsideModel, 'entity Outside { key ID: Integer; }')
     await symlink(outsideModel, path.join(project, 'srv', 'linked.cds'))
 
-    await assert.rejects(getModel(project), error => {
+    await assert.rejects(getModel(project), (error) => {
       assert.equal(error.name, 'WorkspaceAccessError')
       assert.match(error.message, /CDS model source is outside the configured workspace roots/)
       return true
@@ -425,7 +475,7 @@ describe('workspace security', () => {
     await symlink(outsideModel, path.join(project, 'srv', 'linked.cds'))
 
     assert(model.definitions.CachedSymlinkService)
-    await assert.rejects(getModel(project), error => {
+    await assert.rejects(getModel(project), (error) => {
       assert.equal(error.name, 'WorkspaceAccessError')
       assert.match(error.message, /CDS model source is outside the configured workspace roots/)
       return true
@@ -444,7 +494,7 @@ describe('workspace security', () => {
       "using { Outside } from '../../outside/model'; service EscapingService { entity Items as projection on Outside; }"
     )
 
-    await assert.rejects(getModel(project), error => {
+    await assert.rejects(getModel(project), (error) => {
       assert.equal(error.name, 'WorkspaceAccessError')
       assert.match(error.message, /CDS model source is outside the configured workspace roots/)
       return true
@@ -453,7 +503,7 @@ describe('workspace security', () => {
     const model = await getModel(project, [workspace])
     assert(model.definitions.EscapingService)
     await writeFile(path.join(outside, 'model.cds'), 'this is not valid CDS')
-    await assert.rejects(getModel(project, [project]), error => {
+    await assert.rejects(getModel(project, [project]), (error) => {
       assert.equal(error.name, 'WorkspaceAccessError')
       assert.match(error.message, /CDS model source is outside the configured workspace roots/)
       return true
@@ -473,7 +523,7 @@ describe('workspace security', () => {
       "using { SECRET_CUSTOMER_TABLE } from '../../private/model'; service LeakingService { entity Items as projection on SECRET_CUSTOMER_TABLE; }"
     )
 
-    await assert.rejects(getModel(project), error => {
+    await assert.rejects(getModel(project), (error) => {
       assert.equal(error.message, 'Failed to compile CDS model')
       assert(!error.message.includes(outsideModel))
       assert(!error.message.includes('SECRET_CUSTOMER_TABLE'))
@@ -520,7 +570,10 @@ describe('OData containment', () => {
     const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-flat-'))
     projects.push(project)
     await mkdir(path.join(project, 'srv'))
-    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'package.json'),
+      JSON.stringify({ cds: { odata: { containment: true } } })
+    )
     await writeFile(
       path.join(project, 'srv', 'service.cds'),
       `namespace my;
@@ -538,7 +591,10 @@ describe('OData containment', () => {
     const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-model-'))
     projects.push(project)
     await mkdir(path.join(project, 'srv'))
-    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'package.json'),
+      JSON.stringify({ cds: { odata: { containment: true } } })
+    )
     await writeFile(
       path.join(project, 'srv', 'service.cds'),
       `namespace my;
@@ -550,7 +606,10 @@ describe('OData containment', () => {
     const model = await getModel(project)
     const exposed = model.definitions['my.OrderService'].exposedEntities
     assert(exposed.includes('my.OrderService.Orders'), 'Orders should be exposed as root')
-    assert(!exposed.includes('my.OrderService.Items'), 'Items is contained and must not be exposed as standalone entity set')
+    assert(
+      !exposed.includes('my.OrderService.Items'),
+      'Items is contained and must not be exposed as standalone entity set'
+    )
     assert.equal(exposed.length, 1)
   })
 
@@ -558,7 +617,10 @@ describe('OData containment', () => {
     const project = await mkdtemp(path.join(os.tmpdir(), 'cds-mcp-containment-self-ref-'))
     projects.push(project)
     await mkdir(path.join(project, 'srv'))
-    await writeFile(path.join(project, 'package.json'), JSON.stringify({ cds: { odata: { containment: true } } }))
+    await writeFile(
+      path.join(project, 'package.json'),
+      JSON.stringify({ cds: { odata: { containment: true } } })
+    )
     await writeFile(
       path.join(project, 'srv', 'service.cds'),
       `namespace my;
@@ -568,7 +630,10 @@ describe('OData containment', () => {
 
     const model = await getModel(project)
     const exposed = model.definitions['my.FolderService'].exposedEntities
-    assert(exposed.includes('my.FolderService.Folder'), 'Folder must remain exposed as root entity set')
+    assert(
+      exposed.includes('my.FolderService.Folder'),
+      'Folder must remain exposed as root entity set'
+    )
     assert.equal(exposed.length, 1)
   })
 })
@@ -584,7 +649,10 @@ async function createProject(serviceName, entityName, compatTextsEntities) {
       JSON.stringify({ cds: { features: { compat_texts_entities: compatTextsEntities } } })
     )
   }
-  await writeFile(path.join(project, 'db', 'schema.cds'), `entity ${entityName} { key ID: Integer; }`)
+  await writeFile(
+    path.join(project, 'db', 'schema.cds'),
+    `entity ${entityName} { key ID: Integer; }`
+  )
   await writeFile(
     path.join(project, 'srv', 'service.cds'),
     `using { ${entityName} } from '../db/schema'; service ${serviceName} { entity Items as projection on ${entityName}; }`
@@ -600,7 +668,10 @@ async function createDraftProject(serviceName, draftNewAction, protocolPath) {
   await writeFile(
     path.join(project, 'package.json'),
     JSON.stringify({
-      cds: { fiori: { draft_new_action: draftNewAction }, protocols: { 'odata-v4': { path: protocolPath } } }
+      cds: {
+        fiori: { draft_new_action: draftNewAction },
+        protocols: { 'odata-v4': { path: protocolPath } }
+      }
     })
   )
   await writeFile(path.join(project, 'db', 'schema.cds'), '')
@@ -613,7 +684,9 @@ async function createDraftProject(serviceName, draftNewAction, protocolPath) {
 
 function cdsChildReferences() {
   return Object.values(nodeRequire.cache).reduce(
-    (count, module) => count + module.children.filter(child => child.id.startsWith(cdsPackageRoot + path.sep)).length,
+    (count, module) =>
+      count +
+      module.children.filter((child) => child.id.startsWith(cdsPackageRoot + path.sep)).length,
     0
   )
 }
