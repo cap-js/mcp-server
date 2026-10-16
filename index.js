@@ -53,7 +53,7 @@ try {
 }
 
 // Set model BEFORE any import that triggers embeddings download side-effects.
-if (values.model) process.env.CDS_MCP_MODEL = values.model
+if (values.model !== undefined) process.env.CDS_MCP_MODEL = values.model
 
 const { default: run, runTool } = await import('./lib/run.js')
 const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')

@@ -66,6 +66,11 @@ claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
 claude mcp add --scope project cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
+To set an environment variable, add `--env` before the server name:
+```sh
+claude mcp add --scope user --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 cds-mcp -- npx -y @cap-js/mcp-server
+```
+
 ### Usage in VS Code
 
 Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
@@ -97,6 +102,13 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 }
 ```
 
+To set an environment variable, replace the server's empty `env` object with:
+```json
+"env": {
+  "CDS_MCP_MODEL": "nomic-ai/nomic-embed-text-v1.5"
+}
+```
+
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
 
 ### Usage in OpenAI Codex
@@ -107,20 +119,38 @@ Register the server with [OpenAI Codex](https://openai.com/codex):
 codex mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
+To set an environment variable, add `--env` before the command:
+```sh
+codex mcp add cds-mcp --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 -- npx -y @cap-js/mcp-server
+```
+
 ### Usage in opencode
 
-Example for [opencode](https://github.com/sst/opencode):
-```json
-{
-  "mcp": {
-    "cds-mcp": {
-      "type": "local",
-      "command": ["npx", "-y", "@cap-js/mcp-server"],
-      "enabled": true
-    }
-  }
-}
+Register the server globally with [opencode](https://github.com/sst/opencode):
+```sh
+opencode mcp add --global cds-mcp -- npx -y @cap-js/mcp-server
 ```
+
+To set an environment variable, add `--env` before the command:
+```sh
+opencode mcp add --global cds-mcp \
+  --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 \
+  -- npx -y @cap-js/mcp-server
+```
+
+### Environment Variables
+
+| Variable | Description |
+| --- | --- |
+| `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. Accepts `true` or `false`. |
+| `CDS_MCP_MODEL` | Non-empty embedding model name. |
+| `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
+| `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
+| `RERANK_ENABLED` | Set to `true` to rerank `search_docs` results with a local cross-encoder model. Accepts `true` or `false`; disabled by default. |
+| `CDS_MCP_RERANK_MODEL` | Non-empty cross-encoder model name used when reranking. Defaults to `Xenova/ms-marco-MiniLM-L-6-v2`. |
+| `CDS_MCP_RERANK_DTYPE` | Data type used to load the reranking model. Defaults to `q8`; supported values are `auto`, `fp32`, `fp16`, `q8`, `int8`, `uint8`, `q4`, `bnb4`, `q4f16`, `q2`, `q2f16`, `q1`, and `q1f16`. |
+| `CDS_MCP_RERANK_EXTERNAL_DATA` | Set to `true` for reranking models whose ONNX weights are stored in external `.onnx_data` files. Accepts `true` or `false`. |
+| `CDS_MCP_RERANK_BATCH_SIZE` | Positive integer number of results to process in each reranking batch. Defaults to `1`. |
 
 ### Rules
 
@@ -156,15 +186,6 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 # Search for CDS model definitions
 cds-mcp search_model . Books entity
 ```
-
-### Environment Variables
-
-| Variable | Description |
-| --- | --- |
-| `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. |
-| `CDS_MCP_MODEL` | Embedding model name. |
-| `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
-| `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
 
 ## Available Tools
 
