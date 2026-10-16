@@ -48,16 +48,16 @@ test('reads timeout values from environment variables', async () => {
   }
 })
 
-test('rounds fractional timeout environment values and defaults out-of-range values', async () => {
+test('rejects fractional timeout environment values', async () => {
   const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
   const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
   process.env.CDS_MCP_MANIFEST_TIMEOUT = '1.5'
-  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '2147483648'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
 
   try {
-    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${Date.now()}`)
-    assert.strictEqual(configuredTimeouts.manifest, 2)
-    assert.strictEqual(configuredTimeouts.bundle, 30_000)
+    await assert.rejects(import(`../lib/searchMarkdownDocs.js?fractional-timeout-test=${Date.now()}`), {
+      message: /CDS_MCP_MANIFEST_TIMEOUT must be a positive integer number of milliseconds/
+    })
   } finally {
     if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
     else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
@@ -66,16 +66,18 @@ test('rounds fractional timeout environment values and defaults out-of-range val
   }
 })
 
-test('uses default timeouts for non-positive or non-finite environment values', async () => {
+test('rejects non-positive, non-finite, and out-of-range timeout environment values', async () => {
   const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
   const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
-  process.env.CDS_MCP_MANIFEST_TIMEOUT = 'not-a-number'
-  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '0'
 
   try {
-    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?default-timeout-test=${Date.now()}`)
-    assert.strictEqual(configuredTimeouts.manifest, 15_000)
-    assert.strictEqual(configuredTimeouts.bundle, 30_000)
+    for (const [manifest, bundle] of [['0', '5678'], ['not-a-number', '5678'], ['1234', '2147483648']]) {
+      process.env.CDS_MCP_MANIFEST_TIMEOUT = manifest
+      process.env.CDS_MCP_DOWNLOAD_TIMEOUT = bundle
+      await assert.rejects(import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${manifest}-${bundle}`), {
+        message: /must be a positive integer number of milliseconds/
+      })
+    }
   } finally {
     if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
     else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
