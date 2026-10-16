@@ -148,7 +148,7 @@ opencode mcp add --global cds-mcp \
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
 | `RERANK_ENABLED` | Set to `true` to rerank `search_docs` results with a local cross-encoder model. Accepts `true` or `false`; disabled by default. |
 | `CDS_MCP_RERANK_MODEL` | Non-empty cross-encoder model name used when reranking. Defaults to `Xenova/ms-marco-MiniLM-L-6-v2`. |
-| `CDS_MCP_RERANK_DTYPE` | Data type used to load the reranking model. Defaults to `q8`; supported values are `auto`, `fp32`, `fp16`, `q8`, `int8`, `uint8`, `q4`, `bnb4`, `q4f16`, `q2`, `q2f16`, `q1`, and `q1f16`. |
+| `CDS_MCP_RERANK_DTYPE` | Non-empty data type used to load the reranking model. Defaults to `q8`; set to `fp32` for models without `model_quantized.onnx`. |
 | `CDS_MCP_RERANK_EXTERNAL_DATA` | Set to `true` for reranking models whose ONNX weights are stored in external `.onnx_data` files. Accepts `true` or `false`. |
 | `CDS_MCP_RERANK_BATCH_SIZE` | Positive integer number of results to process in each reranking batch. Defaults to `1`. |
 

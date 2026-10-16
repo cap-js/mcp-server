@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { configuredBoolean, configuredEnum, configuredNonEmptyString, configuredPositiveInteger } from '../lib/utils.js'
+import { configuredBoolean, configuredNonEmptyString, configuredPositiveInteger } from '../lib/utils.js'
 
 function withEnvironment(name, value, callback) {
   const previous = process.env[name]
@@ -33,9 +33,4 @@ test('configuredPositiveInteger enforces integer bounds', () => {
   for (const value of ['0', '-1', '1.5', 'four', '4']) {
     withEnvironment('TEST_INTEGER', value, () => assert.throws(() => configuredPositiveInteger('TEST_INTEGER', 1, { maximum: 3 }), /must be a positive integer/))
   }
-})
-
-test('configuredEnum accepts only supported values', () => {
-  withEnvironment('TEST_ENUM', 'one', () => assert.strictEqual(configuredEnum('TEST_ENUM', 'two', ['one', 'two']), 'one'))
-  withEnvironment('TEST_ENUM', 'three', () => assert.throws(() => configuredEnum('TEST_ENUM', 'two', ['one', 'two']), /must be one of: one, two/))
 })
