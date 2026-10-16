@@ -455,6 +455,28 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         return true
       })
     })
+
+    test('falls back to a local version when reading the bundle body fails', async () => {
+      await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+      await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+      mock.restoreAll()
+      mock.method(globalThis, 'fetch', async () => ({
+        status: 200,
+        ok: true,
+        headers: new Headers({ 'x-embeddings-version': '__new_bundle__' }),
+        arrayBuffer: async () => {
+          const error = new Error('download timed out')
+          error.name = 'TimeoutError'
+          throw error
+        }
+      }))
+
+      const result = await downloadEmbeddings()
+      assert.strictEqual(result.updated, false)
+      assert.strictEqual(result.commitId, testVer)
+      assert.strictEqual(result.localDir, testDir)
+    })
   })
 
   describe('timeout handling', () => {
