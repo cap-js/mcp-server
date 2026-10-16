@@ -2,6 +2,7 @@ import { test, describe, mock, after } from 'node:test'
 import assert from 'node:assert'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
+import { spawnSync } from 'node:child_process'
 import { setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle } from './helpers/test-bundle.js'
 
@@ -62,6 +63,18 @@ after(async () => {
 })
 
 describe('env var → model options', () => {
+    test('CDS_MCP_RERANK_BATCH_SIZE rejects non-positive and non-integer values', () => {
+        for (const value of ['0', '-1', '1.5', 'not-a-number']) {
+            const result = spawnSync(process.execPath, ['--input-type=module', '--eval', "import('./lib/rerank.js')"], {
+                cwd: process.cwd(),
+                env: { ...process.env, CDS_MCP_RERANK_BATCH_SIZE: value },
+                encoding: 'utf8'
+            })
+            assert.notStrictEqual(result.status, 0, `expected ${value} to be rejected`)
+            assert.match(result.stderr, /CDS_MCP_RERANK_BATCH_SIZE must be a positive integer/)
+        }
+    })
+
     test('RERANK_ENABLED is true when env var is "true"', () => {
         assert.strictEqual(RERANK_ENABLED, true)
     })
