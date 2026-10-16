@@ -508,8 +508,8 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     after(() => {
-      fetchTimeouts.manifest = 5_000
-      fetchTimeouts.bundle = 10_000
+      fetchTimeouts.manifest = 15_000
+      fetchTimeouts.bundle = 30_000
     })
 
     test('bundle timeout fires after the configured duration then falls back to local version', async () => {
