@@ -30,6 +30,24 @@ const DEFAULT_EMBEDDINGS_DIR = getActiveEmbeddingsDir()
 const modelEtagsRoot = path.join(getActiveEmbeddingsDir(), 'etags')
 const manifestEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
+test('reads timeout values from environment variables', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+  process.env.CDS_MCP_MANIFEST_TIMEOUT = '1234'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
+
+  try {
+    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?timeout-test=${Date.now()}`)
+    assert.strictEqual(configuredTimeouts.manifest, 1234)
+    assert.strictEqual(configuredTimeouts.bundle, 5678)
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
 after(async () => {
   mock.restoreAll()
   setEmbeddingsDir()
