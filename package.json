@@ -24,8 +24,8 @@
   "scripts": {
     "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
     "lint": "npx eslint .",
-    "format": "npx -y oxfmt@0.70.0",
-    "format:check": "npx -y oxfmt@0.70.0 --check",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "setup": "rm -rf node_modules package-lock.json && npm i"
   },
   "dependencies": {
@@ -38,7 +38,9 @@
     "@sap/cds": ">=10.1.0",
     "onnxruntime-node": "^1.20.1"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "oxfmt": ">=0.70.0"
+  },
   "cds": {
     "log": {
       "levels": {
