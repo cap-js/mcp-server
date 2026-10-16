@@ -48,6 +48,42 @@ test('reads timeout values from environment variables', async () => {
   }
 })
 
+test('rounds fractional timeout environment values and defaults out-of-range values', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+  process.env.CDS_MCP_MANIFEST_TIMEOUT = '1.5'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '2147483648'
+
+  try {
+    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${Date.now()}`)
+    assert.strictEqual(configuredTimeouts.manifest, 2)
+    assert.strictEqual(configuredTimeouts.bundle, 30_000)
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
+test('uses default timeouts for non-positive or non-finite environment values', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+  process.env.CDS_MCP_MANIFEST_TIMEOUT = 'not-a-number'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '0'
+
+  try {
+    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?default-timeout-test=${Date.now()}`)
+    assert.strictEqual(configuredTimeouts.manifest, 15_000)
+    assert.strictEqual(configuredTimeouts.bundle, 30_000)
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
 after(async () => {
   mock.restoreAll()
   setEmbeddingsDir()
