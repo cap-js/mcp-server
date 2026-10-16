@@ -162,6 +162,7 @@ cds-mcp search_model . Books entity
 | Variable | Description |
 | --- | --- |
 | `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. |
+| `CDS_MCP_MODEL` | Embedding model name. |
 | `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in milliseconds. Defaults to `15000`. |
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in milliseconds. Defaults to `30000`. |
 
