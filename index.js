@@ -57,7 +57,9 @@ const { default: run, runTool } = await import('./lib/run.js')
 const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')
 
 if (values.download || values['download-embeddings']) {
-  const otherFlags = Object.entries(values).filter(([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings')
+  const otherFlags = Object.entries(values).filter(
+    ([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings'
+  )
   if (otherFlags.length > 0 || positionals.length > 0) {
     console.error('--download must be the only argument (aside from --model)')
     process.exit(1)

@@ -12,21 +12,24 @@ function frame(body, bin) {
   return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
-const seedFile = (p, d) => fsp.mkdir(path.dirname(p), { recursive: true }).then(() => fsp.writeFile(p, d))
+const seedFile = (p, d) =>
+  fsp.mkdir(path.dirname(p), { recursive: true }).then(() => fsp.writeFile(p, d))
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'activeModel-'))
 
 const { downloadEmbeddings } = await import('../lib/searchMarkdownDocs.js')
-const { setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir, setEmbeddingsDir } = await import('../lib/calculateEmbeddings.js')
+const { setActiveModel, getActiveModel, toDirName, getActiveEmbeddingsDir, setEmbeddingsDir } =
+  await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 setEmbeddingsDir(tmpDir)
 
 const DEFAULT_MODEL = getActiveModel()
 
-const getManifestEtagPath = () => path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
+const getManifestEtagPath = () =>
+  path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
 // Etag path for the module-default model (captured after setEmbeddingsDir).
 const defaultEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
@@ -57,7 +60,11 @@ describe('active model wiring into download', () => {
       fetchMock = mock.method(globalThis, 'fetch', async () => {
         return new Response(frame({ dim: 1, count: 1, chunks: [] }, 'BIN'), {
           status: 200,
-          headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          headers: {
+            etag: 'W/"seed"',
+            'x-embeddings-version': testVer,
+            'content-type': 'application/octet-stream'
+          }
         })
       })
     })
@@ -85,7 +92,11 @@ describe('active model wiring into download', () => {
       )
 
       await downloadEmbeddings()
-      assert.strictEqual((fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], undefined, 'active model uses its own etag scope')
+      assert.strictEqual(
+        (fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'],
+        undefined,
+        'active model uses its own etag scope'
+      )
     })
 
     test('written etag records active model when server omits x-embeddings-model header', async () => {
@@ -100,20 +111,29 @@ describe('active model wiring into download', () => {
     test('server returns different model → throws with available models listed', async () => {
       mock.method(globalThis, 'fetch', async (url) => {
         if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-          return new Response(JSON.stringify({
-            [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [{ model: 'sentence-transformers/all-MiniLM-L6-v2' }],
-            [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
-          }), { status: 200 })
+          return new Response(
+            JSON.stringify({
+              [toDirName('sentence-transformers/all-MiniLM-L6-v2')]: [
+                { model: 'sentence-transformers/all-MiniLM-L6-v2' }
+              ],
+              [toDirName('Xenova/all-MiniLM-L6-v2')]: [{ model: 'Xenova/all-MiniLM-L6-v2' }]
+            }),
+            { status: 200 }
+          )
         }
         return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
           status: 200,
-          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
+          headers: {
+            etag: 'W/"x"',
+            'x-embeddings-version': testVer,
+            'x-embeddings-model': DEFAULT_MODEL
+          }
         })
       })
 
       await assert.rejects(
         downloadEmbeddings(),
-        err =>
+        (err) =>
           /Requested model "foo\/bar" not found/.test(err.message) &&
           /sentence-transformers\/all-MiniLM-L6-v2/.test(err.message) &&
           /Xenova\/all-MiniLM-L6-v2/.test(err.message)
@@ -127,13 +147,19 @@ describe('active model wiring into download', () => {
         }
         return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
           status: 200,
-          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
+          headers: {
+            etag: 'W/"x"',
+            'x-embeddings-version': testVer,
+            'x-embeddings-model': DEFAULT_MODEL
+          }
         })
       })
 
       await assert.rejects(
         downloadEmbeddings(),
-        err => /Requested model "foo\/bar" not found/.test(err.message) && !/Available models/.test(err.message)
+        (err) =>
+          /Requested model "foo\/bar" not found/.test(err.message) &&
+          !/Available models/.test(err.message)
       )
     })
 
@@ -141,18 +167,29 @@ describe('active model wiring into download', () => {
       const fetchMock = mock.method(globalThis, 'fetch', async (url) => {
         const u = String(url)
         if (new URL(u).pathname.endsWith('/manifest.json')) {
-          return new Response(JSON.stringify({ [toDirName('a/b')]: [{ model: 'a/b' }] }), { status: 200 })
+          return new Response(JSON.stringify({ [toDirName('a/b')]: [{ model: 'a/b' }] }), {
+            status: 200
+          })
         }
         return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
           status: 200,
-          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': DEFAULT_MODEL }
+          headers: {
+            etag: 'W/"x"',
+            'x-embeddings-version': testVer,
+            'x-embeddings-model': DEFAULT_MODEL
+          }
         })
       })
 
       await assert.rejects(downloadEmbeddings())
-      const manifestHits = fetchMock.mock.calls.filter(c => String(c.arguments[0]).endsWith('/manifest.json'))
+      const manifestHits = fetchMock.mock.calls.filter((c) =>
+        String(c.arguments[0]).endsWith('/manifest.json')
+      )
       assert.strictEqual(manifestHits.length, 1, 'must call manifest endpoint once')
-      assert.ok(String(manifestHits[0].arguments[0]).startsWith('https://'), 'manifest URL must be absolute')
+      assert.ok(
+        String(manifestHits[0].arguments[0]).startsWith('https://'),
+        'manifest URL must be absolute'
+      )
     })
   })
 
@@ -178,7 +215,10 @@ describe('active model wiring into download', () => {
       })
 
       const r = await downloadEmbeddings()
-      assert.strictEqual((fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], 'W/"seed"')
+      assert.strictEqual(
+        (fetchMock.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'],
+        'W/"seed"'
+      )
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer)
     })
