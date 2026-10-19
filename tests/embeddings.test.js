@@ -4,13 +4,10 @@ import fs from 'fs'
 import fsp from 'node:fs/promises'
 import path from 'path'
 import os from 'node:os'
-import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
-import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, MODEL_CACHE_DIR, getActiveModel } from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, getActiveModel } from '../lib/calculateEmbeddings.js'
 import cds from '@sap/cds'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'BAAI', 'bge-small-en-v1.5')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
@@ -22,6 +19,11 @@ describe('embeddings', () => {
   })
 
   describe('model setup', () => {
+    let MODEL_DIR
+    before(async () => {
+      const db = await getQueryDb()
+      MODEL_DIR = path.join(db.options.embedding.directory, ...getActiveModel().split('/'))
+    })
     test('model directory and required files exist and are non-empty', async () => {
       assert(fs.existsSync(MODEL_DIR), 'Model directory should exist after initialization')
 
@@ -52,9 +54,10 @@ describe('embeddings', () => {
       assert(modelStats.size > 1000000, 'ONNX model file should be reasonably large (>1MB)')
     })
 
-    test('model cache is anchored to the package root, not process.cwd()', async () => {
+    test('model cache is independent of the caller project', async () => {
       const [org, name] = getActiveModel().split('/')
-      const modelDir = path.join(MODEL_CACHE_DIR, org, name)
+      const db = await getQueryDb()
+      const modelDir = path.join(db.options.embedding.directory, org, name)
       const prevRoot = cds.root
       cds.root = os.tmpdir()
       try {
