@@ -190,13 +190,14 @@ describe('searchMarkdownDocs', () => {
   })
 
   test('CDS_MCP_MAX_RESULTS overrides the maxResults argument', async () => {
-    // Verify the query naturally returns more than 1 chunk so the cap is meaningful.
-    const uncapped = await searchMarkdownDocs('entity service', 10)
-    const uncappedChunks = uncapped.split('\n---\n')
-    assert(uncappedChunks.length > 1, 'Precondition: query must return >1 chunk without a cap')
-
     const prev = process.env.CDS_MCP_MAX_RESULTS
+    delete process.env.CDS_MCP_MAX_RESULTS
     try {
+      // Verify the query naturally returns more than 1 chunk so the cap is meaningful.
+      const uncapped = await searchMarkdownDocs('entity service', 10)
+      const uncappedChunks = uncapped.split('\n---\n')
+      assert(uncappedChunks.length > 1, 'Precondition: query must return >1 chunk without a cap')
+
       process.env.CDS_MCP_MAX_RESULTS = '1'
       const result = await searchMarkdownDocs('entity service', 10)
       const chunks = result.split('\n---\n')
