@@ -62,6 +62,9 @@ function splitByHeadings(text) {
       if (currentHeading !== null) {
         sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
         bodyLines.length = 0
+      } else {
+        // The parent Source: line was already resolved before section splitting.
+        bodyLines.length = 0
       }
       currentHeading = m[2]
       currentDepth = m[1].length

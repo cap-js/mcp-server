@@ -27,9 +27,7 @@ describe('ids tests', async () => {
   // Requires sourceMap-based in-memory lookup not yet implemented in ids.js
   test.skip('heading lookup via sourceMap when no inline Source: line', async () => {})
 
-  // splitByHeadings includes pre-heading content in first section's body, so the parent
-  // Source: line is found first by match(). Requires ids.js refactor to fix properly.
-  test.skip('multi-section chunk collects ids from multiple Source: lines', async () => {
+  test('multi-section chunk collects ids from multiple Source: lines', async () => {
     const text = [
       '# Getting Started',
       '',
