@@ -190,12 +190,17 @@ describe('searchMarkdownDocs', () => {
   })
 
   test('CDS_MCP_MAX_RESULTS overrides the maxResults argument', async () => {
+    // Verify the query naturally returns more than 1 chunk so the cap is meaningful.
+    const uncapped = await searchMarkdownDocs('entity service', 10)
+    const uncappedChunks = uncapped.split('\n---\n')
+    assert(uncappedChunks.length > 1, 'Precondition: query must return >1 chunk without a cap')
+
     const prev = process.env.CDS_MCP_MAX_RESULTS
     try {
       process.env.CDS_MCP_MAX_RESULTS = '1'
       const result = await searchMarkdownDocs('entity service', 10)
       const chunks = result.split('\n---\n')
-      assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to 1 even when caller requests 10')
+      assert.strictEqual(chunks.length, 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query')
     } finally {
       if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
       else process.env.CDS_MCP_MAX_RESULTS = prev
@@ -209,6 +214,19 @@ describe('searchMarkdownDocs', () => {
       const result = await searchMarkdownDocs('entity service')
       const chunks = result.split('\n---\n')
       assert(chunks.length <= 2, 'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given')
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = prev
+    }
+  })
+
+  test('CDS_MCP_MAX_RESULTS does not inflate a smaller caller request', async () => {
+    const prev = process.env.CDS_MCP_MAX_RESULTS
+    try {
+      process.env.CDS_MCP_MAX_RESULTS = '10'
+      const result = await searchMarkdownDocs('entity service', 1)
+      const chunks = result.split('\n---\n')
+      assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1')
     } finally {
       if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
       else process.env.CDS_MCP_MAX_RESULTS = prev
