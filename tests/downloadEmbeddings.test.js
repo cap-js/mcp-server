@@ -30,6 +30,62 @@ const DEFAULT_EMBEDDINGS_DIR = getActiveEmbeddingsDir()
 const modelEtagsRoot = path.join(getActiveEmbeddingsDir(), 'etags')
 const manifestEtagPath = path.join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
 
+test('reads timeout values from environment variables', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+  process.env.CDS_MCP_MANIFEST_TIMEOUT = '1234'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
+
+  try {
+    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?timeout-test=${Date.now()}`)
+    assert.strictEqual(configuredTimeouts.manifest, 1234)
+    assert.strictEqual(configuredTimeouts.bundle, 5678)
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
+test('rejects fractional timeout environment values', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+  process.env.CDS_MCP_MANIFEST_TIMEOUT = '1.5'
+  process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
+
+  try {
+    await assert.rejects(import(`../lib/searchMarkdownDocs.js?fractional-timeout-test=${Date.now()}`), {
+      message: /CDS_MCP_MANIFEST_TIMEOUT must be a positive integer number of milliseconds/
+    })
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
+test('rejects non-positive, non-finite, and out-of-range timeout environment values', async () => {
+  const manifestTimeout = process.env.CDS_MCP_MANIFEST_TIMEOUT
+  const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+
+  try {
+    for (const [manifest, bundle] of [['0', '5678'], ['not-a-number', '5678'], ['1234', '2147483648']]) {
+      process.env.CDS_MCP_MANIFEST_TIMEOUT = manifest
+      process.env.CDS_MCP_DOWNLOAD_TIMEOUT = bundle
+      await assert.rejects(import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${manifest}-${bundle}`), {
+        message: /must be a positive integer number of milliseconds/
+      })
+    }
+  } finally {
+    if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
+    else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
+    if (downloadTimeout === undefined) delete process.env.CDS_MCP_DOWNLOAD_TIMEOUT
+    else process.env.CDS_MCP_DOWNLOAD_TIMEOUT = downloadTimeout
+  }
+})
+
 after(async () => {
   mock.restoreAll()
   setEmbeddingsDir()
@@ -455,6 +511,28 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         return true
       })
     })
+
+    test('falls back to a local version when reading the bundle body fails', async () => {
+      await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+      await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
+      await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
+      mock.restoreAll()
+      mock.method(globalThis, 'fetch', async () => ({
+        status: 200,
+        ok: true,
+        headers: new Headers({ 'x-embeddings-version': '__new_bundle__' }),
+        arrayBuffer: async () => {
+          const error = new Error('download timed out')
+          error.name = 'TimeoutError'
+          throw error
+        }
+      }))
+
+      const result = await downloadEmbeddings()
+      assert.strictEqual(result.updated, false)
+      assert.strictEqual(result.commitId, testVer)
+      assert.strictEqual(result.localDir, testDir)
+    })
   })
 
   describe('timeout handling', () => {
@@ -486,8 +564,8 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     after(() => {
-      fetchTimeouts.manifest = 5_000
-      fetchTimeouts.bundle = 10_000
+      fetchTimeouts.manifest = DEFAULT_MANIFEST_TIMEOUT_MS
+      fetchTimeouts.bundle = DEFAULT_BUNDLE_TIMEOUT_MS
     })
 
     test('bundle timeout fires after the configured duration then falls back to local version', async () => {
