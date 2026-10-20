@@ -125,8 +125,8 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
 // a small golden set (aggregates are 2dp).
 export const DIAGNOSE_DEADBAND = 0.02
 
-// Diagnosis from aggregate deltas vs baseline. Reports ALL causes past the
-// dead-band (not first-match-wins), so a multi-stage regression isn't monocausal.
+// Diagnosis from aggregate deltas vs baseline. A recall drop is attributed to
+// retrieval coverage; ranking is diagnosed only when recall is stable.
 export function diagnose(aggregate) {
   const d = key => (aggregate[key] ? aggregate[key].delta : null)
   const down = v => v !== null && v < -DIAGNOSE_DEADBAND
@@ -136,7 +136,7 @@ export function diagnose(aggregate) {
 
   const causes = []
   if (down(recall)) causes.push('recall_down → chunking/embedding regression')
-  if (down(mrrD) || down(ndcg)) causes.push('recall_stable_mrr_down → ranking/scoring regression')
+  if (!down(recall) && (down(mrrD) || down(ndcg))) causes.push('recall_stable_mrr_down → ranking/scoring regression')
   return causes.length ? causes.join('; ') : 'no_regression'
 }
 

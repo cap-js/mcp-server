@@ -177,8 +177,9 @@ describe('eval tests', () => {
     assert.equal(diagnose(agg), 'no_regression')
   })
 
-  test('diagnose(): reports ALL causes above dead-band, not first-match-wins', () => {
-    // recall AND mrr/ndcg both drop meaningfully → both reported.
+  test('diagnose(): recall drop suppresses ranking diagnosis', () => {
+    // A set regression also lowers rank metrics; do not infer a separate
+    // ranking defect until recall is stable.
     const agg = {
       recall_at_k: { delta: -0.1 },
       mrr: { delta: 0 },
@@ -186,8 +187,7 @@ describe('eval tests', () => {
     }
     const d = diagnose(agg)
     assert.match(d, /chunking\/embedding regression/)
-    assert.match(d, /ranking\/scoring regression/)
-    assert.ok(d.includes(';')) // multiple causes joined
+    assert.doesNotMatch(d, /ranking\/scoring regression/)
   })
 
   test('delta rounding: aggregate 2dp, per-question 3dp', () => {
