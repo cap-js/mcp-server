@@ -188,4 +188,58 @@ describe('searchMarkdownDocs', () => {
       assert(limitedChunks.length <= max, `Should return at most ${max} chunks`)
     }
   })
+
+  test('CDS_MCP_MAX_RESULTS overrides the maxResults argument', async () => {
+    const prev = process.env.CDS_MCP_MAX_RESULTS
+    try {
+      process.env.CDS_MCP_MAX_RESULTS = '1'
+      const result = await searchMarkdownDocs('entity service', 10)
+      const chunks = result.split('\n---\n')
+      assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to 1 even when caller requests 10')
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = prev
+    }
+  })
+
+  test('CDS_MCP_MAX_RESULTS overrides the default maxResults', async () => {
+    const prev = process.env.CDS_MCP_MAX_RESULTS
+    try {
+      process.env.CDS_MCP_MAX_RESULTS = '2'
+      const result = await searchMarkdownDocs('entity service')
+      const chunks = result.split('\n---\n')
+      assert(chunks.length <= 2, 'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given')
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = prev
+    }
+  })
+
+  test('CDS_MCP_MAX_RESULTS throws on non-integer value', async () => {
+    const prev = process.env.CDS_MCP_MAX_RESULTS
+    try {
+      process.env.CDS_MCP_MAX_RESULTS = 'abc'
+      await assert.rejects(
+        () => searchMarkdownDocs('entity'),
+        /CDS_MCP_MAX_RESULTS must be a positive integer/
+      )
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = prev
+    }
+  })
+
+  test('CDS_MCP_MAX_RESULTS throws on zero', async () => {
+    const prev = process.env.CDS_MCP_MAX_RESULTS
+    try {
+      process.env.CDS_MCP_MAX_RESULTS = '0'
+      await assert.rejects(
+        () => searchMarkdownDocs('entity'),
+        /CDS_MCP_MAX_RESULTS must be a positive integer/
+      )
+    } finally {
+      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = prev
+    }
+  })
 })
