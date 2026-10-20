@@ -14,7 +14,7 @@ function clearEnv() {
 describe('config tests', () => {
   afterEach(clearEnv)
 
-  test('loads defaults from config.json', async () => {
+  test('default config has k=5, recall gate 0.8, and file paths for golden set and runs', async () => {
     clearEnv()
     const cfg = await loadConfig()
     assert.equal(cfg.k, 5)
@@ -26,7 +26,7 @@ describe('config tests', () => {
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
 
-  test('programmatic overrides win last', async () => {
+  test('programmatic overrides take precedence over config file values', async () => {
     clearEnv()
     const cfg = await loadConfig({ overrides: { k: 3, gates: { recall_at_k: 0.99 }, output: { keepRuns: 3, compareFormat: 'md' } } })
     assert.equal(cfg.k, 3)
@@ -89,7 +89,7 @@ describe('config tests', () => {
     assert.equal(cfg.embeddingsDir, null)
   })
 
-  test('label override wins', async () => {
+  test('label override is reflected in loaded config', async () => {
     clearEnv()
     const cfg = await loadConfig({ overrides: { label: 'my-run' } })
     assert.equal(cfg.label, 'my-run')

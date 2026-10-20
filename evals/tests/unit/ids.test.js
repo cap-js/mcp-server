@@ -18,7 +18,7 @@ describe('ids tests', async () => {
     assert.equal(r[0].text, text)
   })
 
-  test('Source: line is matched at position i+2 (one blank line between heading and source)', async () => {
+  test('Source: line after a blank line from the heading → id is resolved', async () => {
     const text = '# Section A\n\nSource: /docs/a\nmore'
     const r = await resolveIds([text], Q, [])
     assert.deepEqual(r[0].ids, ['/docs/a'])

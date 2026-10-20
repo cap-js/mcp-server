@@ -158,7 +158,7 @@ describe('eval tests', () => {
     assert.equal(r.overall_status, 'fail')
   })
 
-  test('diagnose(): no regression', () => {
+  test('diagnose() returns no_regression when all metric deltas are non-negative', () => {
     const agg = {
       recall_at_k: { delta: 0.02 },
       mrr: { delta: 0.01 },

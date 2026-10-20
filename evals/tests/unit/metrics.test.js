@@ -24,27 +24,27 @@ const REL = ['compositions', 'managed-compositions']
 const RET = mkChunks('associations', 'compositions', 'domain-modeling', 'managed-compositions', 'entities')
 
 describe('metrics tests', () => {
-  test('worked example: relevant hit ranks', () => {
+  test('relevantHitsAtRank returns [2, 4] when relevant docs are at ranks 2 and 4', () => {
     assert.deepEqual(relevantHitsAtRank(REL, RET, 5), [2, 4])
   })
 
-  test('worked example: recall@5 = 1.0', () => {
+  test('recallAtK is 1.0 when all relevant docs are retrieved within k', () => {
     assert.equal(recallAtK(REL, RET, 5), 1.0)
   })
 
-  test('worked example: mrr = 0.5 (first hit at rank 2)', () => {
+  test('mrr is 0.5 when first relevant hit is at rank 2', () => {
     assert.equal(mrr(REL, RET, 5), 0.5)
   })
 
-  test('worked example: hit_rate@5 = 1', () => {
+  test('hitRateAtK is 1 when at least one relevant doc is within k', () => {
     assert.equal(hitRateAtK(REL, RET, 5), 1)
   })
 
-  test('worked example: ndcg@5 ≈ 0.651', () => {
+  test('ndcgAtK is 0.651 when relevant docs are at ranks 2 and 4 of 5', () => {
     assert.equal(round(ndcgAtK(REL, RET, 5), 3), 0.651)
   })
 
-  test('worked example: metricsFor bundles all four', () => {
+  test('metricsFor returns all four metrics with correct values', () => {
     const m = metricsFor(REL, RET, 5)
     assert.equal(m.recall_at_k, 1.0)
     assert.equal(m.mrr, 0.5)
@@ -154,7 +154,7 @@ describe('metrics tests', () => {
     assert.equal(mrr(rel, ret, 5), 1) // first hit at rank 1
   })
 
-  test('mixed groups: both groups found via different alternates', () => {
+  test('mixed groups: both groups found via different alternates → recall 1 and nDCG uses best ranks', () => {
     const rel = ['plain', ['a1', 'a2']]
     const ret = mkChunks('a2', 'plain', 'x')
     assert.equal(recallAtK(rel, ret, 5), 1) // both groups matched

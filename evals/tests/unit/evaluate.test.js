@@ -67,7 +67,7 @@ describe('evaluate tests', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  test('happy path: exit 0, appends one line to result.jsonl (no folders, no md)', async () => {
+  test('successful run exits 0 and appends one result line to result.jsonl', async () => {
     await writeGolden([
       { id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] },
       { id: 'q-002', question: 'q2', relevant_doc_ids: ['doc-b#0002'] }
@@ -133,7 +133,7 @@ describe('evaluate tests', () => {
     assert.equal('CDS_MCP_OFFLINE' in process.env, false)
   })
 
-  test('gated failure → exit 1', async () => {
+  test('retrieval below gate threshold exits 1 with overall_status fail', async () => {
     // Relevant docs not retrieved at all → recall/hit-rate 0, below gate.
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['not-retrieved#9999'] }])
     // 'not-retrieved#9999' isn't in the index → would trip pre-flight; add it to the index.
