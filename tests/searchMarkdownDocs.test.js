@@ -1,7 +1,7 @@
 import { getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
 import path from 'path'
 import fs from 'fs/promises'
-import { test, describe, after, mock } from 'node:test'
+import { test, describe, before, beforeEach, after, mock } from 'node:test'
 import assert from 'node:assert'
 import os from 'node:os'
 import { buildTestBundle } from './helpers/test-bundle.js'
@@ -189,11 +189,16 @@ describe('searchMarkdownDocs', () => {
     }
   })
 
-  test('CDS_MCP_MAX_RESULTS overrides the maxResults argument', async () => {
-    const prev = process.env.CDS_MCP_MAX_RESULTS
-    delete process.env.CDS_MCP_MAX_RESULTS
-    try {
-      // Verify the query naturally returns more than 1 chunk so the cap is meaningful.
+  describe('CDS_MCP_MAX_RESULTS env var', () => {
+    let _prev
+    before(() => { _prev = process.env.CDS_MCP_MAX_RESULTS })
+    beforeEach(() => { delete process.env.CDS_MCP_MAX_RESULTS })
+    after(() => {
+      if (_prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
+      else process.env.CDS_MCP_MAX_RESULTS = _prev
+    })
+
+    test('overrides the maxResults argument', async () => {
       const uncapped = await searchMarkdownDocs('entity service', 10)
       const uncappedChunks = uncapped.split('\n---\n')
       assert(uncappedChunks.length > 1, 'Precondition: query must return >1 chunk without a cap')
@@ -202,63 +207,36 @@ describe('searchMarkdownDocs', () => {
       const result = await searchMarkdownDocs('entity service', 10)
       const chunks = result.split('\n---\n')
       assert.strictEqual(chunks.length, 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query')
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
-      else process.env.CDS_MCP_MAX_RESULTS = prev
-    }
-  })
+    })
 
-  test('CDS_MCP_MAX_RESULTS overrides the default maxResults', async () => {
-    const prev = process.env.CDS_MCP_MAX_RESULTS
-    try {
+    test('overrides the default maxResults', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '2'
       const result = await searchMarkdownDocs('entity service')
       const chunks = result.split('\n---\n')
       assert(chunks.length <= 2, 'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given')
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
-      else process.env.CDS_MCP_MAX_RESULTS = prev
-    }
-  })
+    })
 
-  test('CDS_MCP_MAX_RESULTS does not inflate a smaller caller request', async () => {
-    const prev = process.env.CDS_MCP_MAX_RESULTS
-    try {
+    test('does not inflate a smaller caller request', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '10'
       const result = await searchMarkdownDocs('entity service', 1)
       const chunks = result.split('\n---\n')
       assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1')
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
-      else process.env.CDS_MCP_MAX_RESULTS = prev
-    }
-  })
+    })
 
-  test('CDS_MCP_MAX_RESULTS throws on non-integer value', async () => {
-    const prev = process.env.CDS_MCP_MAX_RESULTS
-    try {
+    test('throws on non-integer value', async () => {
       process.env.CDS_MCP_MAX_RESULTS = 'abc'
       await assert.rejects(
         () => searchMarkdownDocs('entity'),
         /CDS_MCP_MAX_RESULTS must be a positive integer/
       )
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
-      else process.env.CDS_MCP_MAX_RESULTS = prev
-    }
-  })
+    })
 
-  test('CDS_MCP_MAX_RESULTS throws on zero', async () => {
-    const prev = process.env.CDS_MCP_MAX_RESULTS
-    try {
+    test('throws on zero', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '0'
       await assert.rejects(
         () => searchMarkdownDocs('entity'),
         /CDS_MCP_MAX_RESULTS must be a positive integer/
       )
-    } finally {
-      if (prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
-      else process.env.CDS_MCP_MAX_RESULTS = prev
-    }
+    })
   })
 })
