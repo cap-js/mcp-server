@@ -58,3 +58,7 @@ export async function createSourceDb() {
   
   return sourceDb
 }
+
+export const sourceDbRuntime = {
+  createSourceDb
+}

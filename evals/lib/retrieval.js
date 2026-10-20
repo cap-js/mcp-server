@@ -3,6 +3,11 @@ import path from 'path'
 import { resolveIds } from './ids.js'
 import searchMarkdownDocs from '../../lib/searchMarkdownDocs.js'
 
+export const retrievalRuntime = {
+  searchMarkdownDocs,
+  makeSearchDocsRunner
+}
+
 export async function readJsonOrNull(p) {
   try {
     return JSON.parse(await fs.readFile(p, 'utf8'))
@@ -12,9 +17,9 @@ export async function readJsonOrNull(p) {
   }
 }
 
-export async function makeSearchDocsRunner(k, sourceDb, search = searchMarkdownDocs) {
+export async function makeSearchDocsRunner(k, sourceDb) {
   return async function (q) {
-    const out = await search(q.question, k)
+    const out = await retrievalRuntime.searchMarkdownDocs(q.question, k)
     return resolveIds(out ? out.split('\n---\n') : [], q, sourceDb)
   }
 }

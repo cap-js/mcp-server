@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test'
+import { test, describe, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   buildReport,
@@ -37,7 +37,7 @@ function fixtureRaw(ret1, ret2) {
 
 describe('eval tests', () => {
   test('pre-flight detects stale relevant ids', async () => {
-    const fakeDb = { run: async () => [{ source: 'a' }, { source: 'c' }] }
+    const fakeDb = { run: mock.fn(async () => [{ source: 'a' }, { source: 'c' }]) }
     const stale = await preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], fakeDb)
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'b' }])
   })
@@ -251,7 +251,7 @@ describe('eval tests', () => {
   })
 
   test('preflight: flags a stale alternate inside an OR-group, keeps valid siblings clean', async () => {
-    const fakeDb = { run: async () => [{ source: 'y1' }] }
+    const fakeDb = { run: mock.fn(async () => [{ source: 'y1' }]) }
     const stale = await preflight(
       [{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }],
       fakeDb

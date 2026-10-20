@@ -4,21 +4,18 @@ import { fileURLToPath } from 'url'
 import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
-import { createSourceDb } from './createSourceDb/createSourceDb.js'
-import { readJsonOrNull, makeSearchDocsRunner, retrieveAll, readCapireVersion, findEmbeddingDirs } from './retrieval.js'
+import { sourceDbRuntime } from './createSourceDb/createSourceDb.js'
+import { readJsonOrNull, retrievalRuntime, retrieveAll, readCapireVersion, findEmbeddingDirs } from './retrieval.js'
 
-// `deps` is a test seam: pass { makeRetriever } to score against a
-// fixture without loading the ONNX model. Production omits it.
-export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown', deps = {} } = {}) {
+export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown' } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
-  const makeRetrieverFn = deps.makeRetriever || makeSearchDocsRunner
 
   const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
     console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
   }
 
-  const retrieve = await makeRetrieverFn(cfg.k, sourceDb)
+  const retrieve = await retrievalRuntime.makeSearchDocsRunner(cfg.k, sourceDb)
   const perQuestionRaw = await retrieveAll(golden, retrieve)
 
   const config = { capire_version, golden_set: golden.golden_set, golden_set_size: golden.questions.length, k: cfg.k, label }
@@ -35,8 +32,7 @@ export async function evaluate({ sourceDb, golden, configPath, overrides, label 
 
 // Entry point for `npm run evals`: sweep all embedding subdirs under
 // cfg.embeddingsDir, then build the comparison report.
-// `deps.sourceDb` is a test seam: pass a fake sourceDb to skip the ONNX model load.
-export async function evaluateAndCompare({ configPath, overrides, logger = console, deps = {} } = {}) {
+export async function evaluateAndCompare({ configPath, overrides, logger = console } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const golden = await readJsonOrNull(cfg.goldenSet)
@@ -50,7 +46,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
     return { code: 3 }
   }
 
-  const sourceDb = deps.sourceDb ?? await createSourceDb()
+  const sourceDb = await sourceDbRuntime.createSourceDb()
 
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
@@ -68,7 +64,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
     console.error(`\n→ ${label}`)
     process.env.CDS_MCP_EMBEDDINGS_DIR = dir
     const capire_version = await readCapireVersion(dir)
-    const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version, deps })
+    const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version })
     if (c > worstCode) worstCode = c
   }
   code = worstCode
