@@ -24,9 +24,6 @@ describe('ids tests', async () => {
     assert.deepEqual(r[0].ids, ['/docs/a'])
   })
 
-  // Requires sourceMap-based in-memory lookup not yet implemented in ids.js
-  test.skip('heading lookup via sourceMap when no inline Source: line', async () => {})
-
   test('multi-section chunk collects ids from multiple Source: lines', async () => {
     const text = [
       '# Getting Started',
