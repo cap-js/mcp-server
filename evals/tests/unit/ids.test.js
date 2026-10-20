@@ -50,12 +50,6 @@ describe('ids tests', async () => {
     assert.deepEqual(r[1].ids, ['/b'])
   })
 
-  // Requires placeholder fallback not yet implemented in ids.js
-  test.skip('empty chunk (no breadcrumb) → returns placeholder id', async () => {})
-
-  // Requires placeholder fallback not yet implemented in ids.js
-  test.skip('chunk with breadcrumb but no source match → returns placeholder id', async () => {})
-
   test('empty chunks array → returns empty array', async () => {
     assert.deepEqual(await resolveIds([], Q, []), [])
   })
@@ -67,11 +61,4 @@ describe('ids tests', async () => {
     )
   })
 
-  // Requires sourceMap-based lookup not yet implemented in ids.js
-  test.skip('breadcrumb-only heading resolved via getSourceByBreadCrump', async () => {})
 })
-
-// The describe blocks below test APIs planned but not yet implemented:
-// buildSourceMapIndex, isLlmFallbackEnabled, sourceMap-based resolveIds (5-param),
-// LLM fallback via @anthropic-ai/sdk, and pre-built smIndex.
-// They are skipped until those APIs land in ids.js.
