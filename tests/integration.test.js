@@ -14,7 +14,12 @@ const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample'
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 
 // --- Ensure testService.cds is removed after each test
-const testServicePathCorrect = join(dirname(fileURLToPath(import.meta.url)), 'sample', 'srv', 'testService.cds')
+const testServicePathCorrect = join(
+  dirname(fileURLToPath(import.meta.url)),
+  'sample',
+  'srv',
+  'testService.cds'
+)
 
 describe('integration', () => {
   test.afterEach(() => {
@@ -25,7 +30,7 @@ describe('integration', () => {
     }
   })
 
-  test('spawn mcp-server and call search_model tool', async t => {
+  test('spawn mcp-server and call search_model tool', async (t) => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
@@ -52,7 +57,7 @@ describe('integration', () => {
     assert.equal(serviceResults[0].name, 'AdminService', 'Should return the AdminService')
   })
 
-  test('search_model follows multiple roots and root changes advertised by the MCP client', async t => {
+  test('search_model follows multiple roots and root changes advertised by the MCP client', async (t) => {
     const secondRoot = await mkdtemp(join(tmpdir(), 'cds-mcp-second-root-'))
     t.after(() => rm(secondRoot, { recursive: true, force: true }))
     await mkdir(join(secondRoot, 'srv'))
@@ -74,7 +79,7 @@ describe('integration', () => {
     t.after(() => transport.close())
     let roots = [sampleProjectPath, secondRoot]
     client.setRequestHandler(ListRootsRequestSchema, () => ({
-      roots: roots.map(root => ({ uri: pathToFileURL(root).href }))
+      roots: roots.map((root) => ({ uri: pathToFileURL(root).href }))
     }))
     await client.connect(transport)
 
@@ -99,7 +104,7 @@ describe('integration', () => {
     assert.match(rejected.content[0].text, /outside the configured workspace roots/)
   })
 
-  test('model adapts to CDS file changes on the next request', async t => {
+  test('model adapts to CDS file changes on the next request', async (t) => {
     const transport = new StdioClientTransport({
       command: 'node',
       args: [cdsMcpPath],
@@ -124,7 +129,10 @@ describe('integration', () => {
       }
     })
     const servicesBefore = JSON.parse(serviceResultBefore.content[0].text)
-    assert(!servicesBefore.some(s => s.name === 'TestService'), 'TestService should NOT be found before creation')
+    assert(
+      !servicesBefore.some((s) => s.name === 'TestService'),
+      'TestService should NOT be found before creation'
+    )
 
     const entityResultBefore = await client.callTool({
       name: 'search_model',
@@ -135,7 +143,10 @@ describe('integration', () => {
       }
     })
     const entitiesBefore = JSON.parse(entityResultBefore.content[0].text)
-    assert(!entitiesBefore.some(e => e.name === 'TestEntity'), 'TestEntity should NOT be found before creation')
+    assert(
+      !entitiesBefore.some((e) => e.name === 'TestEntity'),
+      'TestEntity should NOT be found before creation'
+    )
 
     // Step 3: Create testService.cds with a test entity/service
     const testServiceDef = `service TestService { entity TestEntity { key ID: Integer; name: String; } }`
@@ -153,7 +164,7 @@ describe('integration', () => {
       }
     })
     const services = JSON.parse(serviceResult.content[0].text)
-    if (services.some(s => s.name === 'TestService')) {
+    if (services.some((s) => s.name === 'TestService')) {
       foundService = true
     }
     // Check for TestEntity
@@ -166,14 +177,14 @@ describe('integration', () => {
       }
     })
     const entities = JSON.parse(entityResult.content[0].text)
-    if (entities.some(e => e.name === 'TestService.TestEntity')) {
+    if (entities.some((e) => e.name === 'TestService.TestEntity')) {
       foundEntity = true
     }
     assert(foundService, 'Model should adapt and expose TestService')
     assert(foundEntity, 'Model should adapt and expose TestEntity')
   })
 
-  test('does not return out-of-root compiler diagnostics to MCP clients', async t => {
+  test('does not return out-of-root compiler diagnostics to MCP clients', async (t) => {
     const workspace = await mkdtemp(join(tmpdir(), 'cds-mcp-diagnostics-'))
     t.after(() => rm(workspace, { recursive: true, force: true }))
     const project = join(workspace, 'project')

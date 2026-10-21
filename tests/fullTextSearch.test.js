@@ -48,15 +48,15 @@ describe('fullTextSearch', () => {
       { content: 'weather forecast rain sun' }
     ]
     const results = await fullTextSearch('entity books', chunks, 10)
-    const indices = results.map(r => r.idx)
+    const indices = results.map((r) => r.idx)
     assert.ok(indices.includes(0), 'chunk 0 should match')
     assert.ok(!indices.includes(1), 'chunk 1 should not match')
   })
 
   test('chunk matching more query terms ranks first', async () => {
     const chunks = [
-      { content: 'entity books author' },         // matches 'entity' only
-      { content: 'entity service query filter' }  // matches 'entity' and 'service'
+      { content: 'entity books author' }, // matches 'entity' only
+      { content: 'entity service query filter' } // matches 'entity' and 'service'
     ]
     const results = await fullTextSearch('entity service', chunks, 10)
     assert.strictEqual(results[0].idx, 1, 'chunk 1 matches both terms and should rank first')
@@ -95,6 +95,10 @@ describe('fullTextSearch', () => {
     })
 
     await fullTextSearch('entity', [{ content: 'entity books title' }], 10)
-    assert.strictEqual(createVtCount, 1, 'exactly one virtual table must be created per fullTextSearch call')
+    assert.strictEqual(
+      createVtCount,
+      1,
+      'exactly one virtual table must be created per fullTextSearch call'
+    )
   })
 })
