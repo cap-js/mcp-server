@@ -126,12 +126,31 @@ codex mcp add cds-mcp --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 -- npx 
 
 ### Usage in opencode
 
-Register the server globally with [opencode](https://github.com/sst/opencode):
+Add to `opencode.jsonc` in your project, or to `~/.config/opencode/opencode.jsonc` for global use:
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "cds-mcp": {
+      "type": "local",
+      "command": ["npx", "-y", "@cap-js/mcp-server"],
+      "environment": {
+        "CDS_MCP_MODEL": "nomic-ai/nomic-embed-text-v1.5"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+This is the [opencode v1](https://opencode.ai/docs/mcp-servers/) format. In [opencode v2](https://opencode.ai/v2/docs/mcp-servers/), use the same config but nest the server under `"servers"` — `"mcp": { "servers": { "cds-mcp": { ... } } }` — or use the CLI instead:
+
 ```sh
 opencode mcp add --global cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
-To set an environment variable, add `--env` before the command:
+To set an environment variable:
 ```sh
 opencode mcp add --global cds-mcp \
   --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 \
