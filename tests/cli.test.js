@@ -88,19 +88,19 @@ function runCliCommand(args, options = {}) {
     let stdout = ''
     let stderr = ''
 
-    child.stdout.on('data', data => {
+    child.stdout.on('data', (data) => {
       stdout += data.toString()
     })
 
-    child.stderr.on('data', data => {
+    child.stderr.on('data', (data) => {
       stderr += data.toString()
     })
 
-    child.on('close', code => {
+    child.on('close', (code) => {
       resolve({ code, stdout, stderr })
     })
 
-    child.on('error', error => {
+    child.on('error', (error) => {
       reject(error)
     })
   })
@@ -132,29 +132,44 @@ describe('CLI usage', () => {
   })
 
   test('search_model accepts an explicit project path outside the CLI working directory', async () => {
-    const result = await runCliCommand(['--offline', 'search_model', sampleProjectPath, 'Books', 'entity'], {
-      cwd: os.tmpdir()
-    })
+    const result = await runCliCommand(
+      ['--offline', 'search_model', sampleProjectPath, 'Books', 'entity'],
+      {
+        cwd: os.tmpdir()
+      }
+    )
 
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert.equal(JSON.parse(result.stdout)[0].name, 'AdminService.Books')
   })
 
-  test('search_model accepts sibling model imports for an explicitly trusted CLI project', async t => {
+  test('search_model accepts sibling model imports for an explicitly trusted CLI project', async (t) => {
     const monorepo = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-cli-monorepo-'))
     const cwd = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-cli-cwd-'))
     t.after(() =>
-      Promise.all([fs.rm(monorepo, { recursive: true, force: true }), fs.rm(cwd, { recursive: true, force: true })])
+      Promise.all([
+        fs.rm(monorepo, { recursive: true, force: true }),
+        fs.rm(cwd, { recursive: true, force: true })
+      ])
     )
     const project = join(monorepo, 'app')
-    await Promise.all([fs.mkdir(join(project, 'srv'), { recursive: true }), fs.mkdir(join(monorepo, 'shared'))])
-    await fs.writeFile(join(monorepo, 'shared', 'model.cds'), 'entity SharedBooks { key ID: Integer; }')
+    await Promise.all([
+      fs.mkdir(join(project, 'srv'), { recursive: true }),
+      fs.mkdir(join(monorepo, 'shared'))
+    ])
+    await fs.writeFile(
+      join(monorepo, 'shared', 'model.cds'),
+      'entity SharedBooks { key ID: Integer; }'
+    )
     await fs.writeFile(
       join(project, 'srv', 'service.cds'),
       "using { SharedBooks } from '../../shared/model'; service MonorepoService { entity Books as projection on SharedBooks; }"
     )
 
-    const result = await runCliCommand(['--offline', 'search_model', project, 'SharedBooks', 'entity'], { cwd })
+    const result = await runCliCommand(
+      ['--offline', 'search_model', project, 'SharedBooks', 'entity'],
+      { cwd }
+    )
 
     assert.equal(result.code, 0, result.stderr)
     assert.equal(JSON.parse(result.stdout)[0].name, 'SharedBooks')
@@ -189,14 +204,21 @@ describe('CLI usage', () => {
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert.equal(result.stderr, '', `Expected no stderr output, got: ${result.stderr}`)
     const lines = result.stdout.split('\n')
-    assert.equal(lines[0].includes('headingPath:'), true, 'stdout should start with output and nothing else')
+    assert.equal(
+      lines[0].includes('headingPath:'),
+      true,
+      'stdout should start with output and nothing else'
+    )
   })
 
   test('invalid tool name shows error', async () => {
     const result = await runCliCommand(['invalid_tool', 'arg1'])
 
     assert.equal(result.code, 1, 'Command should exit with code 1')
-    assert(result.stderr.includes("Tool 'invalid_tool' not found"), 'Should show tool not found error')
+    assert(
+      result.stderr.includes("Tool 'invalid_tool' not found"),
+      'Should show tool not found error'
+    )
     assert(result.stderr.includes('Available tools:'), 'Should list available tools')
   })
 
@@ -276,16 +298,19 @@ describe('CLI usage', () => {
   test('no arguments starts MCP server mode', async () => {
     let stderr = ''
     const child = spawn('node', [cdsMcpPath], { stdio: 'pipe' })
-    child.stderr.on('data', d => {
+    child.stderr.on('data', (d) => {
       stderr += d
     })
 
-    await new Promise(resolve => setTimeout(resolve, 100))
+    await new Promise((resolve) => setTimeout(resolve, 100))
 
     child.kill('SIGTERM')
-    const exitCode = await new Promise(resolve => child.on('close', resolve))
+    const exitCode = await new Promise((resolve) => child.on('close', resolve))
 
-    assert(exitCode === 0 || exitCode === null, `server crashed on startup (code=${exitCode}): ${stderr}`)
+    assert(
+      exitCode === 0 || exitCode === null,
+      `server crashed on startup (code=${exitCode}): ${stderr}`
+    )
   })
 
   test('--model flag routes bundle download under model-scoped dir', async () => {

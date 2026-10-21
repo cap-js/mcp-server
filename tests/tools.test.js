@@ -20,7 +20,11 @@ mock.method(globalThis, 'fetch', async () => {
   const version = '__test_bundle__'
   return new Response(f, {
     status: 200,
-    headers: { etag: `W/"${version}"`, 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+    headers: {
+      etag: `W/"${version}"`,
+      'x-embeddings-version': version,
+      'content-type': 'application/octet-stream'
+    }
   })
 })
 
@@ -44,7 +48,11 @@ describe('tools', () => {
       assert(result.length > 0, 'Should find at least one service')
       assert.equal(result[0].name, 'AdminService', 'Should find Adminservice.Books service')
       assert(Array.isArray(result[0].exposedEntities), 'Should contain exposed entities')
-      assert.equal(result[0].exposedEntities[0], 'AdminService.Books', 'Should contain exposed entities')
+      assert.equal(
+        result[0].exposedEntities[0],
+        'AdminService.Books',
+        'Should contain exposed entities'
+      )
     })
 
     test('service and entity results include odata endpoint with correct path', async () => {
@@ -67,7 +75,11 @@ describe('tools', () => {
       })
       assert(Array.isArray(books[0].endpoints), 'Should contain endpoints')
       assert.equal(books[0].endpoints[0].kind, 'odata', 'Should contain odata endpoint kind')
-      assert.equal(books[0].endpoints[0].path, 'odata/v4/admin/Books', 'Should contain endpoint path')
+      assert.equal(
+        books[0].endpoints[0].path,
+        'odata/v4/admin/Books',
+        'Should contain endpoint path'
+      )
     })
 
     test('fuzzy search for Books entity returns elements and key', async () => {
@@ -95,7 +107,10 @@ describe('tools', () => {
       assert(Array.isArray(books), 'Result should be an array')
       assert(books.length > 0, 'Should find at least one entity')
       assert(books[0].elements.IsActiveEntity, 'Draft-enabled entity should have IsActiveEntity')
-      assert(books[0].elements.IsActiveEntity.key === true, 'IsActiveEntity should be marked as key')
+      assert(
+        books[0].elements.IsActiveEntity.key === true,
+        'IsActiveEntity should be marked as key'
+      )
       assert(books[0].elements.HasActiveEntity, 'Draft-enabled entity should have HasActiveEntity')
       assert(books[0].elements.HasDraftEntity, 'Draft-enabled entity should have HasDraftEntity')
     })
@@ -161,7 +176,11 @@ describe('tools', () => {
   test('get_doc_context: default direction is after', async () => {
     const seed = await tools.search_docs.handler({ query: 'entity definition', maxResults: 1 })
     const withDefault = await tools.get_doc_context.handler({ chunk: seed, count: 1 })
-    const withExplicit = await tools.get_doc_context.handler({ chunk: seed, direction: 'after', count: 1 })
+    const withExplicit = await tools.get_doc_context.handler({
+      chunk: seed,
+      direction: 'after',
+      count: 1
+    })
     assert.strictEqual(withDefault, withExplicit)
   })
 })
