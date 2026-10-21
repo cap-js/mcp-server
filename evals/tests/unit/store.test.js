@@ -5,7 +5,7 @@ import path from 'path'
 import os from 'os'
 import { readRuns, resultsPath } from '../../lib/store.js'
 
-const cfg = dir => ({ output: { runsDir: dir, resultsName: 'result.jsonl' } })
+const cfg = (dir) => ({ output: { runsDir: dir, resultsName: 'result.jsonl' } })
 
 describe('store', () => {
   let tmpDir
@@ -25,10 +25,7 @@ describe('store', () => {
   test('should rethrow errors that are not ENOENT', async () => {
     await fs.mkdir(resultsPath(cfg(tmpDir)))
 
-    await assert.rejects(
-      () => readRuns(cfg(tmpDir)),
-      /EISDIR/
-    )
+    await assert.rejects(() => readRuns(cfg(tmpDir)), /EISDIR/)
   })
 
   describe('side-effects', () => {

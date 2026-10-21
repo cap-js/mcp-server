@@ -122,6 +122,6 @@ export function round(value, dp) {
   // Round on magnitude so negatives round symmetrically with positives (e.g.
   // -0.005 → -0.01, mirroring 0.005 → 0.01). Epsilon counters binary-float
   // representation of exact halves so rounding is stable across platforms.
-  const r = Math.sign(value) * Math.round(Math.abs(value) * f + Number.EPSILON) / f
+  const r = (Math.sign(value) * Math.round(Math.abs(value) * f + Number.EPSILON)) / f
   return r === 0 ? 0 : r // normalise -0 → 0
 }

@@ -1,15 +1,9 @@
 import { test, describe, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import {
-  buildReport,
-  diagnose,
-  preflight,
-  validateGolden,
-  makeRunId
-} from '../../lib/report.js'
+import { buildReport, diagnose, preflight, validateGolden, makeRunId } from '../../lib/report.js'
 
 function mkChunks(...ids) {
-  return ids.map(id => ({ ids: [id], text: '' }))
+  return ids.map((id) => ({ ids: [id], text: '' }))
 }
 
 const GATES = {
@@ -64,12 +58,12 @@ describe('report', () => {
 
     const problems = validateGolden(bad)
 
-    assert.ok(problems.some(p => /duplicate id/.test(p)))
-    assert.ok(problems.some(p => /q-002.*must be an array/.test(p)))
-    assert.ok(problems.some(p => /q-003.*empty/.test(p)))
-    assert.ok(problems.some(p => /q-004.*non-string\/empty/.test(p)))
-    assert.ok(problems.some(p => /q-005.*missing non-empty "question"/.test(p)))
-    assert.ok(problems.some(p => /not an object/.test(p)))
+    assert.ok(problems.some((p) => /duplicate id/.test(p)))
+    assert.ok(problems.some((p) => /q-002.*must be an array/.test(p)))
+    assert.ok(problems.some((p) => /q-003.*empty/.test(p)))
+    assert.ok(problems.some((p) => /q-004.*non-string\/empty/.test(p)))
+    assert.ok(problems.some((p) => /q-005.*missing non-empty "question"/.test(p)))
+    assert.ok(problems.some((p) => /not an object/.test(p)))
   })
 
   test('should sort per_question by id ascending in the built report', () => {
@@ -80,7 +74,10 @@ describe('report', () => {
       gates: GATES
     })
 
-    assert.deepEqual(r.per_question.map(q => q.id), ['q-001', 'q-002'])
+    assert.deepEqual(
+      r.per_question.map((q) => q.id),
+      ['q-001', 'q-002']
+    )
   })
 
   test('should set overall_status to pass and have no gated failures for a healthy run', () => {
@@ -153,7 +150,10 @@ describe('report', () => {
 
     const r = buildReport({
       config: CONFIG,
-      perQuestionRaw: fixtureRaw(mkChunks('x', 'y', 'z', 'p', 'q'), mkChunks('x', 'y', 'z', 'p', 'q')),
+      perQuestionRaw: fixtureRaw(
+        mkChunks('x', 'y', 'z', 'p', 'q'),
+        mkChunks('x', 'y', 'z', 'p', 'q')
+      ),
       baseline,
       gates: GATES
     })
@@ -215,13 +215,23 @@ describe('report', () => {
 
     assert.equal(r.aggregate.mrr.value, 0.75)
     assert.equal(r.aggregate.mrr.delta, -0.25)
-    const q1 = r.per_question.find(q => q.id === 'q-001')
+    const q1 = r.per_question.find((q) => q.id === 'q-001')
     assert.equal(q1.metrics.mrr, 0.5)
   })
 
   test('should produce byte-identical reports for the same inputs', () => {
-    const r1 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')), baseline: null, gates: GATES })
-    const r2 = buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')), baseline: null, gates: GATES })
+    const r1 = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')),
+      baseline: null,
+      gates: GATES
+    })
+    const r2 = buildReport({
+      config: CONFIG,
+      perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')),
+      baseline: null,
+      gates: GATES
+    })
 
     assert.equal(JSON.stringify(r1), JSON.stringify(r2))
   })
@@ -240,9 +250,7 @@ describe('report', () => {
   })
 
   test('should accept OR-group entries alongside plain strings in validateGolden', () => {
-    const ok = [
-      { id: 'q-001', question: 'a?', relevant_doc_ids: ['x', ['y1', 'y2']] }
-    ]
+    const ok = [{ id: 'q-001', question: 'a?', relevant_doc_ids: ['x', ['y1', 'y2']] }]
 
     assert.deepEqual(validateGolden(ok), [])
   })
@@ -256,29 +264,28 @@ describe('report', () => {
 
     const problems = validateGolden(bad)
 
-    assert.ok(problems.some(p => /q-001.*empty OR-group/.test(p)))
-    assert.ok(problems.some(p => /q-002.*non-string\/empty/.test(p)))
-    assert.ok(problems.some(p => /q-003.*empty OR-group/.test(p)))
+    assert.ok(problems.some((p) => /q-001.*empty OR-group/.test(p)))
+    assert.ok(problems.some((p) => /q-002.*non-string\/empty/.test(p)))
+    assert.ok(problems.some((p) => /q-003.*empty OR-group/.test(p)))
   })
 
   test('should flag a stale alternate inside an OR-group and leave valid siblings clean', async () => {
     const fakeDb = { run: mock.fn(async () => [{ source: 'y1' }]) }
 
-    const stale = await preflight(
-      [{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }],
-      fakeDb
-    )
+    const stale = await preflight([{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }], fakeDb)
 
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'y2-stale' }])
   })
 
   test('should score an OR-group as one group in buildReport', () => {
-    const raw = [{
-      id: 'q-001',
-      question: 'orgroup?',
-      relevant_doc_ids: [['a1', 'a2']],
-      retrievedIds: mkChunks('a2', 'x', 'y')
-    }]
+    const raw = [
+      {
+        id: 'q-001',
+        question: 'orgroup?',
+        relevant_doc_ids: [['a1', 'a2']],
+        retrievedIds: mkChunks('a2', 'x', 'y')
+      }
+    ]
 
     const r = buildReport({ config: CONFIG, perQuestionRaw: raw, baseline: null, gates: GATES })
     const q = r.per_question[0]
@@ -294,7 +301,12 @@ describe('report', () => {
       const gates = { ...GATES }
       const keysBefore = Object.keys(gates)
 
-      buildReport({ config: CONFIG, perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')), baseline: null, gates })
+      buildReport({
+        config: CONFIG,
+        perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
+        baseline: null,
+        gates
+      })
 
       assert.deepEqual(Object.keys(gates), keysBefore)
     })

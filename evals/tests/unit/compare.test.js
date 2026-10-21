@@ -7,8 +7,17 @@ import { compare, renderDelta } from '../../lib/compare.js'
 
 const silentLogger = { log() {}, error() {} }
 
-function fakeReport(run_id, { recall = 1, mrr = 1, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}) {
-  const agg = (value, gate) => ({ value, baseline: null, delta: null, gate, status: gate === null ? 'info' : value >= gate ? 'pass' : 'fail' })
+function fakeReport(
+  run_id,
+  { recall = 1, mrr = 1, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}
+) {
+  const agg = (value, gate) => ({
+    value,
+    baseline: null,
+    delta: null,
+    gate,
+    status: gate === null ? 'info' : value >= gate ? 'pass' : 'fail'
+  })
   return {
     run_id,
     config: { capire_version: '2026.5.0', golden_set: 'g', golden_set_size: 1, k: 5, label },
@@ -27,7 +36,14 @@ function fakeReport(run_id, { recall = 1, mrr = 1, hit = 1, ndcg = 1, perQuestio
 }
 
 function pq(id, question, { recall = 1, mrr = 1, hit = 1, ndcg = 1 } = {}) {
-  return { id, question, relevant_doc_ids: [], retrieved_ids: [], relevant_hits_at_rank: [], metrics: { recall_at_k: recall, mrr, hit_rate_at_k: hit, ndcg_at_k: ndcg } }
+  return {
+    id,
+    question,
+    relevant_doc_ids: [],
+    retrieved_ids: [],
+    relevant_hits_at_rank: [],
+    metrics: { recall_at_k: recall, mrr, hit_rate_at_k: hit, ndcg_at_k: ndcg }
+  }
 }
 
 describe('renderDelta', () => {
@@ -88,7 +104,10 @@ describe('compare', () => {
   describe('with corrupt or malformed data in result.jsonl', () => {
     test('should skip corrupt and blank lines and process valid entries', async () => {
       const p = path.join(runsDir, 'result.jsonl')
-      await fs.writeFile(p, JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')) + '\n\nnot-json\n')
+      await fs.writeFile(
+        p,
+        JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')) + '\n\nnot-json\n'
+      )
 
       const res = await compare({ overrides: overrides(), logger: silentLogger })
 
@@ -97,13 +116,16 @@ describe('compare', () => {
 
     test('should skip valid JSON lines that are not run report objects', async () => {
       const p = path.join(runsDir, 'result.jsonl')
-      await fs.writeFile(p, [
-        JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')),
-        '123',
-        '"a string"',
-        '{"run_id":"x"}',
-        '{"aggregate":{}}'
-      ].join('\n') + '\n')
+      await fs.writeFile(
+        p,
+        [
+          JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')),
+          '123',
+          '"a string"',
+          '{"run_id":"x"}',
+          '{"aggregate":{}}'
+        ].join('\n') + '\n'
+      )
 
       const res = await compare({ overrides: overrides(), logger: silentLogger })
 
@@ -179,9 +201,16 @@ describe('compare', () => {
 
   describe('when using md format', () => {
     test('should write compare.md with tables and no svg', async () => {
-      await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [pq('cap-001', 'How do I define X?', { mrr: 0.5 })] }))
+      await writeRun(
+        fakeReport('2026-07-30T10:00:00Z_a', {
+          perQuestion: [pq('cap-001', 'How do I define X?', { mrr: 0.5 })]
+        })
+      )
 
-      const res = await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
+      const res = await compare({
+        overrides: { output: { runsDir, compareFormat: 'md' } },
+        logger: silentLogger
+      })
 
       assert.equal(res.code, 0)
       assert.equal(res.format, 'md')
@@ -200,7 +229,10 @@ describe('compare', () => {
     test('should show the label in the aggregate matrix header', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
 
-      await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
+      await compare({
+        overrides: { output: { runsDir, compareFormat: 'md' } },
+        logger: silentLogger
+      })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
       assert.ok(md.includes('| metric | gate | tuned chunker |'))
@@ -208,9 +240,16 @@ describe('compare', () => {
     })
 
     test('should escape backslashes and pipes in question text', async () => {
-      await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [pq('cap-001', 'a\\b | c', { mrr: 0.5 })] }))
+      await writeRun(
+        fakeReport('2026-07-30T10:00:00Z_a', {
+          perQuestion: [pq('cap-001', 'a\\b | c', { mrr: 0.5 })]
+        })
+      )
 
-      await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
+      await compare({
+        overrides: { output: { runsDir, compareFormat: 'md' } },
+        logger: silentLogger
+      })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
       assert.ok(md.includes('a\\\\b \\| c'))
@@ -220,18 +259,25 @@ describe('compare', () => {
       const mk = (rid, seed) => {
         const per = []
         for (let i = 1; i <= 120; i++) {
-          per.push(pq('cap-' + String(i).padStart(3, '0'), 'Q' + i, { mrr: ((i + seed) % 10) / 10 }))
+          per.push(
+            pq('cap-' + String(i).padStart(3, '0'), 'Q' + i, { mrr: ((i + seed) % 10) / 10 })
+          )
         }
         return fakeReport(rid, { perQuestion: per })
       }
       await writeRun(mk('2026-07-30T10:00:00Z_a', 0))
       await writeRun(mk('2026-07-30T11:00:00Z_b', 2))
 
-      await compare({ overrides: { output: { runsDir, compareFormat: 'md' } }, logger: silentLogger })
+      await compare({
+        overrides: { output: { runsDir, compareFormat: 'md' } },
+        logger: silentLogger
+      })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
       assert.ok(md.includes('Showing the 50 most-attention-worthy of 120 questions'))
-      const section = md.split('## Per-question metrics (avg across runs)')[1].split('## Inspect each run')[0]
+      const section = md
+        .split('## Per-question metrics (avg across runs)')[1]
+        .split('## Inspect each run')[0]
       const rowCount = (section.match(/\n\| cap-/g) || []).length
       assert.equal(rowCount, 50)
     })
@@ -298,7 +344,9 @@ describe('compare', () => {
 
     test('should place retrieval content inside the detail row, not in a separate section', async () => {
       const q = {
-        id: 'cap-001', question: 'Q?', relevant_doc_ids: ['https://x/a#hit'],
+        id: 'cap-001',
+        question: 'Q?',
+        relevant_doc_ids: ['https://x/a#hit'],
         retrieved_ids: [{ ids: ['https://x/a#hit'], text: 'chunk body text' }],
         relevant_hits_at_rank: [1],
         metrics: { recall_at_k: 1, mrr: 1, hit_rate_at_k: 1, ndcg_at_k: 1 }
@@ -357,7 +405,10 @@ describe('compare', () => {
       const baseQ = pq('cap-001', 'How do I define X?', { mrr: 0.5 })
       const base = fakeReport('2026-07-30T10:00:00Z_base', { perQuestion: [baseQ] })
       const currQ = pq('cap-001', 'How do I define X?', { mrr: 1 })
-      const curr = { ...fakeReport('2026-07-30T11:00:00Z_curr', { perQuestion: [currQ] }), baseline_run_id: '2026-07-30T10:00:00Z_base' }
+      const curr = {
+        ...fakeReport('2026-07-30T11:00:00Z_curr', { perQuestion: [currQ] }),
+        baseline_run_id: '2026-07-30T10:00:00Z_base'
+      }
       await writeRun(base)
       await writeRun(curr)
 
@@ -413,7 +464,10 @@ describe('compare', () => {
       assert.ok(!html.includes('Precision@K'))
       assert.ok(html.includes('Hit-Rate@K'))
       assert.ok(html.includes('nDCG@K'))
-      const lbBody = html.slice(html.indexOf('id="lb-tbody"'), html.indexOf('</tbody>', html.indexOf('id="lb-tbody"')))
+      const lbBody = html.slice(
+        html.indexOf('id="lb-tbody"'),
+        html.indexOf('</tbody>', html.indexOf('id="lb-tbody"'))
+      )
       const runRows = (lbBody.match(/<tr /g) || []).length
       assert.equal(runRows, 2)
     })
@@ -426,7 +480,10 @@ describe('compare', () => {
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('🥇'))
-      const lbBody = html.slice(html.indexOf('id="lb-tbody"'), html.indexOf('</tbody>', html.indexOf('id="lb-tbody"')))
+      const lbBody = html.slice(
+        html.indexOf('id="lb-tbody"'),
+        html.indexOf('</tbody>', html.indexOf('id="lb-tbody"'))
+      )
       const iGold = lbBody.indexOf('🥇')
       const iSilver = lbBody.indexOf('🥈')
       assert.ok(iGold < iSilver)
@@ -473,7 +530,9 @@ describe('compare', () => {
 
     test('should use the snapshot text for retrieved chunks even when the corpus is empty', async () => {
       const q = {
-        id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
+        id: 'cap-001',
+        question: 'q',
+        relevant_doc_ids: ['https://x/a#hit'],
         retrieved_ids: [
           { ids: ['https://x/a#hit'], text: 'snapshot body A' },
           { ids: ['https://x/b#miss'], text: 'snapshot body B' }
@@ -492,11 +551,16 @@ describe('compare', () => {
 
     test('should render a chunk without expansion when text is unavailable', async () => {
       const q = {
-        id: 'cap-001', question: 'q', relevant_doc_ids: ['https://x/a#hit'],
-        retrieved_ids: [{ ids: ['https://x/gone#stale'], text: '' }], relevant_hits_at_rank: [],
+        id: 'cap-001',
+        question: 'q',
+        relevant_doc_ids: ['https://x/a#hit'],
+        retrieved_ids: [{ ids: ['https://x/gone#stale'], text: '' }],
+        relevant_hits_at_rank: [],
         metrics: { recall_at_k: 0, mrr: 0, hit_rate_at_k: 0, ndcg_at_k: 0 }
       }
-      await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] }))
+      await writeRun(
+        fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] })
+      )
 
       await compare({ overrides: overrides(), logger: silentLogger })
 

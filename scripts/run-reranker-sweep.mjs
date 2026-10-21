@@ -22,7 +22,7 @@ const MODELS = [
   'jinaai/jina-reranker-v1-tiny-en',
   'jina-reranker-v1-turbo-en',
   'mixedbread-ai/mxbai-rerank-xsmall-v1',
-  'mixedbread-ai/mxbai-rerank-base-v1',
+  'mixedbread-ai/mxbai-rerank-base-v1'
 ]
 
 const CONFIG_PATH = path.join(__dirname, '..', 'evals', 'lib', 'config.js')
@@ -57,7 +57,7 @@ for (const model of MODELS) {
     cwd: __dirname,
     env: { ...process.env, CDS_MCP_RERANK_MODEL: model },
     stdio: 'inherit',
-    shell: false,
+    shell: false
   })
 
   results.push({ model, ok: status === 0 })
@@ -65,14 +65,14 @@ for (const model of MODELS) {
 
 restoreConfig()
 
-const passed = results.filter(r => r.ok)
-const failed = results.filter(r => !r.ok)
+const passed = results.filter((r) => r.ok)
+const failed = results.filter((r) => !r.ok)
 
 console.log(`\n${'='.repeat(60)}`)
 console.log(`Sweep done — ${passed.length}/${results.length} passed`)
 if (failed.length) {
   console.log('Failed:')
-  failed.forEach(r => console.log(`  - ${r.model}`))
+  failed.forEach((r) => console.log(`  - ${r.model}`))
 }
 
 process.exit(failed.length ? 1 : 0)

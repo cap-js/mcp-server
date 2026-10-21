@@ -55,7 +55,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
   delete gatesFile.$comment
   const output = file.output || {}
 
-  const resolve = p => (path.isAbsolute(p) ? p : path.join(EVALS_DIR, p))
+  const resolve = (p) => (path.isAbsolute(p) ? p : path.join(EVALS_DIR, p))
 
   const cfg = {
     k: file.k ?? 5,
@@ -80,7 +80,8 @@ export async function loadConfig({ configPath, overrides } = {}) {
     if (overrides.k !== undefined) cfg.k = overrides.k
     if (overrides.label !== undefined) cfg.label = overrides.label
     if (overrides.baselineRunId !== undefined) cfg.baselineRunId = overrides.baselineRunId
-    if (overrides.embeddingsDir !== undefined) cfg.embeddingsDir = overrides.embeddingsDir ? resolve(overrides.embeddingsDir) : null
+    if (overrides.embeddingsDir !== undefined)
+      cfg.embeddingsDir = overrides.embeddingsDir ? resolve(overrides.embeddingsDir) : null
     if (overrides.goldenSet !== undefined) cfg.goldenSet = resolve(overrides.goldenSet)
     if (overrides.gates) Object.assign(cfg.gates, overrides.gates)
     if (overrides.output) Object.assign(cfg.output, overrides.output)
@@ -91,13 +92,16 @@ export async function loadConfig({ configPath, overrides } = {}) {
 }
 
 function validateConfig(cfg) {
-  if (!Number.isInteger(cfg.k) || cfg.k <= 0) throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
+  if (!Number.isInteger(cfg.k) || cfg.k <= 0)
+    throw new Error(`config: k must be a positive integer (got ${cfg.k})`)
   const keep = cfg.output.keepRuns
   if (keep !== -1 && (!Number.isInteger(keep) || keep <= 0)) {
     throw new Error(`config: keepRuns must be -1 (keep all) or a positive integer (got ${keep})`)
   }
   if (!['html', 'md'].includes(cfg.output.compareFormat)) {
-    throw new Error(`config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`)
+    throw new Error(
+      `config: compareFormat must be "html" or "md" (got ${cfg.output.compareFormat})`
+    )
   }
   for (const key of METRIC_KEYS) {
     const g = cfg.gates[key]

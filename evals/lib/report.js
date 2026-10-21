@@ -8,7 +8,7 @@ const { SELECT } = cds.ql
 // bare string entry becomes a one-element group; an array entry stays as-is.
 // Any match inside a group satisfies that group for retrieval scoring.
 export function normalizeRelevant(relevant_doc_ids) {
-  return relevant_doc_ids.map(entry => (Array.isArray(entry) ? entry : [entry]))
+  return relevant_doc_ids.map((entry) => (Array.isArray(entry) ? entry : [entry]))
 }
 
 // Structural validation of the golden set. Returns human-readable problem
@@ -26,15 +26,20 @@ export function validateGolden(questions) {
     if (typeof q.id !== 'string' || !q.id) problems.push(`${where}: missing string "id"`)
     else if (seenIds.has(q.id)) problems.push(`${where}: duplicate id`)
     else seenIds.add(q.id)
-    if (typeof q.question !== 'string' || !q.question.trim()) problems.push(`${where}: missing non-empty "question"`)
-    if (!Array.isArray(q.relevant_doc_ids)) problems.push(`${where}: "relevant_doc_ids" must be an array`)
-    else if (q.relevant_doc_ids.length === 0) problems.push(`${where}: "relevant_doc_ids" is empty (no ground truth)`)
+    if (typeof q.question !== 'string' || !q.question.trim())
+      problems.push(`${where}: missing non-empty "question"`)
+    if (!Array.isArray(q.relevant_doc_ids))
+      problems.push(`${where}: "relevant_doc_ids" must be an array`)
+    else if (q.relevant_doc_ids.length === 0)
+      problems.push(`${where}: "relevant_doc_ids" is empty (no ground truth)`)
     else {
       q.relevant_doc_ids.forEach((entry, j) => {
         const at = `entry #${j + 1}`
         if (Array.isArray(entry)) {
-          if (entry.length === 0) problems.push(`${where}: "relevant_doc_ids" ${at} is an empty OR-group`)
-          else if (entry.some(id => typeof id !== 'string' || !id)) problems.push(`${where}: "relevant_doc_ids" ${at} contains a non-string/empty id`)
+          if (entry.length === 0)
+            problems.push(`${where}: "relevant_doc_ids" ${at} is an empty OR-group`)
+          else if (entry.some((id) => typeof id !== 'string' || !id))
+            problems.push(`${where}: "relevant_doc_ids" ${at} contains a non-string/empty id`)
         } else if (typeof entry !== 'string' || !entry) {
           problems.push(`${where}: "relevant_doc_ids" contains a non-string/empty id`)
         }
@@ -48,15 +53,19 @@ export function validateGolden(questions) {
 // OR-group, each alternate is checked independently — a stale alternate is
 // still worth flagging even if the group has valid siblings.
 export async function preflight(goldenQuestions, sourceDb) {
-  const pairs = goldenQuestions.flatMap(q =>
-    q.relevant_doc_ids.flatMap(e =>
-      (Array.isArray(e) ? e : [e]).map(doc_id => ({ question: q.id, doc_id }))
+  const pairs = goldenQuestions.flatMap((q) =>
+    q.relevant_doc_ids.flatMap((e) =>
+      (Array.isArray(e) ? e : [e]).map((doc_id) => ({ question: q.id, doc_id }))
     )
   )
-  const allIds = [...new Set(pairs.map(p => p.doc_id))]
-  const found = await sourceDb.run(SELECT('source').from('SourceDocs').where({ source: { in: allIds } }))
-  const foundSources = new Set(found.map(r => r.source))
-  return pairs.filter(p => !foundSources.has(p.doc_id))
+  const allIds = [...new Set(pairs.map((p) => p.doc_id))]
+  const found = await sourceDb.run(
+    SELECT('source')
+      .from('SourceDocs')
+      .where({ source: { in: allIds } })
+  )
+  const foundSources = new Set(found.map((r) => r.source))
+  return pairs.filter((p) => !foundSources.has(p.doc_id))
 }
 
 // Pure core: build the report object (run_id added by the caller).
@@ -64,7 +73,7 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   const k = config.k
 
   const per_question = perQuestionRaw
-    .map(q => {
+    .map((q) => {
       const groups = normalizeRelevant(q.relevant_doc_ids)
       const m = metricsFor(groups, q.retrievedIds, k)
       return {
@@ -91,10 +100,11 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
   const baseAgg = baseline ? baseline.aggregate : null
   const gated_failures = []
   for (const key of METRIC_KEYS) {
-    const value = round(mean(per_question.map(q => q._full[key])), 2)
+    const value = round(mean(per_question.map((q) => q._full[key])), 2)
     const gate = key in gates ? gates[key] : null
     const baselineVal = baseAgg && baseAgg[key] != null ? baseAgg[key].value : null
-    const delta = baselineVal === null || baselineVal === undefined ? null : round(value - baselineVal, 2)
+    const delta =
+      baselineVal === null || baselineVal === undefined ? null : round(value - baselineVal, 2)
     let status
     if (gate === null || gate === undefined) status = 'info'
     else if (value >= gate) status = 'pass'
@@ -128,15 +138,16 @@ export const DIAGNOSE_DEADBAND = 0.02
 // Diagnosis from aggregate deltas vs baseline. A recall drop is attributed to
 // retrieval coverage; ranking is diagnosed only when recall is stable.
 export function diagnose(aggregate) {
-  const d = key => (aggregate[key] ? aggregate[key].delta : null)
-  const down = v => v !== null && v < -DIAGNOSE_DEADBAND
+  const d = (key) => (aggregate[key] ? aggregate[key].delta : null)
+  const down = (v) => v !== null && v < -DIAGNOSE_DEADBAND
   const recall = d('recall_at_k')
   const mrrD = d('mrr')
   const ndcg = d('ndcg_at_k')
 
   const causes = []
   if (down(recall)) causes.push('recall_down → chunking/embedding regression')
-  if (!down(recall) && (down(mrrD) || down(ndcg))) causes.push('recall_stable_mrr_down → ranking/scoring regression')
+  if (!down(recall) && (down(mrrD) || down(ndcg)))
+    causes.push('recall_stable_mrr_down → ranking/scoring regression')
   return causes.length ? causes.join('; ') : 'no_regression'
 }
 

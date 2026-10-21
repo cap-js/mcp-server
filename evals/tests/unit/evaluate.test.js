@@ -12,12 +12,12 @@ const silentLogger = { log() {}, error() {} }
 const CHUNK_IDS = ['doc-a#0001', 'doc-b#0002', 'doc-c#0003', 'doc-d#0004', 'doc-e#0005']
 
 function retriever(ranking = CHUNK_IDS) {
-  const chunks = ranking.map(id => ({ ids: [id], text: '' }))
+  const chunks = ranking.map((id) => ({ ids: [id], text: '' }))
   return mock.fn(async () => mock.fn(async () => chunks))
 }
 
 function mockEvaluationRuntime(makeSearchDocsRunner = retriever()) {
-  const fakeSourceDb = { run: mock.fn(async () => CHUNK_IDS.map(id => ({ source: id }))) }
+  const fakeSourceDb = { run: mock.fn(async () => CHUNK_IDS.map((id) => ({ source: id }))) }
   mock.method(retrievalRuntime, 'makeSearchDocsRunner', makeSearchDocsRunner)
   mock.method(sourceDbRuntime, 'createSourceDb', async () => fakeSourceDb)
 }
@@ -39,14 +39,17 @@ function baseOverrides(extra = {}) {
     k: 5,
     goldenSet: goldenPath,
     output: { runsDir },
-    embeddingsDir: null,
+    embeddingsDir: null
   }
   return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
 }
 
 async function readResults() {
   const text = await fs.readFile(path.join(runsDir, 'result.jsonl'), 'utf8')
-  return text.split('\n').filter(Boolean).map(l => JSON.parse(l))
+  return text
+    .split('\n')
+    .filter(Boolean)
+    .map((l) => JSON.parse(l))
 }
 
 describe('evaluate', () => {
@@ -102,9 +105,13 @@ describe('evaluate', () => {
   test('should credit a multi-section chunk for every section it covers', async () => {
     const firstUrl = 'https://x/docs/get-started/#initial-setup'
     const secondUrl = 'https://x/docs/get-started/#nodejs-and-cds-dk'
-    await writeGolden([{ id: 'q-001', question: 'installing cds-dk', relevant_doc_ids: [secondUrl] }])
+    await writeGolden([
+      { id: 'q-001', question: 'installing cds-dk', relevant_doc_ids: [secondUrl] }
+    ])
     mock.restoreAll()
-    mockEvaluationRuntime(mock.fn(async () => mock.fn(async () => [{ ids: [firstUrl, secondUrl], text: '' }])))
+    mockEvaluationRuntime(
+      mock.fn(async () => mock.fn(async () => [{ ids: [firstUrl, secondUrl], text: '' }]))
+    )
 
     const res = await evaluate({
       golden: await loadGolden(),
@@ -162,10 +169,7 @@ describe('evaluate', () => {
   test('should rethrow a non-ENOENT error when reading the golden set', async () => {
     await fs.mkdir(goldenPath)
 
-    await assert.rejects(
-      () => evaluateAndCompare({ overrides: baseOverrides() }),
-      /EISDIR/
-    )
+    await assert.rejects(() => evaluateAndCompare({ overrides: baseOverrides() }), /EISDIR/)
   })
 
   test('should exit 3 and write no run when the golden question is malformed', async () => {
@@ -202,8 +206,16 @@ describe('evaluate', () => {
 
   test('should diff against the pinned run when baselineRunId is set', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    const r1 = await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
-    const r2 = await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+    const r1 = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides(),
+      logger: silentLogger
+    })
+    const r2 = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides(),
+      logger: silentLogger
+    })
 
     const r3 = await evaluate({
       golden: await loadGolden(),
@@ -232,12 +244,16 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     for (let i = 0; i < 3; i++) {
-      await evaluate({ golden: await loadGolden(), overrides: baseOverrides({ output: { keepRuns: 20 } }), logger: silentLogger })
+      await evaluate({
+        golden: await loadGolden(),
+        overrides: baseOverrides({ output: { keepRuns: 20 } }),
+        logger: silentLogger
+      })
     }
 
     const rows = await readResults()
     assert.equal(rows.length, 3)
-    const ids = rows.map(r => r.run_id)
+    const ids = rows.map((r) => r.run_id)
     assert.deepEqual(ids, [...ids].sort())
   })
 
@@ -245,7 +261,11 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     for (let i = 0; i < 5; i++) {
-      await evaluate({ golden: await loadGolden(), overrides: baseOverrides({ output: { keepRuns: 2 } }), logger: silentLogger })
+      await evaluate({
+        golden: await loadGolden(),
+        overrides: baseOverrides({ output: { keepRuns: 2 } }),
+        logger: silentLogger
+      })
     }
 
     const rows = await readResults()
@@ -327,14 +347,17 @@ describe('evaluateSweep', () => {
       label: null,
       goldenSet: goldenPath,
       output: { runsDir },
-      embeddingsDir: sweepDir,
+      embeddingsDir: sweepDir
     }
     return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
   }
 
   async function readResults() {
     const text = await fs.readFile(path.join(runsDir, 'result.jsonl'), 'utf8')
-    return text.split('\n').filter(Boolean).map(l => JSON.parse(l))
+    return text
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => JSON.parse(l))
   }
 
   test('should throw when no embedding dirs are found under sweepDir', async () => {
@@ -359,7 +382,7 @@ describe('evaluateSweep', () => {
 
     const rows = await readResults()
     assert.equal(rows.length, 2)
-    const labels = rows.map(r => r.config.label).sort()
+    const labels = rows.map((r) => r.config.label).sort()
     assert.deepEqual(labels, ['model-a/cfg-1', 'model-a/cfg-2'])
     assert.ok(res.code === 0 || res.code === 1)
   })

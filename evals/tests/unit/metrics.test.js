@@ -12,7 +12,7 @@ import {
 } from '../../lib/metrics.js'
 
 function mkChunks(...ids) {
-  return ids.map(id => ({ ids: [id], text: '' }))
+  return ids.map((id) => ({ ids: [id], text: '' }))
 }
 
 // Worked example from the spec (cap-001):
@@ -20,7 +20,13 @@ function mkChunks(...ids) {
 //   retrieved = [associations, compositions, domain-modeling, managed-compositions, entities]
 //   k = 5  → relevant hits at ranks 2 and 4
 const REL = ['compositions', 'managed-compositions']
-const RET = mkChunks('associations', 'compositions', 'domain-modeling', 'managed-compositions', 'entities')
+const RET = mkChunks(
+  'associations',
+  'compositions',
+  'domain-modeling',
+  'managed-compositions',
+  'entities'
+)
 
 describe('metrics', () => {
   test('should return [2, 4] for relevantHitsAtRank when relevant docs are at ranks 2 and 4', () => {
@@ -139,7 +145,7 @@ describe('metrics', () => {
     test('should be deterministic on exact halves', () => {
       assert.equal(round(0.005, 2), 0.01)
       assert.equal(round(0.125, 2), 0.13)
-      assert.equal(round(0.6510, 3), 0.651)
+      assert.equal(round(0.651, 3), 0.651)
     })
 
     test('should be symmetric for negatives and never produce -0', () => {
@@ -280,7 +286,10 @@ describe('metrics', () => {
     })
 
     test('should score each of two OR-groups once when both are fully retrieved', () => {
-      const rel = [['a1', 'a2'], ['b1', 'b2']]
+      const rel = [
+        ['a1', 'a2'],
+        ['b1', 'b2']
+      ]
       const ret = mkChunks('a1', 'a2', 'b1', 'b2', 'x')
       const dcg = 1 + 1 / Math.log2(4)
       const idcg = 1 + 1 / Math.log2(3)
@@ -291,7 +300,10 @@ describe('metrics', () => {
 
     test('should not double-count when one slot contains both alternates of the same group', () => {
       const rel = [['a1', 'a2']]
-      const ret = [{ ids: ['a1', 'a2'], text: '' }, { ids: ['x'], text: '' }]
+      const ret = [
+        { ids: ['a1', 'a2'], text: '' },
+        { ids: ['x'], text: '' }
+      ]
 
       assert.equal(recallAtK(rel, ret, 5), 1)
       assert.equal(ndcgAtK(rel, ret, 5), 1)
@@ -299,7 +311,10 @@ describe('metrics', () => {
 
     test('should credit both groups when one slot contains ids from two different groups', () => {
       const rel = [['a1'], ['b1', 'b2']]
-      const ret = [{ ids: ['a1', 'b2'], text: '' }, { ids: ['x'], text: '' }]
+      const ret = [
+        { ids: ['a1', 'b2'], text: '' },
+        { ids: ['x'], text: '' }
+      ]
 
       assert.equal(recallAtK(rel, ret, 5), 1)
     })

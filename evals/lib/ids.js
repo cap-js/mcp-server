@@ -1,5 +1,12 @@
 import cds from '@sap/cds'
-import { CONTAINER_OPENER, CONTAINER_CLOSER, HTML_DIV_CLOSE, HTML_ANY_DIV_OPEN, COLS_DIV_OPEN, JAVA_NODE_DIV_OPEN } from './createSourceDb/pipeline/stages/04-parse-blocks.js'
+import {
+  CONTAINER_OPENER,
+  CONTAINER_CLOSER,
+  HTML_DIV_CLOSE,
+  HTML_ANY_DIV_OPEN,
+  COLS_DIV_OPEN,
+  JAVA_NODE_DIV_OPEN
+} from './createSourceDb/pipeline/stages/04-parse-blocks.js'
 
 const { SELECT } = cds.ql
 
@@ -11,12 +18,18 @@ const FENCE_OPENER_RE = /^(\s*)(```+|~~~+)/
 const FENCE_CLOSER_RE = /^(\s*)(```+|~~~+)\s*$/
 
 function isNotInsideFence(lines, lastHeadingIndex, index) {
-  let fenceChar = null, fenceLen = 0
+  let fenceChar = null,
+    fenceLen = 0
   for (let i = lastHeadingIndex; i < index; i++) {
     const m = FENCE_OPENER_RE.exec(lines[i])
     if (!m) continue
-    if (fenceChar === null) { fenceChar = m[2][0]; fenceLen = m[2].length }
-    else if (FENCE_CLOSER_RE.test(lines[i]) && m[2][0] === fenceChar && m[2].length >= fenceLen) { fenceChar = null; fenceLen = 0 }
+    if (fenceChar === null) {
+      fenceChar = m[2][0]
+      fenceLen = m[2].length
+    } else if (FENCE_CLOSER_RE.test(lines[i]) && m[2][0] === fenceChar && m[2].length >= fenceLen) {
+      fenceChar = null
+      fenceLen = 0
+    }
   }
   return fenceChar === null
 }
@@ -33,9 +46,15 @@ function isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, index) {
   let closesSeen = 0
   for (let i = index - 1; i >= lastHeadingIndex; i--) {
     const line = lines[i]
-    if (HTML_DIV_CLOSE.test(line)) { closesSeen++; continue }
+    if (HTML_DIV_CLOSE.test(line)) {
+      closesSeen++
+      continue
+    }
     if (HTML_ANY_DIV_OPEN.test(line)) {
-      if (closesSeen > 0) { closesSeen--; continue }
+      if (closesSeen > 0) {
+        closesSeen--
+        continue
+      }
       if (JAVA_NODE_DIV_OPEN.test(line) || COLS_DIV_OPEN.test(line)) return false
     }
   }
@@ -54,13 +73,18 @@ function splitByHeadings(text) {
 
   for (let i = 0; i < lines.length; i++) {
     const m = HEADING.exec(lines[i])
-    if (m &&
+    if (
+      m &&
       isNotInsideContainer(lines, lastHeadingIndex, i) &&
       isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i) &&
       isNotInsideFence(lines, lastHeadingIndex, i)
     ) {
       if (currentHeading !== null) {
-        sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
+        sections.push({
+          headingText: currentHeading,
+          headingDepth: currentDepth,
+          headingBody: bodyLines.join('\n')
+        })
         bodyLines.length = 0
       } else {
         // The parent Source: line was already resolved before section splitting.
@@ -74,7 +98,11 @@ function splitByHeadings(text) {
     }
   }
   if (currentHeading !== null) {
-    sections.push({ headingText: currentHeading, headingDepth: currentDepth, headingBody: bodyLines.join('\n') })
+    sections.push({
+      headingText: currentHeading,
+      headingDepth: currentDepth,
+      headingBody: bodyLines.join('\n')
+    })
   }
 
   return sections
@@ -89,33 +117,36 @@ async function findSource(headingText, headingBody, sourceDb) {
     const inlineSource = headingBody?.match?.(SOURCE)
     if (inlineSource) return { source: inlineSource[1], ambiguous: false }
     const title = headingText.trim()
-  
+
     if (title) {
       // 4.1: exact title match
       byTitle = await sourceDb.run(SELECT.from('SourceDocs').where`title like ${'%' + title + '%'}`)
       if (byTitle.length === 1) return { source: byTitle[0].source, ambiguous: false }
     }
-  
+
     // 4.2: subselect on title, like search with headingBody slice
-    const slice = (headingBody || '').trim().slice(0, 50).replace(/[%_'\\]/g, ' ')?.trim()
+    const slice = (headingBody || '')
+      .trim()
+      .slice(0, 50)
+      .replace(/[%_'\\]/g, ' ')
+      ?.trim()
     let query
     if (slice) {
       if (byTitle.length > 1) {
-        query =  SELECT.from('SourceDocs').where`title in ${byTitle.map(r=>r.title)} and chunk like ${'%' + slice + '%'}`
+        query = SELECT.from('SourceDocs')
+          .where`title in ${byTitle.map((r) => r.title)} and chunk like ${'%' + slice + '%'}`
       } else {
-        query =  SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
+        query = SELECT.from('SourceDocs').where`chunk like ${'%' + slice + '%'}`
       }
       const like = await sourceDb.run(query)
       if (like.length > 0) return { source: like[0].source, ambiguous: false }
     }
-  
+
     // use cosine similarity as a fallback for legacy chunks
     let inner = SELECT.from('SourceDocs')
       .columns`source, cosine_similarity(emb, vector_embedding(${title + ' ' + slice}, 'QUERY', '')) as score`
-    if (byTitle.length > 1) inner = inner.where`title in ${byTitle.map(r=>r.title)}`
-    const similar = await sourceDb.run(
-      SELECT.from(inner).orderBy('score desc').limit(1)
-    )
+    if (byTitle.length > 1) inner = inner.where`title in ${byTitle.map((r) => r.title)}`
+    const similar = await sourceDb.run(SELECT.from(inner).orderBy('score desc').limit(1))
     if (similar.length > 0) return { source: similar[0].source, ambiguous: false }
   } catch (e) {
     // eslint-disable-next-line no-console
@@ -141,14 +172,14 @@ export async function resolveIds(results, q, sourceDb) {
       meta.source = sourceMatch[1]
 
       const lines = body.split('\n')
-      const hpLine = lines.find(l => HEADINGPATH.test(l))
+      const hpLine = lines.find((l) => HEADINGPATH.test(l))
       if (hpLine) meta.headingPath = hpLine.replace(HEADINGPATH, '').trim()
 
-      const firstHeadingIdx = lines.findIndex(l => HEADING.test(l))
+      const firstHeadingIdx = lines.findIndex((l) => HEADING.test(l))
       body = firstHeadingIdx >= 0 ? lines.slice(firstHeadingIdx + 1).join('\n') : ''
     } else {
       const lines = body.split('\n')
-      const hpLine = lines.find(l => LEGACYHEADINGPATH.test(l))
+      const hpLine = lines.find((l) => LEGACYHEADINGPATH.test(l))
       if (hpLine) {
         meta.headingPath = hpLine.trim()
         body = lines.slice(2).join('\n')

@@ -47,7 +47,10 @@ describe('ids', () => {
   })
 
   test('should return two entries for two independent chunks', async () => {
-    const sm = [{ source: '/a', title: 'A', depth: 1 }, { source: '/b', title: 'B', depth: 1 }]
+    const sm = [
+      { source: '/a', title: 'A', depth: 1 },
+      { source: '/b', title: 'B', depth: 1 }
+    ]
     const c1 = '# A\n\nSource: /a\nbody'
     const c2 = '# B\n\nSource: /b\nbody'
 
@@ -65,10 +68,7 @@ describe('ids', () => {
   })
 
   test('should throw "No IDs found" when text has a source prefix but no URL', async () => {
-    await assert.rejects(
-      () => resolveIds(['source: '], Q, []),
-      { message: 'No IDs found' }
-    )
+    await assert.rejects(() => resolveIds(['source: '], Q, []), { message: 'No IDs found' })
   })
 
   describe('side-effects', () => {

@@ -25,7 +25,13 @@ describe('config', () => {
   })
 
   test('should apply programmatic overrides over file-based config', async () => {
-    const cfg = await loadConfig({ overrides: { k: 3, gates: { recall_at_k: 0.99 }, output: { keepRuns: 3, compareFormat: 'md' } } })
+    const cfg = await loadConfig({
+      overrides: {
+        k: 3,
+        gates: { recall_at_k: 0.99 },
+        output: { keepRuns: 3, compareFormat: 'md' }
+      }
+    })
 
     assert.equal(cfg.k, 3)
     assert.equal(cfg.gates.recall_at_k, 0.99)
@@ -47,10 +53,7 @@ describe('config', () => {
   })
 
   test('should reject k when it is not a positive integer', async () => {
-    await assert.rejects(
-      () => loadConfig({ overrides: { k: 0 } }),
-      /k must be a positive integer/
-    )
+    await assert.rejects(() => loadConfig({ overrides: { k: 0 } }), /k must be a positive integer/)
   })
 
   test('should reject a gate value outside [0,1]', async () => {

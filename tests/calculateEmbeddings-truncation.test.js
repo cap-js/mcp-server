@@ -3,7 +3,11 @@ import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
-import calculateEmbeddings, { createEmbeddings, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, {
+  createEmbeddings,
+  getActiveEmbeddingsDir,
+  setEmbeddingsDir
+} from '../lib/calculateEmbeddings.js'
 import { discoverModel } from '@cap-js/ai/lib/vector_embedding/model-discovery.js'
 
 // Model max window for BAAI/bge-small-en-v1.5 is 512 tokens
@@ -34,16 +38,38 @@ describe('createEmbeddings truncation', () => {
 
     // Only two rows in and two rows out — no auto-split.
     assert.strictEqual(result.count, 2, 'input rows == output rows (no splitting)')
-    const meta = JSON.parse(await fsp.readFile(path.join(result.outDir, 'code-chunks.json'), 'utf-8'))
+    const meta = JSON.parse(
+      await fsp.readFile(path.join(result.outDir, 'code-chunks.json'), 'utf-8')
+    )
     assert.strictEqual(meta.chunks.length, 2, 'input rows == output rows (no splitting)')
   })
 })
 
 // Common English words that encode to a single token each, so word count maps
 // closely to the model's token budget.
-const VOCAB = ['the', 'cat', 'sat', 'on', 'mat', 'dog', 'ran', 'far', 'and',
-               'but', 'not', 'yet', 'now', 'for', 'nor', 'so', 'or', 'as', 'at', 'by']
-const words = n => Array.from({ length: n }, (_, i) => VOCAB[i % VOCAB.length]).join(' ')
+const VOCAB = [
+  'the',
+  'cat',
+  'sat',
+  'on',
+  'mat',
+  'dog',
+  'ran',
+  'far',
+  'and',
+  'but',
+  'not',
+  'yet',
+  'now',
+  'for',
+  'nor',
+  'so',
+  'or',
+  'as',
+  'at',
+  'by'
+]
+const words = (n) => Array.from({ length: n }, (_, i) => VOCAB[i % VOCAB.length]).join(' ')
 const embEq = (a, b) => a.length === b.length && a.every((v, i) => v === b[i])
 
 describe('embedding truncation position', () => {
@@ -56,8 +82,8 @@ describe('embedding truncation position', () => {
     const CEILING = maxLength + 200
     const ceilEmb = await calculateEmbeddings(words(CEILING), model)
 
-    let lo = 1        // not yet truncated
-    let hi = CEILING  // already truncated
+    let lo = 1 // not yet truncated
+    let hi = CEILING // already truncated
     while (hi - lo > 1) {
       const mid = (lo + hi) >> 1
       const midEmb = await calculateEmbeddings(words(mid), model)
@@ -66,9 +92,14 @@ describe('embedding truncation position', () => {
     }
 
     // eslint-disable-next-line no-console
-    console.log(`\n${model}\n  maxLength ${maxLength} tokens → truncates at word #${hi} (${words(hi).length} chars); last unique at word #${lo}\n`)
+    console.log(
+      `\n${model}\n  maxLength ${maxLength} tokens → truncates at word #${hi} (${words(hi).length} chars); last unique at word #${lo}\n`
+    )
 
     // A real boundary must sit below the ceiling, otherwise CEILING was too small.
-    assert.ok(hi < CEILING, `no truncation found below CEILING=${CEILING}; raise it for model ${model}`)
+    assert.ok(
+      hi < CEILING,
+      `no truncation found below CEILING=${CEILING}; raise it for model ${model}`
+    )
   })
 })

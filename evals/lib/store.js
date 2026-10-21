@@ -27,7 +27,13 @@ export async function readRuns(cfg) {
     }
     // Skip structurally-valid JSON that isn't a run report, so downstream code
     // reading r.aggregate[...].value can't crash on a wrong-shape line.
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.run_id !== 'string' || typeof parsed.aggregate !== 'object' || parsed.aggregate === null) {
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof parsed.run_id !== 'string' ||
+      typeof parsed.aggregate !== 'object' ||
+      parsed.aggregate === null
+    ) {
       continue
     }
     runs.push(parsed)
@@ -47,7 +53,7 @@ export function sortByRunId(runs) {
 // null when there are no runs.
 export function baselineRun(runs, pinnedId) {
   const sorted = sortByRunId(runs)
-  if (pinnedId) return sorted.find(r => r.run_id === pinnedId) || null
+  if (pinnedId) return sorted.find((r) => r.run_id === pinnedId) || null
   return sorted.length ? sorted[0] : null
 }
 
@@ -62,8 +68,7 @@ export async function appendRun(cfg, report) {
   if (keep >= 0 && kept.length > keep) {
     kept = kept.slice(kept.length - keep)
   }
-  const body = kept.map(r => JSON.stringify(r)).join('\n') + (kept.length ? '\n' : '')
+  const body = kept.map((r) => JSON.stringify(r)).join('\n') + (kept.length ? '\n' : '')
   await fs.writeFile(resultsPath(cfg), body)
   return { path: resultsPath(cfg), total: kept.length }
 }
-

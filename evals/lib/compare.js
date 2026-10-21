@@ -22,8 +22,8 @@ function escHtml(text) {
 }
 
 // Shared cell formatters (HTML + Markdown run-detail tables).
-const statusIcon = s => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
-const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
+const statusIcon = (s) => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
+const gateStr = (g) => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
 
 // Render a delta span for a metric cell.
 // baseV = null → no baseline set; returns ''.
@@ -49,7 +49,7 @@ function buildPerQuestionModel(runs) {
   const order = []
   const seen = new Set()
   const textById = new Map()
-  const metricsByRun = runs.map(r => {
+  const metricsByRun = runs.map((r) => {
     const m = new Map()
     for (const q of r.per_question || []) {
       if (!seen.has(q.id)) {
@@ -63,7 +63,7 @@ function buildPerQuestionModel(runs) {
   })
   const baseMetrics = metricsByRun[0]
 
-  const rows = order.map(id => {
+  const rows = order.map((id) => {
     const series = {}
     const avg = {}
     const delta = {}
@@ -243,15 +243,17 @@ function lineChartSvg({ label, points, gate, avg }) {
   // y spans the metric's natural [0,1] range so charts are comparable.
   const yMin = 0
   const yMax = 1
-  const x = i => m.left + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw)
-  const y = v => m.top + (1 - (v - yMin) / (yMax - yMin)) * ih
+  const x = (i) => m.left + (n <= 1 ? iw / 2 : (i / (n - 1)) * iw)
+  const y = (v) => m.top + (1 - (v - yMin) / (yMax - yMin)) * ih
 
   const gridVals = [0, 0.25, 0.5, 0.75, 1]
   const grid = gridVals
-    .map(v => {
+    .map((v) => {
       const yy = y(v).toFixed(1)
-      return `<line class="grid" x1="${m.left}" y1="${yy}" x2="${m.left + iw}" y2="${yy}"/>` +
+      return (
+        `<line class="grid" x1="${m.left}" y1="${yy}" x2="${m.left + iw}" y2="${yy}"/>` +
         `<text class="axis" x="${m.left - 8}" y="${(y(v) + 3).toFixed(1)}" text-anchor="end">${v.toFixed(2)}</text>`
+      )
     })
     .join('')
 
@@ -261,7 +263,9 @@ function lineChartSvg({ label, points, gate, avg }) {
         `<text class="gatelabel" x="${m.left + iw}" y="${(y(gate) - 5).toFixed(1)}" text-anchor="end">gate ≥ ${gate.toFixed(2)}</text>`
       : ''
 
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`).join(' ')
+  const linePath = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${x(i).toFixed(1)},${y(p.value).toFixed(1)}`)
+    .join(' ')
 
   const dots = points
     .map((p, i) => {
@@ -305,9 +309,19 @@ function renderPerQuestionSection(runs) {
   const gates = {}
   for (const key of METRIC_KEYS) gates[key] = runs[runs.length - 1].aggregate[key].gate ?? null
 
-  const headCells = METRIC_KEYS.map(k => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join('')
+  const headCells = METRIC_KEYS.map((k) => `<th data-metric="${k}">${METRIC_LABEL[k]}</th>`).join(
+    ''
+  )
 
-  const blob = { runShorts, runIds: runs.map(r => r.run_id), gates, k: runs[runs.length - 1].config.k, metricKeys: METRIC_KEYS, metricLabels: METRIC_LABEL, data }
+  const blob = {
+    runShorts,
+    runIds: runs.map((r) => r.run_id),
+    gates,
+    k: runs[runs.length - 1].config.k,
+    metricKeys: METRIC_KEYS,
+    metricLabels: METRIC_LABEL,
+    data
+  }
 
   return `<details class="pq-section">
   <summary class="section-h section-summary">Per-question metric trends
@@ -328,7 +342,10 @@ function renderPerQuestionSection(runs) {
 
 // short run id for chart tooltips / x-axis (time-of-day)
 function shortRunId(r) {
-  return r.run_id.replace(/T/, ' ').replace(/(\.\d+)?Z.*$/, '').slice(5)
+  return r.run_id
+    .replace(/T/, ' ')
+    .replace(/(\.\d+)?Z.*$/, '')
+    .slice(5)
 }
 
 // Display name for a run: its label if set, else the short timestamp.
@@ -344,15 +361,17 @@ function shortLabel(r) {
 
 // Rank each run for each metric (1 = best). Returns Map<run_id, Map<metric_key, rank>>.
 function buildRanks(runs) {
-  const overallValue = r => METRIC_KEYS.reduce((s, k) => s + r.aggregate[k].value, 0)
-  const ranks = new Map(runs.map(r => [r.run_id, {}]))
+  const overallValue = (r) => METRIC_KEYS.reduce((s, k) => s + r.aggregate[k].value, 0)
+  const ranks = new Map(runs.map((r) => [r.run_id, {}]))
   for (const key of METRIC_KEYS) {
     const sorted = [...runs].sort((a, b) => {
       const vd = b.aggregate[key].value - a.aggregate[key].value
       if (vd !== 0) return vd
       return overallValue(b) - overallValue(a)
     })
-    sorted.forEach((r, i) => { ranks.get(r.run_id)[key] = i + 1 })
+    sorted.forEach((r, i) => {
+      ranks.get(r.run_id)[key] = i + 1
+    })
   }
   return ranks
 }
@@ -362,11 +381,11 @@ function buildRanks(runs) {
 function renderLeaderboard(runs) {
   if (runs.length < 2) return ''
   const ranks = buildRanks(runs)
-  const gated = METRIC_KEYS.filter(k => runs[runs.length - 1].aggregate[k].gate !== null)
+  const gated = METRIC_KEYS.filter((k) => runs[runs.length - 1].aggregate[k].gate !== null)
   if (!gated.length) return ''
 
-  const totalScore = r => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
-  const totalValue = r => gated.reduce((s, k) => s + r.aggregate[k].value, 0)
+  const totalScore = (r) => gated.reduce((s, k) => s + ranks.get(r.run_id)[k], 0)
+  const totalValue = (r) => gated.reduce((s, k) => s + r.aggregate[k].value, 0)
   const sorted = [...runs].sort((a, b) => {
     const sd = totalScore(a) - totalScore(b)
     if (sd !== 0) return sd
@@ -374,23 +393,26 @@ function renderLeaderboard(runs) {
   })
   const shown = sorted
 
-  const medalClass = rank => rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : ''
-  const medal = rank => rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`
+  const medalClass = (rank) =>
+    rank === 1 ? 'rank-1' : rank === 2 ? 'rank-2' : rank === 3 ? 'rank-3' : ''
+  const medal = (rank) => (rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`)
 
-  const headCols = METRIC_KEYS.map(k => {
+  const headCols = METRIC_KEYS.map((k) => {
     const isGated = runs[runs.length - 1].aggregate[k].gate !== null
     return `<th>${METRIC_LABEL[k]}@K${isGated ? '' : ' <span class="tag muted">reported</span>'}</th>`
   }).join('')
 
-  const rows = shown.map((r, i) => {
-    const rank = i + 1
-    const cells = METRIC_KEYS.map(k => {
-      const rk = ranks.get(r.run_id)[k]
-      return `<td class="${medalClass(rk)}">${r.aggregate[k].value.toFixed(2)}</td>`
-    }).join('')
-    const searchStr = escHtml(runDisplay(r).toLowerCase())
-    return `<tr data-search="${searchStr}"><td class="lb-rank">${medal(rank)}</td><td class="mono lb-run" title="${escHtml(runDisplay(r))}">${escHtml(runDisplay(r))}</td>${cells}</tr>`
-  }).join('')
+  const rows = shown
+    .map((r, i) => {
+      const rank = i + 1
+      const cells = METRIC_KEYS.map((k) => {
+        const rk = ranks.get(r.run_id)[k]
+        return `<td class="${medalClass(rk)}">${r.aggregate[k].value.toFixed(2)}</td>`
+      }).join('')
+      const searchStr = escHtml(runDisplay(r).toLowerCase())
+      return `<tr data-search="${searchStr}"><td class="lb-rank">${medal(rank)}</td><td class="mono lb-run" title="${escHtml(runDisplay(r))}">${escHtml(runDisplay(r))}</td>${cells}</tr>`
+    })
+    .join('')
 
   const hint = `${runs.length} runs · ranked by total score on gated metrics · scrollable`
 
@@ -427,27 +449,34 @@ function renderLeaderboard(runs) {
 // `runRanks` (optional Map<run_id, {metric:rank}>) shows rank vs other runs.
 // `baselinePqMap` (optional Map<id, metrics>) provides per-question baseline for delta.
 function renderRunDetails(r, textById, runRanks, baselinePqMap) {
-  const summaryCells = METRIC_KEYS.map(k => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`).join('')
+  const summaryCells = METRIC_KEYS.map(
+    (k) => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`
+  ).join('')
   const res = r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'
 
-  const aggRows = METRIC_KEYS.map(k => {
+  const aggRows = METRIC_KEYS.map((k) => {
     const a = r.aggregate[k]
     const rk = runRanks ? runRanks.get(r.run_id)[k] : null
-    const rankCell = rk !== null ? `<span class="${rk === 1 ? 'rank-1' : rk === 2 ? 'rank-2' : rk === 3 ? 'rank-3' : ''}">#${rk}</span>` : '—'
+    const rankCell =
+      rk !== null
+        ? `<span class="${rk === 1 ? 'rank-1' : rk === 2 ? 'rank-2' : rk === 3 ? 'rank-3' : ''}">#${rk}</span>`
+        : '—'
     return `<tr><td>${METRIC_LABEL[k]}@${r.config.k}</td><td>${a.value.toFixed(2)}</td><td>${rankCell}</td><td>${gateStr(a.gate)}</td><td>${statusIcon(a.status)}</td></tr>`
   }).join('')
 
   // col index: 0=id,1=question,2..6=metrics,7=hit-ranks — all sortable except hit-ranks
-  const pqHead = METRIC_KEYS.map((k, i) => `<th class="sortable" data-col="${i + 2}">${METRIC_LABEL[k]}</th>`).join('')
+  const pqHead = METRIC_KEYS.map(
+    (k, i) => `<th class="sortable" data-col="${i + 2}">${METRIC_LABEL[k]}</th>`
+  ).join('')
   const pqRows = (r.per_question || [])
-    .map(q => {
+    .map((q) => {
       const relevantIds = new Set()
-      for (const entry of (q.relevant_doc_ids || [])) {
+      for (const entry of q.relevant_doc_ids || []) {
         if (Array.isArray(entry)) for (const id of entry) relevantIds.add(id)
         else relevantIds.add(entry)
       }
       const baseM = baselinePqMap ? baselinePqMap.get(q.id) : null
-      const cells = METRIC_KEYS.map(k => {
+      const cells = METRIC_KEYS.map((k) => {
         const v = q.metrics[k] ?? 0
         let delta = ''
         if (baseM != null && baseM[k] != null) {
@@ -457,26 +486,35 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
         }
         return `<td>${v.toFixed(3)}${delta}</td>`
       }).join('')
-      const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
+      const ranks =
+        q.relevant_hits_at_rank && q.relevant_hits_at_rank.length
+          ? q.relevant_hits_at_rank.join(', ')
+          : '—'
       const question = escHtml(q.question)
-      const relList = (q.relevant_doc_ids || []).map(entry => {
-        if (Array.isArray(entry)) {
-          const parts = entry.map(id => `<span class="mono">${escHtml(id)}</span>`).join(' <span class="muted">⋁</span> ')
-          return `<li>${parts}</li>`
-        }
-        return `<li class="mono">${escHtml(entry)}</li>`
-      }).join('')
-      const retList = (q.retrieved_ids || []).map((chunk, i) => {
-        const chunkIds = chunk.ids || []
-        const hit = chunkIds.some(id => relevantIds.has(id))
-        const label = chunkIds.join(', ')
-        const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
-        const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
-        if (text) {
-          return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
-        }
-        return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
-      }).join('')
+      const relList = (q.relevant_doc_ids || [])
+        .map((entry) => {
+          if (Array.isArray(entry)) {
+            const parts = entry
+              .map((id) => `<span class="mono">${escHtml(id)}</span>`)
+              .join(' <span class="muted">⋁</span> ')
+            return `<li>${parts}</li>`
+          }
+          return `<li class="mono">${escHtml(entry)}</li>`
+        })
+        .join('')
+      const retList = (q.retrieved_ids || [])
+        .map((chunk, i) => {
+          const chunkIds = chunk.ids || []
+          const hit = chunkIds.some((id) => relevantIds.has(id))
+          const label = chunkIds.join(', ')
+          const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
+          const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
+          if (text) {
+            return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
+          }
+          return `<li class="mono ${hit ? 'hit' : 'miss'}">${marker} <span class="muted">(text unavailable)</span></li>`
+        })
+        .join('')
       return `<tr class="rd-pq-row" data-qid="${q.id}" data-metrics='${JSON.stringify(q.metrics)}'><td class="mono">${q.id}</td><td class="q-cell">${question}</td>${cells}<td>${ranks}</td></tr>
 <tr class="rd-pq-detail" style="display:none"><td colspan="8"><div class="q-retr-body">
   <div class="rd-sub2">relevant (${(q.relevant_doc_ids || []).length})</div>
@@ -600,8 +638,8 @@ function renderHtml(runs, textById) {
   const ranks = buildRanks(runs)
 
   // Build per-metric point series.
-  const charts = METRIC_KEYS.map(key => {
-    const points = runs.map(r => ({
+  const charts = METRIC_KEYS.map((key) => {
+    const points = runs.map((r) => ({
       value: r.aggregate[key].value,
       runShort: shortLabel(r),
       runFull: runDisplay(r),
@@ -614,17 +652,20 @@ function renderHtml(runs, textById) {
   }).join('\n')
 
   // Newest run first so the most recent is easiest to open.
-  const runsById = new Map(runs.map(r => [r.run_id, r]))
-  const runDetails = [...runs].reverse().map(r => {
-    let baselinePqMap = null
-    if (r.baseline_run_id) {
-      const base = runsById.get(r.baseline_run_id)
-      if (base && base.per_question && base.per_question.length) {
-        baselinePqMap = new Map(base.per_question.map(q => [q.id, q.metrics]))
+  const runsById = new Map(runs.map((r) => [r.run_id, r]))
+  const runDetails = [...runs]
+    .reverse()
+    .map((r) => {
+      let baselinePqMap = null
+      if (r.baseline_run_id) {
+        const base = runsById.get(r.baseline_run_id)
+        if (base && base.per_question && base.per_question.length) {
+          baselinePqMap = new Map(base.per_question.map((q) => [q.id, q.metrics]))
+        }
       }
-    }
-    return renderRunDetails(r, textById, ranks, baselinePqMap)
-  }).join('\n')
+      return renderRunDetails(r, textById, ranks, baselinePqMap)
+    })
+    .join('\n')
 
   const perQuestion = renderPerQuestionSection(runs)
   const leaderboard = renderLeaderboard(runs)
@@ -842,12 +883,12 @@ function renderMarkdownCompare(runs) {
   // 1) Aggregate: metric × run matrix
   L.push('## Aggregate metrics across runs')
   L.push('')
-  L.push(`| metric | gate | ${runs.map(r => mdCell(runDisplay(r))).join(' | ')} |`)
+  L.push(`| metric | gate | ${runs.map((r) => mdCell(runDisplay(r))).join(' | ')} |`)
   L.push(`|---|:--:|${runs.map(() => '--:').join('|')}|`)
   for (const key of METRIC_KEYS) {
     const gate = runs[runs.length - 1].aggregate[key].gate
     const cells = runs
-      .map(r => {
+      .map((r) => {
         const a = r.aggregate[key]
         const flag = a.gate !== null && a.gate !== undefined && a.value < a.gate ? ' ❌' : ''
         return `${a.value.toFixed(2)}${flag}`
@@ -855,7 +896,9 @@ function renderMarkdownCompare(runs) {
       .join(' | ')
     L.push(`| ${METRIC_LABEL[key]}@K | ${gateStr(gate)} | ${cells} |`)
   }
-  L.push(`| **result** |  | ${runs.map(r => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`)
+  L.push(
+    `| **result** |  | ${runs.map((r) => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`
+  )
   L.push('')
 
   // 2) Per-question: one compact avg+Δ table, regressed/weakest-first, capped to MD_TOP_N.
@@ -872,13 +915,20 @@ function renderMarkdownCompare(runs) {
     )
     L.push('')
     const fmtCell = (avg, d) => {
-      const dz = d === null ? '' : d > 0 ? ` (▲+${d.toFixed(2)})` : d < 0 ? ` (▼−${Math.abs(d).toFixed(2)})` : ''
+      const dz =
+        d === null
+          ? ''
+          : d > 0
+            ? ` (▲+${d.toFixed(2)})`
+            : d < 0
+              ? ` (▼−${Math.abs(d).toFixed(2)})`
+              : ''
       return `${avg.toFixed(2)}${dz}`
     }
-    L.push(`| id | question | ${METRIC_KEYS.map(k => METRIC_LABEL[k]).join(' | ')} |`)
+    L.push(`| id | question | ${METRIC_KEYS.map((k) => METRIC_LABEL[k]).join(' | ')} |`)
     L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|`)
     for (const row of shown) {
-      const cells = METRIC_KEYS.map(k => fmtCell(row.avg[k], row.delta[k])).join(' | ')
+      const cells = METRIC_KEYS.map((k) => fmtCell(row.avg[k], row.delta[k])).join(' | ')
       const text = mdCell(row.question)
       L.push(`| ${row.id} | ${text} | ${cells} |`)
     }
@@ -889,32 +939,47 @@ function renderMarkdownCompare(runs) {
   L.push('## Inspect each run')
   for (const r of [...runs].reverse()) {
     L.push('')
-    const heading = r.config && r.config.label ? `${r.config.label} — \`${r.run_id}\`` : `\`${r.run_id}\``
+    const heading =
+      r.config && r.config.label ? `${r.config.label} — \`${r.run_id}\`` : `\`${r.run_id}\``
     L.push(`### ${heading} — ${r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'}`)
     L.push('')
-    L.push(`capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\``)
+    L.push(
+      `capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\``
+    )
     L.push('')
     L.push('| metric | value | Δ vs base | baseline | gate | status |')
     L.push('|---|--:|:--:|--:|:--:|:--:|')
     for (const key of METRIC_KEYS) {
       const a = r.aggregate[key]
-      const delta = a.delta === null || a.delta === undefined ? '—' : `${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
+      const delta =
+        a.delta === null || a.delta === undefined
+          ? '—'
+          : `${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
       const base = a.baseline === null || a.baseline === undefined ? '—' : a.baseline.toFixed(2)
-      L.push(`| ${METRIC_LABEL[key]}@${r.config.k} | ${a.value.toFixed(2)} | ${delta} | ${base} | ${gateStr(a.gate)} | ${statusIcon(a.status)} |`)
+      L.push(
+        `| ${METRIC_LABEL[key]}@${r.config.k} | ${a.value.toFixed(2)} | ${delta} | ${base} | ${gateStr(a.gate)} | ${statusIcon(a.status)} |`
+      )
     }
     if ((r.per_question || []).length) {
       L.push('')
       const pq = r.per_question
       const shownPq = pq.slice(0, MD_TOP_N)
       if (pq.length > shownPq.length) {
-        L.push(`_First ${shownPq.length} of ${pq.length} questions (full detail in \`compare.html\` / \`result.jsonl\`)._`)
+        L.push(
+          `_First ${shownPq.length} of ${pq.length} questions (full detail in \`compare.html\` / \`result.jsonl\`)._`
+        )
         L.push('')
       }
-      L.push(`| id | question | ${METRIC_KEYS.map(k => METRIC_LABEL[k]).join(' | ')} | hit ranks |`)
+      L.push(
+        `| id | question | ${METRIC_KEYS.map((k) => METRIC_LABEL[k]).join(' | ')} | hit ranks |`
+      )
       L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|:--|`)
       for (const q of shownPq) {
-        const cells = METRIC_KEYS.map(k => (q.metrics[k] ?? 0).toFixed(3)).join(' | ')
-        const ranks = q.relevant_hits_at_rank && q.relevant_hits_at_rank.length ? q.relevant_hits_at_rank.join(', ') : '—'
+        const cells = METRIC_KEYS.map((k) => (q.metrics[k] ?? 0).toFixed(3)).join(' | ')
+        const ranks =
+          q.relevant_hits_at_rank && q.relevant_hits_at_rank.length
+            ? q.relevant_hits_at_rank.join(', ')
+            : '—'
         const text = mdCell(q.question)
         L.push(`| ${q.id} | ${text} | ${cells} | ${ranks} |`)
       }
@@ -924,12 +989,20 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({ configPath, overrides, outPath, logger = console, perQuestionRaw } = {}) {
+export async function compare({
+  configPath,
+  overrides,
+  outPath,
+  logger = console,
+  perQuestionRaw
+} = {}) {
   const cfg = await loadConfig({ configPath, overrides })
   const runs = await collectRuns(cfg)
 
   if (runs.length === 0) {
-    logger.error(`No runs found under ${path.relative(process.cwd(), cfg.output.runsDir)}. Run the eval first.`)
+    logger.error(
+      `No runs found under ${path.relative(process.cwd(), cfg.output.runsDir)}. Run the eval first.`
+    )
     return { code: 3 }
   }
 
@@ -957,7 +1030,8 @@ export async function compare({ configPath, overrides, outPath, logger = console
   const rel = path.relative(process.cwd(), out)
   logger.log(`Compared ${runs.length} run(s) → ${rel}`)
   if (fmt === 'html') {
-    const opener = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
+    const opener =
+      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
     logger.log(`Open it in your browser:  ${opener} ${rel}`)
     logger.log(`  or paste this into the address bar:  file://${out}`)
   } else {
@@ -971,8 +1045,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const configIdx = args.indexOf('--config')
   const configPath = configIdx !== -1 ? args[configIdx + 1] : undefined
   compare({ configPath })
-    .then(r => process.exit(r.code))
-    .catch(e => {
+    .then((r) => process.exit(r.code))
+    .catch((e) => {
       console.error(e)
       process.exit(3)
     })

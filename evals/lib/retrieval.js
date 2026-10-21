@@ -44,7 +44,10 @@ export async function readCapireVersion(dir) {
     return (await fs.readFile(path.join(dir, '_capire_version'), 'utf8')).trim() || undefined
   } catch {
     try {
-      return (await fs.readFile(path.join(dir, '..', '..', '_capire_version'), 'utf8')).trim() || undefined
+      return (
+        (await fs.readFile(path.join(dir, '..', '..', '_capire_version'), 'utf8')).trim() ||
+        undefined
+      )
     } catch {
       return undefined
     }
@@ -55,7 +58,10 @@ export async function findEmbeddingDirs(root) {
   const results = []
   async function walk(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true })
-    if (entries.some(e => e.isFile() && e.name === 'code-chunks.json')) { results.push(dir); return }
+    if (entries.some((e) => e.isFile() && e.name === 'code-chunks.json')) {
+      results.push(dir)
+      return
+    }
     for (const e of entries) {
       if (e.isDirectory()) await walk(path.join(dir, e.name))
     }

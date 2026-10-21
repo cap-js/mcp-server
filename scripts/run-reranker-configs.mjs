@@ -37,9 +37,9 @@ const CONFIGS = [
   // { model: 'Xenova/ms-marco-MiniLM-L-4-v2',        dtype: 'fp32' },
 
   { model: 'Xenova/ms-marco-MiniLM-L-6-v2' },
-  { model: 'Xenova/ms-marco-MiniLM-L-6-v2',        dtype: 'q4'  },
-  { model: 'Xenova/ms-marco-MiniLM-L-6-v2',        dtype: 'q8'  },
-  { model: 'Xenova/ms-marco-MiniLM-L-6-v2',        dtype: 'fp32' },
+  { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'q4' },
+  { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'q8' },
+  { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'fp32' }
 
   // { model: 'Xenova/ms-marco-MiniLM-L-12-v2',       dtype: 'q4'  },
   // { model: 'Xenova/ms-marco-MiniLM-L-12-v2',       dtype: 'q8'  },
@@ -92,10 +92,12 @@ for (const cfg of CONFIGS) {
 
   const bar = '='.repeat(60)
   const detail = [
-    dtype        && `dtype=${dtype}`,
-    batchSize    && `batchSize=${batchSize}`,
-    overRetrieve && `overRetrieve=${overRetrieve}`,
-  ].filter(Boolean).join('  ')
+    dtype && `dtype=${dtype}`,
+    batchSize && `batchSize=${batchSize}`,
+    overRetrieve && `overRetrieve=${overRetrieve}`
+  ]
+    .filter(Boolean)
+    .join('  ')
 
   console.log(`\n${bar}`)
   console.log(`Reranker: ${model}${detail ? `  [${detail}]` : ''}`)
@@ -104,15 +106,15 @@ for (const cfg of CONFIGS) {
   setLabel(label)
 
   const env = { ...process.env, CDS_MCP_RERANK_MODEL: model, RERANK_ENABLED: true }
-  if (dtype        != null) env.CDS_MCP_RERANK_DTYPE         = dtype
-  if (batchSize    != null) env.CDS_MCP_RERANK_BATCH_SIZE     = String(batchSize)
-  if (overRetrieve != null) env.CDS_MCP_RERANK_OVER_RETRIEVE  = String(overRetrieve)
+  if (dtype != null) env.CDS_MCP_RERANK_DTYPE = dtype
+  if (batchSize != null) env.CDS_MCP_RERANK_BATCH_SIZE = String(batchSize)
+  if (overRetrieve != null) env.CDS_MCP_RERANK_OVER_RETRIEVE = String(overRetrieve)
 
   const { status } = spawnSync('npm', ['run', 'evals'], {
     cwd: path.join(__dirname, '..'),
     env,
     stdio: 'inherit',
-    shell: false,
+    shell: false
   })
 
   results.push({ label, ok: status === 0 })
@@ -120,14 +122,14 @@ for (const cfg of CONFIGS) {
 
 restoreConfig()
 
-const passed = results.filter(r => r.ok)
-const failed = results.filter(r => !r.ok)
+const passed = results.filter((r) => r.ok)
+const failed = results.filter((r) => !r.ok)
 
 console.log(`\n${'='.repeat(60)}`)
 console.log(`Sweep done — ${passed.length}/${results.length} passed`)
 if (failed.length) {
   console.log('Failed:')
-  failed.forEach(r => console.log(`  - ${r.label}`))
+  failed.forEach((r) => console.log(`  - ${r.label}`))
 }
 
 process.exit(failed.length ? 1 : 0)

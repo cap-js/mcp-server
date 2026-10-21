@@ -15,7 +15,11 @@ describe('search-docs', () => {
   })
 
   test('should return a retrieve function', async () => {
-    mock.method(retrievalRuntime, 'searchMarkdownDocs', mock.fn(async () => null))
+    mock.method(
+      retrievalRuntime,
+      'searchMarkdownDocs',
+      mock.fn(async () => null)
+    )
 
     const retrieve = await makeSearchDocsRunner(5, SOURCE_MAP)
 
@@ -36,7 +40,11 @@ describe('search-docs', () => {
   })
 
   test('should return an empty array when search returns null', async () => {
-    mock.method(retrievalRuntime, 'searchMarkdownDocs', mock.fn(async () => null))
+    mock.method(
+      retrievalRuntime,
+      'searchMarkdownDocs',
+      mock.fn(async () => null)
+    )
     const retrieve = await makeSearchDocsRunner(5, SOURCE_MAP)
 
     const result = await retrieve({ id: 'q1', question: 'q' })
@@ -46,7 +54,11 @@ describe('search-docs', () => {
 
   test('should split results on the separator and resolve ids from the source map', async () => {
     const out = '# A\n\nSource: /docs/a\nbody\n---\n# B\n\nSource: /docs/b\nbody'
-    mock.method(retrievalRuntime, 'searchMarkdownDocs', mock.fn(async () => out))
+    mock.method(
+      retrievalRuntime,
+      'searchMarkdownDocs',
+      mock.fn(async () => out)
+    )
     const retrieve = await makeSearchDocsRunner(5, SOURCE_MAP)
 
     const result = await retrieve({ id: 'q1', question: 'q' })
@@ -61,7 +73,11 @@ describe('search-docs', () => {
     test('should not add properties to source map entries passed to makeSearchDocsRunner', async () => {
       const entry = { source: '/docs/a', title: 'A', depth: 1 }
       const keysBefore = Object.keys(entry)
-      mock.method(retrievalRuntime, 'searchMarkdownDocs', mock.fn(async () => null))
+      mock.method(
+        retrievalRuntime,
+        'searchMarkdownDocs',
+        mock.fn(async () => null)
+      )
 
       await makeSearchDocsRunner(5, [entry])
 

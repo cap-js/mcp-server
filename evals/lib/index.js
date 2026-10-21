@@ -5,29 +5,58 @@ import { loadConfig } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { sourceDbRuntime } from './createSourceDb/createSourceDb.js'
-import { readJsonOrNull, retrievalRuntime, retrieveAll, readCapireVersion, findEmbeddingDirs } from './retrieval.js'
+import {
+  readJsonOrNull,
+  retrievalRuntime,
+  retrieveAll,
+  readCapireVersion,
+  findEmbeddingDirs
+} from './retrieval.js'
 
-export async function evaluate({ sourceDb, golden, configPath, overrides, label = '', capire_version = 'unknown' } = {}) {
+export async function evaluate({
+  sourceDb,
+  golden,
+  configPath,
+  overrides,
+  label = '',
+  capire_version = 'unknown'
+} = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
   const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
-    console.error(`(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`)
+    console.error(
+      `(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`
+    )
   }
 
   const retrieve = await retrievalRuntime.makeSearchDocsRunner(cfg.k, sourceDb)
   const perQuestionRaw = await retrieveAll(golden, retrieve)
 
-  const config = { capire_version, golden_set: golden.golden_set, golden_set_size: golden.questions.length, k: cfg.k, label }
+  const config = {
+    capire_version,
+    golden_set: golden.golden_set,
+    golden_set_size: golden.questions.length,
+    k: cfg.k,
+    label
+  }
   const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
   const run_id = makeRunId()
   const full = { run_id, ...report }
 
   const { path: resultsFile, total } = await appendRun(cfg, full)
-  const status = report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
-  console.error(`${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`)
+  const status =
+    report.overall_status === 'fail' ? `FAIL (${report.gated_failures.join(', ')})` : 'PASS'
+  console.error(
+    `${status} — appended run ${run_id} → ${path.relative(process.cwd(), resultsFile)}; ${total} run(s) on file`
+  )
 
-  return { code: report.overall_status === 'fail' ? 1 : 0, report: full, resultsFile, perQuestionRaw }
+  return {
+    code: report.overall_status === 'fail' ? 1 : 0,
+    report: full,
+    resultsFile,
+    perQuestionRaw
+  }
 }
 
 // Entry point for `npm run evals`: sweep all embedding subdirs under
@@ -42,7 +71,9 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    logger.error(`Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`)
+    logger.error(
+      `Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`
+    )
     return { code: 3 }
   }
 
@@ -50,7 +81,9 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
 
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
-    throw new Error(`${stale.length} golden doc id(s) not in the source db: ${JSON.stringify(stale)}`)
+    throw new Error(
+      `${stale.length} golden doc id(s) not in the source db: ${JSON.stringify(stale)}`
+    )
   }
 
   let code
@@ -60,11 +93,20 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
   let worstCode = 0
 
   for (const dir of dirs) {
-    const label = [cfg.label, ...path.relative(cfg.embeddingsDir, dir).split(path.sep)].filter(Boolean).join('/')
+    const label = [cfg.label, ...path.relative(cfg.embeddingsDir, dir).split(path.sep)]
+      .filter(Boolean)
+      .join('/')
     console.error(`\n→ ${label}`)
     process.env.CDS_MCP_EMBEDDINGS_DIR = dir
     const capire_version = await readCapireVersion(dir)
-    const { code: c } = await evaluate({ sourceDb, golden, configPath, overrides, label, capire_version })
+    const { code: c } = await evaluate({
+      sourceDb,
+      golden,
+      configPath,
+      overrides,
+      label,
+      capire_version
+    })
     if (c > worstCode) worstCode = c
   }
   code = worstCode
@@ -81,9 +123,9 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   evaluateAndCompare()
-  .then(r => process.exit(r.code))
-  .catch(e => {
-    console.error(e)
-    process.exit(3)
-  })
+    .then((r) => process.exit(r.code))
+    .catch((e) => {
+      console.error(e)
+      process.exit(3)
+    })
 }

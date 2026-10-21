@@ -12,15 +12,22 @@ function frame(body, bin) {
   return Buffer.concat([hdr, metaBuf, binBuf])
 }
 
-const seedFile = (p, d) => fsp.mkdir(path.dirname(p), { recursive: true }).then(() => fsp.writeFile(p, d))
+const seedFile = (p, d) =>
+  fsp.mkdir(path.dirname(p), { recursive: true }).then(() => fsp.writeFile(p, d))
 
 process.env.CDS_MCP_OFFLINE = 'true'
 
 const tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'downloadEmbeddings-'))
 
-const { downloadEmbeddings, resolveLocalVersion, fetchTimeouts } = await import('../lib/searchMarkdownDocs.js')
-const { getActiveModel, getActiveModelFolder, getActiveEmbeddingsDir, toDirName, setEmbeddingsDir } =
-  await import('../lib/calculateEmbeddings.js')
+const { downloadEmbeddings, resolveLocalVersion, fetchTimeouts } =
+  await import('../lib/searchMarkdownDocs.js')
+const {
+  getActiveModel,
+  getActiveModelFolder,
+  getActiveEmbeddingsDir,
+  toDirName,
+  setEmbeddingsDir
+} = await import('../lib/calculateEmbeddings.js')
 const cds = (await import('@sap/cds')).default
 
 setEmbeddingsDir(tmpDir)
@@ -37,7 +44,9 @@ test('reads timeout values from environment variables', async () => {
   process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
 
   try {
-    const { fetchTimeouts: configuredTimeouts } = await import(`../lib/searchMarkdownDocs.js?timeout-test=${Date.now()}`)
+    const { fetchTimeouts: configuredTimeouts } = await import(
+      `../lib/searchMarkdownDocs.js?timeout-test=${Date.now()}`
+    )
     assert.strictEqual(configuredTimeouts.manifest, 1234)
     assert.strictEqual(configuredTimeouts.bundle, 5678)
   } finally {
@@ -55,9 +64,12 @@ test('rejects fractional timeout environment values', async () => {
   process.env.CDS_MCP_DOWNLOAD_TIMEOUT = '5678'
 
   try {
-    await assert.rejects(import(`../lib/searchMarkdownDocs.js?fractional-timeout-test=${Date.now()}`), {
-      message: /CDS_MCP_MANIFEST_TIMEOUT must be a positive integer number of milliseconds/
-    })
+    await assert.rejects(
+      import(`../lib/searchMarkdownDocs.js?fractional-timeout-test=${Date.now()}`),
+      {
+        message: /CDS_MCP_MANIFEST_TIMEOUT must be a positive integer number of milliseconds/
+      }
+    )
   } finally {
     if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
     else process.env.CDS_MCP_MANIFEST_TIMEOUT = manifestTimeout
@@ -71,12 +83,19 @@ test('rejects non-positive, non-finite, and out-of-range timeout environment val
   const downloadTimeout = process.env.CDS_MCP_DOWNLOAD_TIMEOUT
 
   try {
-    for (const [manifest, bundle] of [['0', '5678'], ['not-a-number', '5678'], ['1234', '2147483648']]) {
+    for (const [manifest, bundle] of [
+      ['0', '5678'],
+      ['not-a-number', '5678'],
+      ['1234', '2147483648']
+    ]) {
       process.env.CDS_MCP_MANIFEST_TIMEOUT = manifest
       process.env.CDS_MCP_DOWNLOAD_TIMEOUT = bundle
-      await assert.rejects(import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${manifest}-${bundle}`), {
-        message: /must be a positive integer number of milliseconds/
-      })
+      await assert.rejects(
+        import(`../lib/searchMarkdownDocs.js?invalid-timeout-test=${manifest}-${bundle}`),
+        {
+          message: /must be a positive integer number of milliseconds/
+        }
+      )
     }
   } finally {
     if (manifestTimeout === undefined) delete process.env.CDS_MCP_MANIFEST_TIMEOUT
@@ -106,10 +125,17 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     let fetchMock
     beforeEach(() => {
       fetchMock = mock.method(globalThis, 'fetch', async () => {
-        return new Response(frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)), {
-          status: 200,
-          headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+        return new Response(
+          frame({ dim: 1, count: 1, chunks: ['hi'] }, Buffer.from(new Float32Array([1.5]).buffer)),
+          {
+            status: 200,
+            headers: {
+              etag: 'W/"seed"',
+              'x-embeddings-version': testVer,
+              'content-type': 'application/octet-stream'
+            }
+          }
+        )
       })
     })
 
@@ -125,7 +151,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const before = Date.now()
       await downloadEmbeddings()
       const saved = JSON.parse(await fsp.readFile(manifestEtagPath, 'utf-8'))
-      assert.ok(typeof saved.lastChecked === 'number', 'lastChecked must be written after a 200 download')
+      assert.ok(
+        typeof saved.lastChecked === 'number',
+        'lastChecked must be written after a 200 download'
+      )
       assert.ok(saved.lastChecked >= before)
     })
 
@@ -139,14 +168,27 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         await downloadEmbeddings()
 
         assert.strictEqual(
-          await fsp.access(unknownEtag).then(() => true, () => false),
+          await fsp.access(unknownEtag).then(
+            () => true,
+            () => false
+          ),
           false,
           'no etag file may be created under <DEFAULT_DIR>/etags/unknown/'
         )
-        assert.ok(await fsp.access(newestEtag).then(() => true, () => false), `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`)
+        assert.ok(
+          await fsp.access(newestEtag).then(
+            () => true,
+            () => false
+          ),
+          `etag must be written under "etags/latest" pseudo-version dir: ${newestEtag}`
+        )
 
         const saved = JSON.parse(await fsp.readFile(newestEtag, 'utf-8'))
-        assert.strictEqual(saved.etag, 'W/"seed"', 'etag payload must match the bundle response header')
+        assert.strictEqual(
+          saved.etag,
+          'W/"seed"',
+          'etag payload must match the bundle response header'
+        )
         assert.strictEqual(
           saved.commitId,
           testVer,
@@ -164,7 +206,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
       const meta = JSON.parse(await fsp.readFile(path.join(testDir, 'code-chunks.json'), 'utf-8'))
       assert.deepStrictEqual(meta.chunks, ['hi'])
-      assert.strictEqual(meta.embeddings, undefined, 'embeddings field must be stripped from meta json')
+      assert.strictEqual(
+        meta.embeddings,
+        undefined,
+        'embeddings field must be stripped from meta json'
+      )
 
       const bin = await fsp.readFile(path.join(testDir, 'code-chunks.bin'))
       assert.strictEqual(bin.length, 4, '1 chunk * 1 dim * 4 bytes')
@@ -183,7 +229,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         return new Response(null, { status: 304 })
       })
       const r = await downloadEmbeddings()
-      assert.strictEqual((mock304.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'], 'W/"seed"')
+      assert.strictEqual(
+        (mock304.mock.calls[0].arguments[1] ?? {}).headers?.['If-None-Match'],
+        'W/"seed"'
+      )
       assert.strictEqual(r.updated, false)
       assert.strictEqual(r.commitId, testVer, '304 returns the commit id stored alongside the etag')
     })
@@ -217,7 +266,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       // testDir intentionally absent
 
       await downloadEmbeddings()
-      assert.strictEqual(fetchMock.mock.calls.length, 1, 'must fall through to fetch when local files are missing')
+      assert.strictEqual(
+        fetchMock.mock.calls.length,
+        1,
+        'must fall through to fetch when local files are missing'
+      )
     })
 
     test('304 response stamps lastChecked in etag file', async () => {
@@ -286,7 +339,11 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   describe('non-OK responses', () => {
     test('throws on non-OK status', async () => {
-      mock.method(globalThis, 'fetch', async () => new Response(null, { status: 500, statusText: 'Server Err' }))
+      mock.method(
+        globalThis,
+        'fetch',
+        async () => new Response(null, { status: 500, statusText: 'Server Err' })
+      )
       await assert.rejects(downloadEmbeddings(), /Failed to fetch bundle: 500/)
     })
 
@@ -294,13 +351,16 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       mock.method(globalThis, 'fetch', async (url) => {
         if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
           return new Response(
-            JSON.stringify({ 'model-a': [{ model: 'model-a' }], 'model-b': [{ model: 'model-b' }] }),
+            JSON.stringify({
+              'model-a': [{ model: 'model-a' }],
+              'model-b': [{ model: 'model-b' }]
+            }),
             { status: 200 }
           )
         }
         return new Response(null, { status: 404, statusText: 'Not Found' })
       })
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /Failed to fetch bundle: 404/)
         assert.match(err.message, /Available models/)
         assert.match(err.message, /model-a/)
@@ -311,15 +371,26 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     test('problem+json 404 includes available models from manifest', async () => {
       mock.method(globalThis, 'fetch', async (url) => {
         if (new URL(String(url)).pathname.endsWith('/manifest.json')) {
-          return new Response(JSON.stringify({ 'model-a': [{ model: 'model-a' }] }), { status: 200 })
+          return new Response(JSON.stringify({ 'model-a': [{ model: 'model-a' }] }), {
+            status: 200
+          })
         }
         const activeModel = getActiveModel()
         return new Response(
-          JSON.stringify({ title: 'Model Not Found', status: 404, detail: `Model not found: ${activeModel}`, model: activeModel }),
-          { status: 404, statusText: 'Not Found', headers: { 'content-type': 'application/problem+json' } }
+          JSON.stringify({
+            title: 'Model Not Found',
+            status: 404,
+            detail: `Model not found: ${activeModel}`,
+            model: activeModel
+          }),
+          {
+            status: 404,
+            statusText: 'Not Found',
+            headers: { 'content-type': 'application/problem+json' }
+          }
         )
       })
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /Failed to fetch bundle: 404/)
         assert.match(err.message, /Available models/)
         assert.match(err.message, /model-a/)
@@ -328,8 +399,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('has no available-models suffix when manifest is unreachable', async () => {
-      mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503, statusText: 'Unavailable' }))
-      await assert.rejects(downloadEmbeddings(), err => {
+      mock.method(
+        globalThis,
+        'fetch',
+        async () => new Response(null, { status: 503, statusText: 'Unavailable' })
+      )
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /Failed to fetch bundle: 503/)
         assert.doesNotMatch(err.message, /Available models/)
         return true
@@ -347,7 +422,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
           headers: { 'x-embeddings-model': 'some--other-model' }
         })
       })
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /Failed to fetch bundle: 400/)
         assert.doesNotMatch(err.message, /not found/)
         return true
@@ -369,10 +444,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         }
         return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
           status: 200,
-          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+          headers: {
+            etag: 'W/"x"',
+            'x-embeddings-version': testVer,
+            'x-embeddings-model': wrongModel
+          }
         })
       })
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /not found/)
         assert.match(err.message, /Available models/)
         // Real model name (what --model accepts), not the on-disk folder key.
@@ -389,10 +468,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
         }
         return new Response(frame({ dim: 1, count: 0, chunks: [], model: 't' }, 'B'), {
           status: 200,
-          headers: { etag: 'W/"x"', 'x-embeddings-version': testVer, 'x-embeddings-model': wrongModel }
+          headers: {
+            etag: 'W/"x"',
+            'x-embeddings-version': testVer,
+            'x-embeddings-model': wrongModel
+          }
         })
       })
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /not found/)
         assert.doesNotMatch(err.message, /Available models/)
         return true
@@ -402,21 +485,32 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   describe('framing', () => {
     test('throws on missing X-Embeddings-Version header', async () => {
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(
-          JSON.stringify({ dim: 0, count: 0, chunks: [], embeddings: Buffer.from('X').toString('base64') }),
-          { status: 200, headers: { etag: 'W/"x"' } }
-        )
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(
+            JSON.stringify({
+              dim: 0,
+              count: 0,
+              chunks: [],
+              embeddings: Buffer.from('X').toString('base64')
+            }),
+            { status: 200, headers: { etag: 'W/"x"' } }
+          )
       )
       await assert.rejects(downloadEmbeddings(), /missing X-Embeddings-Version/)
     })
 
     test('throws when body is shorter than 4 bytes', async () => {
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(Buffer.from([0x00, 0x01, 0x02]), {
-          status: 200,
-          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(Buffer.from([0x00, 0x01, 0x02]), {
+            status: 200,
+            headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
       )
       await assert.rejects(downloadEmbeddings(), /too short/)
     })
@@ -424,11 +518,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     test('throws when metaLen exceeds body length (truncated frame)', async () => {
       const hdr = Buffer.alloc(4)
       hdr.writeUInt32BE(9999, 0)
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(Buffer.concat([hdr, Buffer.from('short')]), {
-          status: 200,
-          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(Buffer.concat([hdr, Buffer.from('short')]), {
+            status: 200,
+            headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
       )
       await assert.rejects(downloadEmbeddings(), /framing/)
     })
@@ -436,11 +533,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     test('throws when metaLen=0 leaves no bin bytes (exactly-4-byte body)', async () => {
       const hdr = Buffer.alloc(4)
       hdr.writeUInt32BE(0, 0)
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(hdr, {
-          status: 200,
-          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(hdr, {
+            status: 200,
+            headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
       )
       await assert.rejects(downloadEmbeddings(), /empty bin|framing|bin bytes/i)
     })
@@ -449,11 +549,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
       const hdr = Buffer.alloc(4)
       hdr.writeUInt32BE(meta.length, 0)
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(Buffer.concat([hdr, meta]), {
-          status: 200,
-          headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(Buffer.concat([hdr, meta]), {
+            status: 200,
+            headers: { 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+          })
       )
       await assert.rejects(
         downloadEmbeddings(),
@@ -466,15 +569,24 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const meta = Buffer.from(JSON.stringify({ dim: 1, count: 1, chunks: ['x'], model: 't' }))
       const hdr = Buffer.alloc(4)
       hdr.writeUInt32BE(meta.length, 0)
-      mock.method(globalThis, 'fetch', async () =>
-        new Response(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
-          status: 200,
-          headers: { etag: 'W/"ok"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
-        })
+      mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(Buffer.concat([hdr, meta, Buffer.from([0x01])]), {
+            status: 200,
+            headers: {
+              etag: 'W/"ok"',
+              'x-embeddings-version': testVer,
+              'content-type': 'application/octet-stream'
+            }
+          })
       )
       const r = await downloadEmbeddings()
       assert.strictEqual(r.updated, true)
-      const written = await fsp.readFile(path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin'))
+      const written = await fsp.readFile(
+        path.join(DEFAULT_EMBEDDINGS_DIR, testVer, 'code-chunks.bin')
+      )
       assert.strictEqual(written.length, 1)
       assert.strictEqual(written[0], 0x01)
     })
@@ -482,7 +594,9 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
   describe('network error', () => {
     beforeEach(() => {
-      mock.method(globalThis, 'fetch', async () => { throw new TypeError('network down') })
+      mock.method(globalThis, 'fetch', async () => {
+        throw new TypeError('network down')
+      })
     })
 
     test('falls back to local version on network error', async () => {
@@ -505,7 +619,7 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
 
     test('throws offline error (with network cause) when no local version exists', async () => {
       // Fresh dir → nothing local, so resolveLocalVersion returns null.
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         assert.match(err.message, /Offline mode/)
         assert.match(err.cause?.message, /network down/)
         return true
@@ -513,7 +627,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('falls back to a local version when reading the bundle body fails', async () => {
-      await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+      await seedFile(
+        manifestEtagPath,
+        JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() })
+      )
       await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
       await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
       mock.restoreAll()
@@ -550,10 +667,14 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       if (opts?.signal?.aborted) return Promise.reject(opts.signal.reason)
       return new Promise((_resolve, reject) => {
         const keepAlive = setInterval(() => {}, 100)
-        opts?.signal?.addEventListener('abort', () => {
-          clearInterval(keepAlive)
-          reject(opts.signal.reason)
-        }, { once: true })
+        opts?.signal?.addEventListener(
+          'abort',
+          () => {
+            clearInterval(keepAlive)
+            reject(opts.signal.reason)
+          },
+          { once: true }
+        )
       })
     }
 
@@ -569,7 +690,10 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     })
 
     test('bundle timeout fires after the configured duration then falls back to local version', async () => {
-      await seedFile(manifestEtagPath, JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() }))
+      await seedFile(
+        manifestEtagPath,
+        JSON.stringify({ etag: 'W/"seed"', commitId: testVer, model: getActiveModel() })
+      )
       await seedFile(path.join(testDir, 'code-chunks.json'), '{}')
       await seedFile(path.join(testDir, 'code-chunks.bin'), Buffer.alloc(0))
 
@@ -577,16 +701,22 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       const result = await downloadEmbeddings()
       const elapsed = Date.now() - t0
 
-      assert.ok(elapsed < DEFAULT_BUNDLE_TIMEOUT_MS, `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`)
+      assert.ok(
+        elapsed < DEFAULT_BUNDLE_TIMEOUT_MS,
+        `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`
+      )
       assert.strictEqual(result.updated, false)
       assert.strictEqual(result.commitId, testVer)
     })
 
     test('bundle timeout fires after the configured duration then throws offline error', async () => {
       const t0 = Date.now()
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         const elapsed = Date.now() - t0
-        assert.ok(elapsed < DEFAULT_BUNDLE_TIMEOUT_MS, `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`)
+        assert.ok(
+          elapsed < DEFAULT_BUNDLE_TIMEOUT_MS,
+          `expected completion within ${DEFAULT_BUNDLE_TIMEOUT_MS}ms, got ${elapsed}ms`
+        )
         assert.match(err.message, /Offline mode/)
         assert.strictEqual(err.cause?.name, 'TimeoutError')
         return true
@@ -601,9 +731,12 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
       })
 
       const t0 = Date.now()
-      await assert.rejects(downloadEmbeddings(), err => {
+      await assert.rejects(downloadEmbeddings(), (err) => {
         const elapsed = Date.now() - t0
-        assert.ok(elapsed < DEFAULT_MANIFEST_TIMEOUT_MS, `expected completion within ${DEFAULT_MANIFEST_TIMEOUT_MS}ms, got ${elapsed}ms`)
+        assert.ok(
+          elapsed < DEFAULT_MANIFEST_TIMEOUT_MS,
+          `expected completion within ${DEFAULT_MANIFEST_TIMEOUT_MS}ms, got ${elapsed}ms`
+        )
         assert.match(err.message, /Failed to fetch bundle: 500/)
         assert.doesNotMatch(err.message, /Available models/)
         return true
@@ -617,15 +750,19 @@ describe('downloadEmbeddings (bundle endpoint)', () => {
     mock.method(globalThis, 'fetch', async () => {
       concurrent++
       tracking.maxConcurrent = Math.max(tracking.maxConcurrent, concurrent)
-      await new Promise(r => setTimeout(r, 30))
+      await new Promise((r) => setTimeout(r, 30))
       concurrent--
       return new Response(frame({ dim: 0, count: 0, chunks: [], model: 't' }, 'BIN'), {
         status: 200,
-        headers: { etag: 'W/"seed"', 'x-embeddings-version': testVer, 'content-type': 'application/octet-stream' }
+        headers: {
+          etag: 'W/"seed"',
+          'x-embeddings-version': testVer,
+          'content-type': 'application/octet-stream'
+        }
       })
     })
     const results = await Promise.allSettled([downloadEmbeddings(), downloadEmbeddings()])
-    const anyRejected = results.some(r => r.status === 'rejected')
+    const anyRejected = results.some((r) => r.status === 'rejected')
     assert.ok(
       !anyRejected && tracking.maxConcurrent === 1,
       `downloadEmbeddings must serialize concurrent callers. maxConcurrent=${tracking.maxConcurrent}, rejected=${anyRejected}`
@@ -666,8 +803,18 @@ describe('resolveLocalVersion', () => {
     assert.ok(local)
     assert.strictEqual(local.commitId, testCommits[0])
     assert.strictEqual(local.localDir, path.join(DEFAULT_EMBEDDINGS_DIR, testCommits[0]))
-    assert.ok(await fsp.access(path.join(local.localDir, 'code-chunks.json')).then(() => true, () => false))
-    assert.ok(await fsp.access(path.join(local.localDir, 'code-chunks.bin')).then(() => true, () => false))
+    assert.ok(
+      await fsp.access(path.join(local.localDir, 'code-chunks.json')).then(
+        () => true,
+        () => false
+      )
+    )
+    assert.ok(
+      await fsp.access(path.join(local.localDir, 'code-chunks.bin')).then(
+        () => true,
+        () => false
+      )
+    )
   })
 
   test('among two cds versions with complete dirs, returns commitId from highest cds version', async () => {
@@ -677,7 +824,11 @@ describe('resolveLocalVersion', () => {
     await seedEtag('2.10.0', testCommits[1])
 
     const local = await resolveLocalVersion()
-    assert.strictEqual(local.commitId, testCommits[1], 'must pick commitId from highest semver cds dir')
+    assert.strictEqual(
+      local.commitId,
+      testCommits[1],
+      'must pick commitId from highest semver cds dir'
+    )
   })
 
   test('among non-semver cds dirs, tiebreaks by mtime not readdir order', async () => {
@@ -735,7 +886,10 @@ describe('resolveLocalVersion', () => {
     await seedEmbedDir(testCommits[0])
     // Etag file has NO commitId — pseudo route can't return anything.
     await fsp.mkdir(path.join(modelEtagsRoot, 'latest'), { recursive: true })
-    await fsp.writeFile(path.join(modelEtagsRoot, 'latest', 'manifest.etag'), JSON.stringify({ etag: 'W/"x"' }))
+    await fsp.writeFile(
+      path.join(modelEtagsRoot, 'latest', 'manifest.etag'),
+      JSON.stringify({ etag: 'W/"x"' })
+    )
 
     const local = await resolveLocalVersion()
     assert.ok(local)
