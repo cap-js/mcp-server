@@ -24,56 +24,68 @@ describe('loadChunks', () => {
 
   async function seedCode(json, bin) {
     const dir = getActiveEmbeddingsDir()
-    await fsp.writeFile(path.join(dir, 'code.json'), typeof json === 'string' ? json : JSON.stringify(json))
+    await fsp.writeFile(
+      path.join(dir, 'code.json'),
+      typeof json === 'string' ? json : JSON.stringify(json)
+    )
     await fsp.writeFile(path.join(dir, 'code.bin'), Buffer.from(bin.buffer))
   }
 
   describe('errors', () => {
     test('throws ENOENT when embedding files are missing', async () => {
       // empty dir → read rejects ENOENT
-      await assert.rejects(loadChunks('nonexistent'), err => err.code === 'ENOENT')
+      await assert.rejects(loadChunks('nonexistent'), (err) => err.code === 'ENOENT')
     })
 
     test('throws CORRUPTED and deletes both files when JSON is invalid', async () => {
       await seedCode('invalid json content', new Float32Array([1, 2, 3, 4]))
 
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
 
       const dir = getActiveEmbeddingsDir()
-      const jsonGone = await fsp.access(path.join(dir, 'code.json')).then(() => false, () => true)
-      const binGone = await fsp.access(path.join(dir, 'code.bin')).then(() => false, () => true)
+      const jsonGone = await fsp.access(path.join(dir, 'code.json')).then(
+        () => false,
+        () => true
+      )
+      const binGone = await fsp.access(path.join(dir, 'code.bin')).then(
+        () => false,
+        () => true
+      )
       assert.ok(jsonGone, 'json file must be deleted on CORRUPTED')
       assert.ok(binGone, 'bin file must be deleted on CORRUPTED')
     })
 
     test('throws CORRUPTED when JSON is valid but missing dim field', async () => {
       await seedCode({ chunks: ['test'] }, new Float32Array([1, 2, 3, 4])) // missing dim
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
     test('throws CORRUPTED when binary size does not match dim × count', async () => {
       await seedCode({ dim: 4, count: 2, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3])) // 12 bytes, needs 32
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
     test('throws CORRUPTED when chunk count mismatches metadata count', async () => {
-      await seedCode({ dim: 2, count: 5, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3, 4]))
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await seedCode(
+        { dim: 2, count: 5, chunks: ['test1', 'test2'] },
+        new Float32Array([1, 2, 3, 4])
+      )
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
     test('throws CORRUPTED when embedding vector contains NaN', async () => {
       await seedCode({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([NaN, 2.0]))
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
     test('throws CORRUPTED when embedding vector contains Infinity', async () => {
       await seedCode({ dim: 2, count: 1, chunks: ['test'] }, new Float32Array([Infinity, 2.0]))
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
     test('throws CORRUPTED when chunk content is not a string', async () => {
       await seedCode({ dim: 2, count: 1, chunks: [123] }, new Float32Array([1.0, 2.0]))
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
   })
 
@@ -122,8 +134,11 @@ describe('loadChunks', () => {
     })
 
     test('metadata[] with wrong length is treated as corrupted', async () => {
-      await seedCode({ dim: 2, count: 2, chunks: ['a', 'b'], metadata: [{ source: 'a.md' }] }, new Float32Array([1, 2, 3, 4]))
-      await assert.rejects(loadChunks('code'), err => err.code === 'EMBEDDINGS_CORRUPTED')
+      await seedCode(
+        { dim: 2, count: 2, chunks: ['a', 'b'], metadata: [{ source: 'a.md' }] },
+        new Float32Array([1, 2, 3, 4])
+      )
+      await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
   })
 })

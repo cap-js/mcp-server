@@ -3,7 +3,11 @@ import { realpath, lstat } from 'node:fs/promises'
 import { join, dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { test, describe } from 'node:test'
-import { createMcpProjectPathResolver, resolvePathsWithinRoots, resolveProjectPath } from '../lib/projectPath.js'
+import {
+  createMcpProjectPathResolver,
+  resolvePathsWithinRoots,
+  resolveProjectPath
+} from '../lib/projectPath.js'
 
 // Committed fixture — the test reads it and exercises the REAL realpath/symlink
 // behaviour. It creates, edits, or removes nothing at runtime.
@@ -29,18 +33,24 @@ describe('project path authorization', () => {
   })
 
   test('rejects paths outside roots and sibling paths with a shared prefix', async () => {
-    await assert.rejects(resolveProjectPath(sibling, [workspace]), /outside the configured workspace roots/)
+    await assert.rejects(
+      resolveProjectPath(sibling, [workspace]),
+      /outside the configured workspace roots/
+    )
   })
 
   test('rejects a symlink that escapes a workspace root', async () => {
     // Guard: the fixture must be a real symlink, else realpath() can't escape
     // the root and this test would pass for the wrong reason.
     assert.ok((await lstat(escapingLink)).isSymbolicLink(), `${escapingLink} must be a symlink`)
-    await assert.rejects(resolveProjectPath(escapingLink, [workspace]), /outside the configured workspace roots/)
+    await assert.rejects(
+      resolveProjectPath(escapingLink, [workspace]),
+      /outside the configured workspace roots/
+    )
   })
 
   test('does not expose rejected source paths in workspace errors', async () => {
-    await assert.rejects(resolvePathsWithinRoots([outsideFile], [workspace]), error => {
+    await assert.rejects(resolvePathsWithinRoots([outsideFile], [workspace]), (error) => {
       assert.match(error.message, /outside the configured workspace roots/)
       assert(!error.message.includes(outsideFile))
       return true
@@ -79,7 +89,7 @@ describe('project path authorization', () => {
     }
 
     const resolver = createMcpProjectPathResolver(server, { fallbackRoot: fixtures })
-    await assert.rejects(resolver(fixtures), error => {
+    await assert.rejects(resolver(fixtures), (error) => {
       assert.equal(error.message, 'Unable to determine MCP workspace roots')
       assert.equal(error.cause.message, 'client unavailable')
       return true

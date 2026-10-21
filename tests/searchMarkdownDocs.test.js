@@ -21,7 +21,11 @@ mock.method(globalThis, 'fetch', async () => {
   const version = '__test_bundle__'
   return new Response(f, {
     status: 200,
-    headers: { etag: `W/"${version}"`, 'x-embeddings-version': version, 'content-type': 'application/octet-stream' }
+    headers: {
+      etag: `W/"${version}"`,
+      'x-embeddings-version': version,
+      'content-type': 'application/octet-stream'
+    }
   })
 })
 
@@ -95,7 +99,12 @@ describe('searchMarkdownDocs', () => {
   })
 
   test('returns at most maxResults chunks for multiple distinct queries', async () => {
-    const queries = ['entity definition', 'service implementation', 'authentication', 'database schema']
+    const queries = [
+      'entity definition',
+      'service implementation',
+      'authentication',
+      'database schema'
+    ]
 
     for (const query of queries) {
       const result = await searchMarkdownDocs(query, 2)
