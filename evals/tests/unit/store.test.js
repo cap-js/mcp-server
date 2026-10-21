@@ -7,7 +7,7 @@ import { readRuns, resultsPath } from '../../lib/store.js'
 
 const cfg = dir => ({ output: { runsDir: dir, resultsName: 'result.jsonl' } })
 
-describe('store tests', () => {
+describe('store', () => {
   let tmpDir
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-store-'))
@@ -16,13 +16,29 @@ describe('store tests', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  test('readRuns returns [] when the results file does not exist (ENOENT)', async () => {
-    assert.deepEqual(await readRuns(cfg(tmpDir)), [])
+  test('should return an empty array when the results file does not exist', async () => {
+    const result = await readRuns(cfg(tmpDir))
+
+    assert.deepEqual(result, [])
   })
 
-  test('readRuns rethrows a non-ENOENT read error', async () => {
-    // Make resultsPath a directory → reading it fails with EISDIR, not ENOENT.
+  test('should rethrow errors that are not ENOENT', async () => {
     await fs.mkdir(resultsPath(cfg(tmpDir)))
-    await assert.rejects(() => readRuns(cfg(tmpDir)), err => err.code !== 'ENOENT')
+
+    await assert.rejects(
+      () => readRuns(cfg(tmpDir)),
+      /EISDIR/
+    )
+  })
+
+  describe('side-effects', () => {
+    test('should not mutate the config object passed to readRuns', async () => {
+      const config = cfg(tmpDir)
+      const keysBefore = Object.keys(config)
+
+      await readRuns(config)
+
+      assert.deepEqual(Object.keys(config), keysBefore)
+    })
   })
 })

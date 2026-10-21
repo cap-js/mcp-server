@@ -25,6 +25,17 @@ function escHtml(text) {
 const statusIcon = s => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
 const gateStr = g => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
 
+// Render a delta span for a metric cell.
+// baseV = null → no baseline set; returns ''.
+// Exported so tests can verify the delta rendering logic without a DOM.
+export function renderDelta(v, baseV) {
+  if (baseV == null) return ''
+  const d = Math.round((v - baseV) * 1000) / 1000
+  if (d > 0) return ` <span class="d">▲+${d.toFixed(3)}</span>`
+  if (d < 0) return ` <span class="d">▼−${Math.abs(d).toFixed(3)}</span>`
+  return ''
+}
+
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
 }

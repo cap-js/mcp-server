@@ -9,22 +9,26 @@ const SM = [
 ]
 const Q = { id: 'q1', question: 'test?' }
 
-describe('ids tests', async () => {
-  test('single chunk with Source: line → one id, text preserved', async () => {
+describe('ids', () => {
+  test('should return one entry with the resolved id and original text for a single chunk', async () => {
     const text = '# Getting Started\n\nSource: /docs/get-started/\nbody'
-    const r = await resolveIds([text], Q, SM)
-    assert.equal(r.length, 1)
-    assert.deepEqual(r[0].ids, ['/docs/get-started/'])
-    assert.equal(r[0].text, text)
+
+    const result = await resolveIds([text], Q, SM)
+
+    assert.equal(result.length, 1)
+    assert.deepEqual(result[0].ids, ['/docs/get-started/'])
+    assert.equal(result[0].text, text)
   })
 
-  test('Source: line after a blank line from the heading → id is resolved', async () => {
+  test('should resolve the id from a Source line that follows a blank line', async () => {
     const text = '# Section A\n\nSource: /docs/a\nmore'
-    const r = await resolveIds([text], Q, [])
-    assert.deepEqual(r[0].ids, ['/docs/a'])
+
+    const result = await resolveIds([text], Q, [])
+
+    assert.deepEqual(result[0].ids, ['/docs/a'])
   })
 
-  test('multi-section chunk collects ids from multiple Source: lines', async () => {
+  test('should collect ids from all Source lines in a multi-section chunk', async () => {
     const text = [
       '# Getting Started',
       '',
@@ -35,30 +39,55 @@ describe('ids tests', async () => {
       'Source: /docs/get-started/#initial-setup',
       'setup body'
     ].join('\n')
-    const r = await resolveIds([text], Q, SM)
-    assert.ok(r[0].ids.includes('/docs/get-started/'))
-    assert.ok(r[0].ids.includes('/docs/get-started/#initial-setup'))
+
+    const result = await resolveIds([text], Q, SM)
+
+    assert.ok(result[0].ids.includes('/docs/get-started/'))
+    assert.ok(result[0].ids.includes('/docs/get-started/#initial-setup'))
   })
 
-  test('two independent chunks → two result entries', async () => {
+  test('should return two entries for two independent chunks', async () => {
     const sm = [{ source: '/a', title: 'A', depth: 1 }, { source: '/b', title: 'B', depth: 1 }]
     const c1 = '# A\n\nSource: /a\nbody'
     const c2 = '# B\n\nSource: /b\nbody'
-    const r = await resolveIds([c1, c2], Q, sm)
-    assert.equal(r.length, 2)
-    assert.deepEqual(r[0].ids, ['/a'])
-    assert.deepEqual(r[1].ids, ['/b'])
+
+    const result = await resolveIds([c1, c2], Q, sm)
+
+    assert.equal(result.length, 2)
+    assert.deepEqual(result[0].ids, ['/a'])
+    assert.deepEqual(result[1].ids, ['/b'])
   })
 
-  test('empty chunks array → returns empty array', async () => {
-    assert.deepEqual(await resolveIds([], Q, []), [])
+  test('should return an empty array when given an empty chunks array', async () => {
+    const result = await resolveIds([], Q, [])
+
+    assert.deepEqual(result, [])
   })
 
-  test('text with "source: " substring but no URL after colon → throws "No IDs found"', async () => {
+  test('should throw "No IDs found" when text has a source prefix but no URL', async () => {
     await assert.rejects(
       () => resolveIds(['source: '], Q, []),
       { message: 'No IDs found' }
     )
   })
 
+  describe('side-effects', () => {
+    test('should not mutate the question object', async () => {
+      const question = { id: 'q1', question: 'test?' }
+      const keysBefore = Object.keys(question)
+
+      await resolveIds(['# A\n\nSource: /a\nbody'], question, [])
+
+      assert.deepEqual(Object.keys(question), keysBefore)
+    })
+
+    test('should not add properties to source map entries', async () => {
+      const entry = { source: '/docs/get-started/', title: 'Getting Started', depth: 1 }
+      const keysBefore = Object.keys(entry)
+
+      await resolveIds(['# Getting Started\n\nSource: /docs/get-started/\nbody'], Q, [entry])
+
+      assert.deepEqual(Object.keys(entry), keysBefore)
+    })
+  })
 })
