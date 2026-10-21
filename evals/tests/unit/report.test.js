@@ -7,7 +7,10 @@ import {
   validateGolden,
   makeRunId
 } from '../../lib/report.js'
-import { mkChunks } from '../helpers.js'
+
+function mkChunks(...ids) {
+  return ids.map(id => ({ ids: [id], text: '' }))
+}
 
 const GATES = {
   recall_at_k: 0.8,

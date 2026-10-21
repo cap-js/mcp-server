@@ -6,7 +6,8 @@ import os from 'os'
 import { evaluate, evaluateAndCompare } from '../../lib/index.js'
 import { sourceDbRuntime } from '../../lib/createSourceDb/createSourceDb.js'
 import { retrievalRuntime } from '../../lib/retrieval.js'
-import { silentLogger } from '../helpers.js'
+
+const silentLogger = { log() {}, error() {} }
 
 const CHUNK_IDS = ['doc-a#0001', 'doc-b#0002', 'doc-c#0003', 'doc-d#0004', 'doc-e#0005']
 

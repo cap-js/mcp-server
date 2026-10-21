@@ -10,7 +10,10 @@ import {
   mean,
   round
 } from '../../lib/metrics.js'
-import { mkChunks } from '../helpers.js'
+
+function mkChunks(...ids) {
+  return ids.map(id => ({ ids: [id], text: '' }))
+}
 
 // Worked example from the spec (cap-001):
 //   relevant  = [compositions, managed-compositions]

@@ -4,7 +4,8 @@ import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import { compare, renderDelta } from '../../lib/compare.js'
-import { silentLogger } from '../helpers.js'
+
+const silentLogger = { log() {}, error() {} }
 
 function fakeReport(run_id, { recall = 1, mrr = 1, hit = 1, ndcg = 1, perQuestion = [], label = '' } = {}) {
   const agg = (value, gate) => ({ value, baseline: null, delta: null, gate, status: gate === null ? 'info' : value >= gate ? 'pass' : 'fail' })
