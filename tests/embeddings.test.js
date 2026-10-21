@@ -5,7 +5,7 @@ import fsp from 'node:fs/promises'
 import path from 'path'
 import os from 'node:os'
 import { fileURLToPath } from 'url'
-import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
+import { getEmbeddings, createEmbeddings, hybridSearch } from '../lib/embeddings.js'
 import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, MODEL_CACHE_DIR, getActiveModel } from '../lib/calculateEmbeddings.js'
 import cds from '@sap/cds'
 
@@ -285,6 +285,51 @@ describe('embeddings', () => {
       assert.ok(!isNaN(ts.getTime()), 'createdAt must parse to a valid date')
       assert.strictEqual(meta.createdAt, ts.toISOString(), 'createdAt must use canonical ISO 8601 format')
       assert.ok(ts >= before && ts <= after, `createdAt must be between test start and end, got: ${meta.createdAt}`)
+    })
+  })
+
+  describe('hybridSearch runtime filter', () => {
+    // Build chunks with real embeddings so cosine and BM25 both run.
+    async function buildChunks() {
+      const specs = [
+        { content: 'Write custom handlers in Java with the CAP runtime', meta: { label: 'java' } },
+        { content: 'Write custom handlers in Node.js with the CAP runtime', meta: { label: 'node' } },
+        { content: 'Deploy the service to the cloud', meta: { source: 'deploy' } },
+        { content: 'Model your domain with CDS entities' }
+      ]
+      const chunks = []
+      for (const spec of specs) {
+        const embeddings = await getEmbeddings(spec.content)
+        const entry = { content: spec.content, embeddings }
+        if (spec.meta) entry.meta = spec.meta
+        chunks.push(entry)
+      }
+      return chunks
+    }
+
+    test('runtime java keeps java and unlabeled chunks, drops node chunks', async () => {
+      const chunks = await buildChunks()
+      const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+      const labels = results.map(r => r.meta?.label)
+      assert.ok(!labels.includes('node'), 'node-labeled chunks must be dropped')
+      assert.ok(labels.includes('java'), 'java-labeled chunk must stay')
+      assert.strictEqual(results.length, 3, 'java + two unlabeled chunks must stay')
+    })
+
+    test('no runtime keeps every chunk', async () => {
+      const chunks = await buildChunks()
+      const results = await hybridSearch('custom handlers', chunks)
+      const labels = results.map(r => r.meta?.label)
+      assert.strictEqual(results.length, 4, 'all chunks must stay when runtime is not set')
+      assert.ok(labels.includes('node') && labels.includes('java'), 'both runtimes must stay')
+    })
+
+    test('chunks.model still reaches the query embedding', async () => {
+      const chunks = await buildChunks()
+      chunks.model = getActiveModel()
+      // The filter must not drop chunks.model; a wrong model throws on dim mismatch.
+      const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+      assert.ok(results.length > 0, 'search must return results with the chunk model')
     })
   })
 })
