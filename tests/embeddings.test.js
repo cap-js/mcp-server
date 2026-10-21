@@ -6,7 +6,13 @@ import path from 'path'
 import os from 'node:os'
 import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings, hybridSearch } from '../lib/embeddings.js'
-import calculateEmbeddings, { getQueryDb, getActiveEmbeddingsDir, setEmbeddingsDir, MODEL_CACHE_DIR, getActiveModel } from '../lib/calculateEmbeddings.js'
+import calculateEmbeddings, {
+  getQueryDb,
+  getActiveEmbeddingsDir,
+  setEmbeddingsDir,
+  MODEL_CACHE_DIR,
+  getActiveModel
+} from '../lib/calculateEmbeddings.js'
 import cds from '@sap/cds'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -64,7 +70,10 @@ describe('embeddings', () => {
         const entries = await fsp.readdir(modelDir)
         assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${modelDir}`)
         const strayDir = path.join(os.tmpdir(), '.cds', 'models')
-        assert.ok(!fs.existsSync(strayDir), `model must not be created under cds.root (${strayDir})`)
+        assert.ok(
+          !fs.existsSync(strayDir),
+          `model must not be created under cds.root (${strayDir})`
+        )
       } finally {
         cds.root = prevRoot
       }
@@ -77,11 +86,12 @@ describe('embeddings', () => {
       const calculateEmbeddingsResult = await calculateEmbeddings(testString)
 
       assert(
-        Array.isArray(calculateEmbeddingsResult) || calculateEmbeddingsResult instanceof Float32Array,
+        Array.isArray(calculateEmbeddingsResult) ||
+          calculateEmbeddingsResult instanceof Float32Array,
         'calculateEmbeddings should return an array'
       )
       assert(
-        calculateEmbeddingsResult.every(val => typeof val === 'number'),
+        calculateEmbeddingsResult.every((val) => typeof val === 'number'),
         'calculateEmbeddings should return numeric values'
       )
 
@@ -93,9 +103,13 @@ describe('embeddings', () => {
       )
 
       let norm = 0
-      for (let i = 0; i < hiddenSize; i++) norm += calculateEmbeddingsResult[i] * calculateEmbeddingsResult[i]
+      for (let i = 0; i < hiddenSize; i++)
+        norm += calculateEmbeddingsResult[i] * calculateEmbeddingsResult[i]
       norm = Math.sqrt(norm)
-      assert(Math.abs(norm - 1.0) < 0.001, `calculateEmbeddings should be normalized (norm ≈ 1.0), got ${norm}`)
+      assert(
+        Math.abs(norm - 1.0) < 0.001,
+        `calculateEmbeddings should be normalized (norm ≈ 1.0), got ${norm}`
+      )
     })
 
     test('produces consistent embeddings for identical inputs', async () => {
@@ -106,7 +120,10 @@ describe('embeddings', () => {
       assert.strictEqual(embedding1.length, embedding2.length, 'Embeddings should have same length')
       for (let i = 0; i < embedding1.length; i++) {
         const diff = Math.abs(embedding1[i] - embedding2[i])
-        assert(diff < 0.0001, `Embedding values should be consistent at index ${i}: ${embedding1[i]} vs ${embedding2[i]}`)
+        assert(
+          diff < 0.0001,
+          `Embedding values should be consistent at index ${i}: ${embedding1[i]} vs ${embedding2[i]}`
+        )
       }
     })
 
@@ -125,16 +142,26 @@ describe('embeddings', () => {
         norm2 += embedding2[i] * embedding2[i]
       }
       const similarity = dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2))
-      assert(similarity < 0.99, `Different strings should produce different embeddings, similarity: ${similarity}`)
-      assert(similarity > -1.0 && similarity < 1.0, `Similarity should be in valid range [-1, 1]: ${similarity}`)
+      assert(
+        similarity < 0.99,
+        `Different strings should produce different embeddings, similarity: ${similarity}`
+      )
+      assert(
+        similarity > -1.0 && similarity < 1.0,
+        `Similarity should be in valid range [-1, 1]: ${similarity}`
+      )
     })
 
     test('handles empty string without throwing or returning non-finite values', async () => {
       try {
         const embedding = await calculateEmbeddings('')
-        assert.strictEqual(embedding.length, 384, 'Empty string should still return 384-dimensional embedding')
+        assert.strictEqual(
+          embedding.length,
+          384,
+          'Empty string should still return 384-dimensional embedding'
+        )
         assert(
-          embedding.every(val => typeof val === 'number' && isFinite(val)),
+          embedding.every((val) => typeof val === 'number' && isFinite(val)),
           'Empty string embedding should contain valid finite numbers'
         )
       } catch (error) {
@@ -146,7 +173,11 @@ describe('embeddings', () => {
       const longString = 'This is a moderately long test string. '.repeat(10)
       const embedding = await calculateEmbeddings(longString)
 
-      assert.strictEqual(embedding.length, 384, 'Long string should still return 384-dimensional embedding')
+      assert.strictEqual(
+        embedding.length,
+        384,
+        'Long string should still return 384-dimensional embedding'
+      )
 
       let norm = 0
       for (let i = 0; i < embedding.length; i++) norm += embedding[i] * embedding[i]
@@ -251,7 +282,10 @@ describe('embeddings', () => {
         cdsDependency: { node: '>=10.0', java: '>=5.0' }
       }
       const { outDir } = await createEmbeddings('test', chunks, chunks, { capire })
-      assert.ok(outDir.endsWith('__commit_id_1234__'), `outDir should end with version folder, got: ${outDir}`)
+      assert.ok(
+        outDir.endsWith('__commit_id_1234__'),
+        `outDir should end with version folder, got: ${outDir}`
+      )
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.deepStrictEqual(meta.capire, capire)
     })
@@ -261,7 +295,10 @@ describe('embeddings', () => {
       const { outDir, modelFolderName } = await createEmbeddings('test', chunks, chunks)
       const meta = JSON.parse(await fsp.readFile(path.join(outDir, 'test.json'), 'utf-8'))
       assert.strictEqual(meta.capire, undefined)
-      assert.ok(outDir.endsWith(modelFolderName), `outDir should end with ${modelFolderName}, got: ${outDir}`)
+      assert.ok(
+        outDir.endsWith(modelFolderName),
+        `outDir should end with ${modelFolderName}, got: ${outDir}`
+      )
     })
 
     test('createEmbeddings throws when metadata length mismatches chunks', async () => {
@@ -283,8 +320,15 @@ describe('embeddings', () => {
       assert.ok(typeof meta.createdAt === 'string', 'createdAt must be a string')
       const ts = new Date(meta.createdAt)
       assert.ok(!isNaN(ts.getTime()), 'createdAt must parse to a valid date')
-      assert.strictEqual(meta.createdAt, ts.toISOString(), 'createdAt must use canonical ISO 8601 format')
-      assert.ok(ts >= before && ts <= after, `createdAt must be between test start and end, got: ${meta.createdAt}`)
+      assert.strictEqual(
+        meta.createdAt,
+        ts.toISOString(),
+        'createdAt must use canonical ISO 8601 format'
+      )
+      assert.ok(
+        ts >= before && ts <= after,
+        `createdAt must be between test start and end, got: ${meta.createdAt}`
+      )
     })
   })
 
@@ -293,7 +337,10 @@ describe('embeddings', () => {
     async function buildChunks() {
       const specs = [
         { content: 'Write custom handlers in Java with the CAP runtime', meta: { label: 'java' } },
-        { content: 'Write custom handlers in Node.js with the CAP runtime', meta: { label: 'node' } },
+        {
+          content: 'Write custom handlers in Node.js with the CAP runtime',
+          meta: { label: 'node' }
+        },
         { content: 'Deploy the service to the cloud', meta: { source: 'deploy' } },
         { content: 'Model your domain with CDS entities' }
       ]
@@ -313,7 +360,7 @@ describe('embeddings', () => {
 
         const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
 
-        const labels = results.map(r => r.meta?.label)
+        const labels = results.map((r) => r.meta?.label)
         assert.ok(!labels.includes('node'), 'node-labeled chunks must be dropped')
         assert.ok(labels.includes('java'), 'java-labeled chunk must stay')
         assert.strictEqual(results.length, 3, 'java + two unlabeled chunks must stay')
@@ -324,14 +371,14 @@ describe('embeddings', () => {
 
         const results = await hybridSearch('custom handlers', chunks, { runtime: 'node' })
 
-        const labels = results.map(r => r.meta?.label)
+        const labels = results.map((r) => r.meta?.label)
         assert.ok(!labels.includes('java'), 'java-labeled chunks must be dropped')
         assert.ok(labels.includes('node'), 'node-labeled chunk must stay')
         assert.strictEqual(results.length, 3, 'node + two unlabeled chunks must stay')
       })
 
       test('should keep all chunks when none carry the other runtime label', async () => {
-        const chunks = (await buildChunks()).filter(c => c.meta?.label !== 'node')
+        const chunks = (await buildChunks()).filter((c) => c.meta?.label !== 'node')
 
         const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
 
@@ -355,7 +402,7 @@ describe('embeddings', () => {
 
         const results = await hybridSearch('custom handlers', chunks)
 
-        const labels = results.map(r => r.meta?.label)
+        const labels = results.map((r) => r.meta?.label)
         assert.strictEqual(results.length, 4, 'all chunks must stay when runtime is not set')
         assert.ok(labels.includes('node') && labels.includes('java'), 'both runtimes must stay')
       })
@@ -365,17 +412,20 @@ describe('embeddings', () => {
       test('should not mutate the input chunks array or its objects', async () => {
         const chunks = await buildChunks()
         const lengthBefore = chunks.length
-        const keysBefore = chunks.map(c => Object.keys(c).sort().join(','))
+        const keysBefore = chunks.map((c) => Object.keys(c).sort().join(','))
 
         await hybridSearch('custom handlers', chunks, { runtime: 'java' })
 
         assert.strictEqual(chunks.length, lengthBefore, 'input length must not change')
         assert.deepStrictEqual(
-          chunks.map(c => Object.keys(c).sort().join(',')),
+          chunks.map((c) => Object.keys(c).sort().join(',')),
           keysBefore,
           'input chunk keys must not change'
         )
-        assert.ok(chunks.every(c => c.similarity === undefined), 'similarity must not leak onto input chunks')
+        assert.ok(
+          chunks.every((c) => c.similarity === undefined),
+          'similarity must not leak onto input chunks'
+        )
       })
 
       test('should return new objects rather than the input chunk references', async () => {
@@ -383,9 +433,11 @@ describe('embeddings', () => {
 
         const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
 
-        assert.ok(results.every(r => !chunks.includes(r)), 'results must be copies, not input references')
+        assert.ok(
+          results.every((r) => !chunks.includes(r)),
+          'results must be copies, not input references'
+        )
       })
     })
   })
 })
-

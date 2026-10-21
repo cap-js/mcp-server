@@ -3,7 +3,11 @@ import assert from 'node:assert'
 import path from 'node:path'
 import fsp from 'node:fs/promises'
 import os from 'node:os'
-import { createEmbeddings, getActiveEmbeddingsDir, setEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import {
+  createEmbeddings,
+  getActiveEmbeddingsDir,
+  setEmbeddingsDir
+} from '../lib/calculateEmbeddings.js'
 
 // Model max window for BAAI/bge-small-en-v1.5 is 512 tokens
 // (BERT-style). One English word ≈ 1-2 WordPiece tokens, so ~10000 words of
@@ -35,7 +39,9 @@ describe('createEmbeddings truncation', () => {
 
     // Only two rows in and two rows out — no auto-split.
     assert.strictEqual(result.count, 2, 'input rows == output rows (no splitting)')
-    const meta = JSON.parse(await fsp.readFile(path.join(result.outDir, 'code-chunks.json'), 'utf-8'))
+    const meta = JSON.parse(
+      await fsp.readFile(path.join(result.outDir, 'code-chunks.json'), 'utf-8')
+    )
     assert.strictEqual(meta.chunks.length, 2, 'input rows == output rows (no splitting)')
 
     testPassed = true

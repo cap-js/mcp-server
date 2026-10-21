@@ -1,16 +1,17 @@
 {
   "name": "@cap-js/mcp-server",
-  "mcpName": "io.github.cap-js/mcp-server",
   "version": "0.0.8",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
+  "homepage": "https://cap.cloud.sap/",
+  "license": "Apache-2.0",
+  "author": "SAP SE (https://www.sap.com)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/cap-js/mcp-server.git"
   },
-  "author": "SAP SE (https://www.sap.com)",
-  "homepage": "https://cap.cloud.sap/",
-  "license": "Apache-2.0",
-  "type": "module",
+  "bin": {
+    "cds-mcp": "index.js"
+  },
   "files": [
     ".claude-plugin/",
     "lib/",
@@ -19,12 +20,12 @@
     "index.js",
     "manifest.json"
   ],
-  "bin": {
-    "cds-mcp": "index.js"
-  },
+  "type": "module",
   "scripts": {
     "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
     "lint": "npx eslint .",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
     "setup": "rm -rf node_modules package-lock.json && npm i"
   },
   "dependencies": {
@@ -38,7 +39,7 @@
     "onnxruntime-node": "^1.20.1"
   },
   "devDependencies": {
-    "prettier": "^3.9.6"
+    "oxfmt": ">=0.70.0"
   },
   "cds": {
     "log": {
@@ -46,5 +47,6 @@
         "@cap-js/ai": "error"
       }
     }
-  }
+  },
+  "mcpName": "io.github.cap-js/mcp-server"
 }
