@@ -28,6 +28,7 @@ Environment variables:
   CDS_MCP_MODEL=<name>       Same as --model
   CDS_MCP_MANIFEST_TIMEOUT   Manifest request timeout in milliseconds (default: 15000)
   CDS_MCP_DOWNLOAD_TIMEOUT   Bundle response-header timeout in milliseconds (default: 30000)
+  CDS_MCP_GENERIC_EMBEDDINGS=true  Search all runtimes (skip the detected-runtime filter)
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
