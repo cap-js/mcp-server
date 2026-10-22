@@ -6,7 +6,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_DIR, getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import { DEFAULT_DIR, getActiveEmbeddingsDir, getActiveModel } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle, TEST_CHUNKS } from './helpers/test-bundle.js'
 import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
 
@@ -21,6 +21,11 @@ const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 const bundleMockScript = `
 import { readFileSync } from 'node:fs'
 import { mock } from 'node:test'
+mock.module('@cap-js/ai/models.js', {
+  namedExports: {
+    installModel: async (model) => ({ model })
+  }
+})
 const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
 const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
 mock.method(globalThis, 'fetch', async () =>
@@ -41,12 +46,21 @@ function unframeBundle(frame) {
 }
 
 async function seedCliTestBundle() {
-  const frame = await buildTestBundle({
+  const generated = await buildTestBundle({
     metadata: TEST_CHUNKS.map((_, i) => ({
       headingPath: `Test Section ${i + 1}`,
       source: 'https://cap.cloud.sap/docs/test'
     }))
   })
+  // Folder-selection fixtures keep the real encoder identity so preparation
+  // validates the same query model that produced these integration vectors.
+  const bundle = unframeBundle(generated)
+  const metadata = Buffer.from(
+    JSON.stringify({ ...JSON.parse(bundle.meta), model: getActiveModel() })
+  )
+  const header = Buffer.alloc(4)
+  header.writeUInt32BE(metadata.length)
+  const frame = Buffer.concat([header, metadata, bundle.bin])
   const { meta, bin } = unframeBundle(frame)
 
   const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
@@ -80,7 +94,7 @@ let ctx
 
 function runCliCommand(args, options = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn('node', [cdsMcpPath, ...args], {
+    const child = spawn('node', ['--experimental-test-module-mocks', cdsMcpPath, ...args], {
       ...options,
       stdio: 'pipe'
     })

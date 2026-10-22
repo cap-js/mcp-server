@@ -161,15 +161,21 @@ cds-mcp search_model . Books entity
 
 Embedding model files are looked up first under the MCP server package's `.cds/models/<organization>/<model>`, then in `~/.cds/models/<organization>/<model>`. Missing models are downloaded on demand into the user's home cache (on Windows, `%USERPROFILE%\.cds\models`), which can be shared across package installations. The caller's CAP project is not searched for embedding models.
 
-Package-local models are read-only overrides: incomplete or invalid local models fail validation and must be explicitly repaired or removed; the server does not replace them or fall back silently. Missing or damaged files in a home-cache model with a valid lock are repaired on demand. Documentation embeddings bundles and the optional reranker retain their existing storage locations.
+Package-local models are read-only overrides: incomplete or invalid local models fail validation and must be explicitly repaired or removed; the server does not replace them or fall back silently. In online mode, missing or damaged files in a home-cache model with a valid lock are repaired on demand. Documentation embeddings bundles and the optional reranker retain their existing storage locations.
 
 Cache lookup and provisioning are handled by `@cap-js/ai` through its supported `embedding.root` setting. The MCP package root is supplied only for model lookup; the server does not change the caller's working directory or CAP root.
+
+### Preparing for offline search
+
+Run `cds-mcp --download` while online to cache documentation and provision its matching query embedding model in the shared home cache. Use `--model <organization/model>` to select a different documentation model. Preparation follows the actual bundle's model metadata, including when a network failure selects an existing cached bundle. With `RERANK_ENABLED=true`, preparation also loads the reranker model and tokenizer into their existing Transformers.js cache.
+
+Then use `cds-mcp --offline search_docs "entity definition"` or set `CDS_MCP_OFFLINE=true` for MCP server mode. Offline mode uses only local documentation, query models, and reranker files: it makes no download or repair requests. Missing or invalid resources fail locally with an online-preparation hint. Corrupted documentation cache files are preserved in offline mode; repair them online. Invalid package-local model overrides still require explicit repair or removal. Unset `CDS_MCP_OFFLINE` before preparing; offline and download modes are incompatible.
 
 ### Environment Variables
 
 | Variable | Description |
 | --- | --- |
-| `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. |
+| `CDS_MCP_OFFLINE` | Set to `true` for local-only documentation, query embedding models, and optional reranking; no downloads or repairs. |
 | `CDS_MCP_MODEL` | Embedding model name. |
 | `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |

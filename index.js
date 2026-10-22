@@ -19,8 +19,8 @@ const helpText = `Usage: cds-mcp [options] [tool] [args...]
 Options:
   -h, --help                 Show this help message
   -v, --version              Show version number
-      --download             Download latest embeddings and model files
-      --offline              Skip downloading of embeddings updates
+      --download             Prepare documentation, query model, and enabled reranker for offline search
+      --offline              Use only local documentation and models; no runtime downloads or repairs
       --model <name>         Embedding model (e.g. org/model); default: BAAI/bge-small-en-v1.5
 
 Environment variables:
@@ -55,9 +55,6 @@ try {
 // Set model BEFORE any import that triggers embeddings download side-effects.
 if (values.model) process.env.CDS_MCP_MODEL = values.model
 
-const { default: run, runTool } = await import('./lib/run.js')
-const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')
-
 if (values.download || values['download-embeddings']) {
   const otherFlags = Object.entries(values).filter(
     ([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings'
@@ -66,16 +63,28 @@ if (values.download || values['download-embeddings']) {
     console.error('--download must be the only argument (aside from --model)')
     process.exit(1)
   }
-  const result = await downloadEmbeddings()
-  console.log(JSON.stringify(result))
+  if (process.env.CDS_MCP_OFFLINE === 'true') {
+    console.error('--download is incompatible with CDS_MCP_OFFLINE=true; unset it first')
+    process.exit(1)
+  }
+  try {
+    const { prepareSearchResources } = await import('./lib/searchMarkdownDocs.js')
+    const result = await prepareSearchResources()
+    console.log(JSON.stringify(result))
+  } catch (error) {
+    console.error('Error:', error.message)
+    process.exitCode = 1
+  }
 } else if (values.help) {
   console.log(helpText)
 } else if (values.version) {
   const pkg = JSON.parse(await readFile(join(__dirname, 'package.json'), 'utf-8'))
   console.log(pkg.version)
 } else if (positionals.length > 0) {
+  const { runTool } = await import('./lib/run.js')
   const [toolName, ...toolArgs] = positionals
   runTool(toolName, ...toolArgs)
 } else {
+  const { default: run } = await import('./lib/run.js')
   run()
 }

@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 ### Changed
 
 - Download embedding models into the user's `~/.cds/models` cache on demand, reusing validated package-local models first without writing to the package or caller's CAP project
+- Make `--offline` and `CDS_MCP_OFFLINE=true` local-only for documentation, query models, and optional reranking, with actionable preparation errors and no downloads or repairs
+- Make `--download` prepare the selected documentation bundle's matching query model and the reranker model/tokenizer when enabled
 
 ## Version 0.0.8 - 2026-10-14
 
