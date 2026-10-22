@@ -4,7 +4,6 @@ import fs from 'fs'
 import fsp from 'node:fs/promises'
 import path from 'path'
 import os from 'node:os'
-import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings, hybridSearch } from '../lib/embeddings.js'
 import calculateEmbeddings, {
   getQueryDb,

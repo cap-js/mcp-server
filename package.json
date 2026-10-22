@@ -29,7 +29,7 @@
     "setup": "rm -rf node_modules package-lock.json && npm i"
   },
   "dependencies": {
-    "@cap-js/ai": "https://github.com/cap-js/ai/archive/716b6f2243e2f63408d688e992c0f9e8e4b7d6ee.tar.gz",
+    "@cap-js/ai": "https://github.com/cap-js/ai/archive/f15e63cbe96ebb76aa03d7afee4fc1f803e8bf9c.tar.gz",
     "@cap-js/sqlite": "^3.1.0",
     "@huggingface/hub": "^2.16.3",
     "@huggingface/tokenizers": "^0.2.0",
