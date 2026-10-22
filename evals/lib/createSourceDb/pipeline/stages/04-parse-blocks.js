@@ -113,7 +113,7 @@ function parseBlockLines(lines) {
         const l = lines[i]
         containerLines.push(l)
         if (CONTAINER_OPENER.test(l)) depth++
-        else if (CONTAINER_CLOSER.test(l)) depth = 0
+        else if (CONTAINER_CLOSER.test(l)) depth--
         i++
       }
       const lastLine = containerLines[containerLines.length - 1]

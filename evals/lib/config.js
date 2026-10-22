@@ -45,7 +45,13 @@ export async function loadConfig({ configPath, overrides } = {}) {
 
   if (configPath) {
     try {
-      file = JSON.parse(await fs.readFile(path.resolve(configPath), 'utf8'))
+      const parsed = JSON.parse(await fs.readFile(path.resolve(configPath), 'utf8'))
+      file = {
+        ...DEFAULT_CONFIG,
+        ...parsed,
+        gates: { ...DEFAULT_CONFIG.gates, ...(parsed.gates || {}) },
+        output: { ...DEFAULT_CONFIG.output, ...(parsed.output || {}) }
+      }
     } catch (err) {
       if (err.code !== 'ENOENT') throw err
     }
@@ -66,7 +72,7 @@ export async function loadConfig({ configPath, overrides } = {}) {
     gates: {},
     output: {
       runsDir: resolve(output.runsDir || 'runs'),
-      keepRuns: output.keepRuns ?? 100,
+      keepRuns: output.keepRuns ?? DEFAULT_CONFIG.output.keepRuns,
       resultsName: output.resultsName || 'result.jsonl',
       compareFormat: output.compareFormat || 'html'
     }

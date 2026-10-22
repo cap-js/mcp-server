@@ -55,6 +55,7 @@ export async function readCapireVersion(dir) {
 }
 
 export async function findEmbeddingDirs(root) {
+  if (!root) return []
   const results = []
   async function walk(dir) {
     const entries = await fs.readdir(dir, { withFileTypes: true })

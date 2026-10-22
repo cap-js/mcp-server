@@ -92,6 +92,7 @@ export function ndcgAtK(relevant, retrieved, k) {
       if (g !== undefined && !credited.has(g)) {
         credited.add(g)
         dcg += 1 / Math.log2(i + 2) // rank i+1 → 1/log2(i+2)
+        break // one credit per rank; IDCG gives one gain per rank
       }
     }
   }
