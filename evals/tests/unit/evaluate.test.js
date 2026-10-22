@@ -240,6 +240,52 @@ describe('evaluate', () => {
     assert.equal(r.report.baseline_run_id, null)
   })
 
+  test('should not pick an automatic baseline from a run with a different k', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+
+    const second = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides({ k: 3 }),
+      logger: silentLogger
+    })
+
+    assert.equal(second.report.config.k, 3)
+    assert.equal(second.report.baseline_run_id, null)
+  })
+
+  test('should not pick an automatic baseline from a run with a different golden set', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-a')
+    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-b')
+    const second = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides(),
+      logger: silentLogger
+    })
+
+    assert.equal(second.report.config.golden_set, 'set-b')
+    assert.equal(second.report.baseline_run_id, null)
+  })
+
+  test('should still use a pinned baseline even when k differs', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const r1 = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides(),
+      logger: silentLogger
+    })
+
+    const r2 = await evaluate({
+      golden: await loadGolden(),
+      overrides: baseOverrides({ k: 3, baselineRunId: r1.report.run_id }),
+      logger: silentLogger
+    })
+
+    assert.equal(r2.report.baseline_run_id, r1.report.run_id)
+  })
+
   test('should accumulate one line per run chronologically in result.jsonl', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 

@@ -159,6 +159,18 @@ describe('compare', () => {
       assert.ok(html.includes('07-30 11:00:00'))
     })
 
+    test('should escape quotes and markup in a run label to prevent HTML injection', async () => {
+      await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'evil"<img>' }))
+
+      await compare({ overrides: overrides(), logger: silentLogger })
+
+      const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+      // The label is escaped wherever it appears (run-label span, title= and
+      // data-search= attributes), and the raw break-out sequence never occurs.
+      assert.ok(html.includes('evil&quot;&lt;img&gt;'))
+      assert.ok(!html.includes('evil"<img>'))
+    })
+
     test('should order runs newest-first in the run-list section', async () => {
       await writeRun(fakeReport('2026-07-30T12:00:00Z_zzz'))
       await writeRun(fakeReport('2026-07-30T09:00:00Z_aaa'))

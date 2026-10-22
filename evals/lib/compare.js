@@ -16,9 +16,15 @@ function mdCell(text) {
   return (text || '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
 }
 
-// Escape text for HTML text content (prevent `<` injection).
+// Escape text for HTML text content AND quoted attribute values (prevent
+// `<` injection and `"`/`'` attribute break-out).
 function escHtml(text) {
-  return (text || '').replace(/</g, '&lt;')
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
 }
 
 // Shared cell formatters (HTML + Markdown run-detail tables).
@@ -272,7 +278,7 @@ function lineChartSvg({ label, points, gate, avg }) {
       const cx = x(i).toFixed(1)
       const cy = y(p.value).toFixed(1)
       const below = gate !== null && gate !== undefined && p.value < gate
-      return `<circle class="dot${below ? ' below' : ''}" cx="${cx}" cy="${cy}" r="4"><title>${p.runFull || p.runShort}\n${label}: ${p.value.toFixed(3)}${below ? '  (below gate)' : ''}</title></circle>`
+      return `<circle class="dot${below ? ' below' : ''}" cx="${cx}" cy="${cy}" r="4"><title>${escHtml(p.runFull || p.runShort)}\n${label}: ${p.value.toFixed(3)}${below ? '  (below gate)' : ''}</title></circle>`
     })
     .join('')
 
@@ -282,7 +288,7 @@ function lineChartSvg({ label, points, gate, avg }) {
   const xticks = points
     .map((p, i) => {
       const tx = x(i).toFixed(1)
-      return `<text class="axis xtick" x="${tx}" y="${dotLabelY}" text-anchor="end" transform="rotate(-45,${tx},${dotLabelY})">${p.runShort}</text>`
+      return `<text class="axis xtick" x="${tx}" y="${dotLabelY}" text-anchor="end" transform="rotate(-45,${tx},${dotLabelY})">${escHtml(p.runShort)}</text>`
     })
     .join('')
 
@@ -621,7 +627,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
   const label = r.config && r.config.label
   const searchStr = escHtml(((label || '') + ' ' + r.run_id).toLowerCase())
   return `<details class="run-detail" data-search="${searchStr}">
-  <summary><label class="baseline-label" title="Set as baseline for Δ column" onclick="event.stopPropagation()"><input type="radio" name="pq-baseline" class="baseline-radio" data-run-id="${r.run_id}" value="${r.run_id}"> baseline</label>${label ? `<span class="run-label">${label}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
+  <summary><label class="baseline-label" title="Set as baseline for Δ column" onclick="event.stopPropagation()"><input type="radio" name="pq-baseline" class="baseline-radio" data-run-id="${r.run_id}" value="${r.run_id}"> baseline</label>${label ? `<span class="run-label">${escHtml(label)}</span> ` : ''}<span class="mono">${r.run_id}</span> <span class="sum-metrics">${summaryCells}</span> <span class="sum-res">${res}</span></summary>
   <div class="rd-body">
     <div class="rd-sub">Aggregate metrics · capire ${r.config.capire_version} · K=${r.config.k}</div>
     <table class="rd-table">

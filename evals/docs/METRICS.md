@@ -152,6 +152,4 @@ stages isn't described as monocausal:
    *(the relevant docs stopped being retrieved — a set problem)*
 2. Recall stable/up but MRR or nDCG down → `recall_stable_mrr_down → ranking/scoring regression`
    *(same docs retrieved, ranked worse — a rank problem)*
-3. Recall & MRR ok but Precision down → `precision_down → top-K padded with noise`
-   *(still finding + ranking the good ones, but adding junk around them)*
-4. Nothing past the dead-band → `no_regression`
+3. Nothing past the dead-band → `no_regression`

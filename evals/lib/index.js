@@ -23,7 +23,16 @@ export async function evaluate({
 } = {}) {
   const cfg = await loadConfig({ configPath, overrides })
 
-  const baseline = baselineRun(await readRuns(cfg), cfg.baselineRunId)
+  // Only compare against runs with the same evaluation dimensions (K + golden
+  // set); a baseline from a different config makes deltas meaningless. A pinned
+  // baselineRunId is a deliberate anchor, so it still resolves against all runs.
+  const allRuns = await readRuns(cfg)
+  const candidates = cfg.baselineRunId
+    ? allRuns
+    : allRuns.filter(
+        (run) => run.config?.k === cfg.k && run.config?.golden_set === golden.golden_set
+      )
+  const baseline = baselineRun(candidates, cfg.baselineRunId)
   if (cfg.baselineRunId && !baseline) {
     console.error(
       `(note: pinned baseline "${cfg.baselineRunId}" not found in result.jsonl — this run has no baseline)`
