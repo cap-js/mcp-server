@@ -198,6 +198,43 @@ describe('searchMarkdownDocs', () => {
     }
   })
 
+  describe('deduplication', () => {
+    const DUPLICATE_TEXT = 'xq7kz sentinel dedup test phrase'
+
+    test('returns only one section when the bundle contains two chunks with identical content', async () => {
+      const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
+      const sections = result.split('\n---\n')
+
+      const dupSections = sections.filter(s => s.includes(DUPLICATE_TEXT))
+      assert.strictEqual(dupSections.length, 1, 'both copies of the duplicate text must not both appear')
+    })
+
+    test('the surviving copy is the highest-ranked entry (label: node, not label: java)', async () => {
+      const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
+      const sections = result.split('\n---\n')
+
+      const dupSection = sections.find(s => s.includes(DUPLICATE_TEXT))
+      assert(dupSection, 'at least one section must contain the duplicate text')
+      assert(dupSection.includes('label: node'), 'the surviving section must be the higher-ranked node entry')
+      assert(!dupSection.includes('label: java'), 'the lower-ranked java entry must not appear')
+    })
+
+    test('result count does not exceed maxResults when duplicate chunks are present', async () => {
+      const result = await searchMarkdownDocs(DUPLICATE_TEXT, 3)
+      const sections = result.split('\n---\n')
+
+      assert(sections.length <= 3, `must return at most 3 chunks, got ${sections.length}`)
+    })
+
+    test('unique chunks pass through deduplication unchanged', async () => {
+      const result = await searchMarkdownDocs('cds init', 5)
+      const sections = result.split('\n---\n')
+
+      const uniqueContents = new Set(sections)
+      assert.strictEqual(uniqueContents.size, sections.length, 'all returned sections must have distinct content')
+    })
+  })
+
   describe('CDS_MCP_MAX_RESULTS env var', () => {
     let _prev
     before(() => { _prev = process.env.CDS_MCP_MAX_RESULTS })
