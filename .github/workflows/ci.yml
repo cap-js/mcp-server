@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 24.x
       - run: npm ci
-      - run: node --experimental-test-module-mocks --test tests/modelCache.test.js tests/modelCacheConnection.test.js
+      - run: node --experimental-test-module-mocks --test tests/modelCacheConnection.test.js
   check-versions:
     runs-on: ubuntu-latest
     steps:

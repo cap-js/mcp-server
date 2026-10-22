@@ -1,22 +1,13 @@
 import { test, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import os from 'node:os'
-import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const selectedRoot = path.join(os.tmpdir(), 'selected-model-cache')
+const packageRoot = fileURLToPath(new URL('../', import.meta.url))
 const calls = []
-mock.module('../lib/modelCache.js', {
-  namedExports: {
-    MODEL_CACHE_DIR: selectedRoot,
-    LOCAL_MODEL_CACHE_DIR: path.join(os.tmpdir(), 'package-model-cache'),
-    resolveModelCache: async (model) => {
-      calls.push({ model })
-      return selectedRoot
-    }
-  }
-})
+const callerRoot = '/caller-project'
 mock.module('@sap/cds', {
   defaultExport: {
+    root: callerRoot,
     connect: {
       to: async (name, options) => {
         calls.push({ name, options })
@@ -25,15 +16,17 @@ mock.module('@sap/cds', {
     }
   }
 })
-const { getQueryDb } = await import('../lib/calculateEmbeddings.js')
+const { getQueryDb, MODEL_CACHE_ROOT } = await import('../lib/calculateEmbeddings.js')
+const { default: cds } = await import('@sap/cds')
 
-test('SQLite uses the selected embedding model cache explicitly', async () => {
+test('SQLite delegates cache selection to AI with a package-root lookup override', async () => {
   const model = 'BAAI/bge-small-en-v1.5'
   const db = await getQueryDb(model)
-  assert.deepEqual(db.options.embedding, { model, directory: selectedRoot })
-  assert.equal(calls.length, 2)
-  assert.deepEqual(calls[0], { model })
-  assert.equal(calls[1].name, 'embed-db')
+  assert.equal(MODEL_CACHE_ROOT, packageRoot)
+  assert.deepEqual(db.options.embedding, { model, root: packageRoot })
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].name, 'embed-db')
+  assert.equal(cds.root, callerRoot)
   assert.equal(await getQueryDb(model), db)
-  assert.equal(calls.length, 2)
+  assert.equal(calls.length, 1)
 })
