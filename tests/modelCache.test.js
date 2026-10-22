@@ -12,11 +12,15 @@ import { resolveModelCache, MODEL_CACHE_DIR, LOCAL_MODEL_CACHE_DIR } from '../li
 const model = 'BAAI/bge-small-en-v1.5'
 const localRoot = path.join(os.tmpdir(), 'mcp-package', '.cds', 'models')
 const home = path.join(os.tmpdir(), 'mcp-user')
-const missing = () => { throw Object.assign(new Error('missing'), { code: 'ENOENT' }) }
+const missing = () => {
+  throw Object.assign(new Error('missing'), { code: 'ENOENT' })
+}
 
 describe('embedding model cache', () => {
-  test('released AI installs and repairs only home, reuses it, and validates local overrides', async t => {
-    const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-model-cache-')))
+  test('released AI installs and repairs only home, reuses it, and validates local overrides', async (t) => {
+    const temporary = await fs.realpath(
+      await fs.mkdtemp(path.join(os.tmpdir(), 'mcp-model-cache-'))
+    )
     t.after(() => fs.rm(temporary, { recursive: true, force: true }))
     const localRoot = path.join(temporary, 'package', '.cds', 'models')
     const home = path.join(temporary, 'home')
@@ -35,33 +39,37 @@ describe('embedding model cache', () => {
       maxLength: 32,
       output: { name: 'last_hidden_state', pooling: 'mean', normalize: true, includePrompt: true },
       files: [...artifacts].map(([name, bytes], index) => ({
-        role: ['model', 'tokenizer', 'tokenizerConfig'][index], name, path: name,
-        size: bytes.length, sha256: createHash('sha256').update(bytes).digest('hex')
+        role: ['model', 'tokenizer', 'tokenizerConfig'][index],
+        name,
+        path: name,
+        size: bytes.length,
+        sha256: createHash('sha256').update(bytes).digest('hex')
       }))
     }
     let discoveries = 0
     let downloads = 0
     let validations = 0
-    const resolve = (configuration, options) => resolveEmbeddingModel(configuration, {
-      ...options,
-      warn: () => {},
-      discover: async repository => {
-        discoveries++
-        assert.equal(repository, model)
-        return descriptor
-      },
-      fetchImpl: async url => {
-        downloads++
-        const bytes = artifacts.get(new URL(url).pathname.split('/').at(-1))
-        assert.ok(bytes, 'only descriptor artifacts may be fetched')
-        return new Response(bytes)
-      },
-      validate: async directory => {
-        validations++
-        assert.ok(directory.startsWith(home))
-        await verifyModelDirectory(directory, descriptor)
-      }
-    })
+    const resolve = (configuration, options) =>
+      resolveEmbeddingModel(configuration, {
+        ...options,
+        warn: () => {},
+        discover: async (repository) => {
+          discoveries++
+          assert.equal(repository, model)
+          return descriptor
+        },
+        fetchImpl: async (url) => {
+          downloads++
+          const bytes = artifacts.get(new URL(url).pathname.split('/').at(-1))
+          assert.ok(bytes, 'only descriptor artifacts may be fetched')
+          return new Response(bytes)
+        },
+        validate: async (directory) => {
+          validations++
+          assert.ok(directory.startsWith(home))
+          await verifyModelDirectory(directory, descriptor)
+        }
+      })
     const options = { localRoot, home, resolve }
     assert.equal(await resolveModelCache(model, options), homeRoot)
     assert.equal(discoveries, 1)
@@ -108,8 +116,10 @@ describe('embedding model cache', () => {
   test('existing package-local model takes precedence and uses the read-only resolver', async () => {
     const calls = []
     const selected = await resolveModelCache(model, {
-      localRoot, home,
-      lstat: async directory => assert.equal(directory, path.join(localRoot, ...model.split('/'))),
+      localRoot,
+      home,
+      lstat: async (directory) =>
+        assert.equal(directory, path.join(localRoot, ...model.split('/'))),
       resolve: async (...args) => calls.push(args)
     })
     assert.equal(selected, localRoot)
@@ -119,51 +129,80 @@ describe('embedding model cache', () => {
   test('missing local model delegates home lookup, installation and repair to the implicit resolver', async () => {
     const calls = []
     const selected = await resolveModelCache(model, {
-      localRoot, home, lstat: missing,
+      localRoot,
+      home,
+      lstat: missing,
       resolve: async (...args) => calls.push(args)
     })
     assert.equal(selected, path.join(home, '.cds', 'models'))
     assert.deepEqual(calls, [[{ model }, { root: home, home }]])
   })
 
-  for (const reason of ['missing lock', 'invalid lock', 'repository mismatch', 'damaged artifacts', 'symlink']) {
+  for (const reason of [
+    'missing lock',
+    'invalid lock',
+    'repository mismatch',
+    'damaged artifacts',
+    'symlink'
+  ]) {
     test(`local ${reason} fails without falling back or provisioning`, async () => {
       const failure = new Error(reason)
       let calls = 0
-      await assert.rejects(resolveModelCache(model, {
-        localRoot, home, lstat: async () => ({}),
-        resolve: async configuration => {
-          calls++
-          assert.equal(configuration.directory, localRoot)
-          throw failure
-        }
-      }), error => error === failure)
+      await assert.rejects(
+        resolveModelCache(model, {
+          localRoot,
+          home,
+          lstat: async () => ({}),
+          resolve: async (configuration) => {
+            calls++
+            assert.equal(configuration.directory, localRoot)
+            throw failure
+          }
+        }),
+        (error) => error === failure
+      )
       assert.equal(calls, 1)
     })
   }
 
   test('local inspection errors do not silently fall back to home', async () => {
     const failure = Object.assign(new Error('permission denied'), { code: 'EACCES' })
-    await assert.rejects(resolveModelCache(model, {
-      localRoot, home,
-      lstat: async () => { throw failure },
-      resolve: async () => assert.fail('must not resolve another cache')
-    }), error => error === failure)
+    await assert.rejects(
+      resolveModelCache(model, {
+        localRoot,
+        home,
+        lstat: async () => {
+          throw failure
+        },
+        resolve: async () => assert.fail('must not resolve another cache')
+      }),
+      (error) => error === failure
+    )
   })
 
   test('home validation and provisioning failures propagate', async () => {
     const failure = new Error('invalid home lock')
-    await assert.rejects(resolveModelCache(model, {
-      localRoot, home, lstat: missing,
-      resolve: async () => { throw failure }
-    }), error => error === failure)
+    await assert.rejects(
+      resolveModelCache(model, {
+        localRoot,
+        home,
+        lstat: missing,
+        resolve: async () => {
+          throw failure
+        }
+      }),
+      (error) => error === failure
+    )
   })
 
   test('unsafe model names fail before inspecting or provisioning paths', async () => {
-    await assert.rejects(resolveModelCache('../escape', {
-      localRoot, home,
-      lstat: async () => assert.fail('must not inspect unsafe path'),
-      resolve: async () => assert.fail('must not provision unsafe path')
-    }))
+    await assert.rejects(
+      resolveModelCache('../escape', {
+        localRoot,
+        home,
+        lstat: async () => assert.fail('must not inspect unsafe path'),
+        resolve: async () => assert.fail('must not provision unsafe path')
+      })
+    )
   })
 })

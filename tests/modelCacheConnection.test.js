@@ -9,7 +9,7 @@ mock.module('../lib/modelCache.js', {
   namedExports: {
     MODEL_CACHE_DIR: selectedRoot,
     LOCAL_MODEL_CACHE_DIR: path.join(os.tmpdir(), 'package-model-cache'),
-    resolveModelCache: async model => {
+    resolveModelCache: async (model) => {
       calls.push({ model })
       return selectedRoot
     }

@@ -10,7 +10,7 @@ describe('rerank', () => {
     const query = 'How do I bake a chocolate cake?'
     const docs = [
       { content: 'Mars is the fourth planet from the Sun.' },
-      { content: 'Mix flour, sugar, cocoa powder, eggs and butter. Bake at 180C for 35 minutes.' },
+      { content: 'Mix flour, sugar, cocoa powder, eggs and butter. Bake at 180C for 35 minutes.' }
     ]
     const ranked = await rerank(query, docs, 2)
 
@@ -30,12 +30,13 @@ describe('rerank', () => {
     const query = 'What is the capital of France?'
     const docs = [
       { content: 'Paris is the capital and most populous city of France.' },
-      { content: 'Node.js is a JavaScript runtime built on V8 for server-side code.' },
+      { content: 'Node.js is a JavaScript runtime built on V8 for server-side code.' }
     ]
     const ranked = await rerank(query, docs, 2)
 
     assert.notStrictEqual(
-      ranked[0].score, ranked[1].score,
+      ranked[0].score,
+      ranked[1].score,
       'identical scores for all documents means the softmax-of-single-value regression is back'
     )
     assert(ranked[0].score > ranked[1].score, 'results must be sorted by descending score')
@@ -46,7 +47,7 @@ describe('rerank', () => {
     const docs = [
       { content: 'Paris is the capital of France.' },
       { content: 'Berlin is the capital of Germany.' },
-      { content: 'Node.js is a JavaScript runtime built on V8.' },
+      { content: 'Node.js is a JavaScript runtime built on V8.' }
     ]
     const ranked = await rerank(query, docs, 1)
     assert.strictEqual(ranked.length, 1)
@@ -57,11 +58,11 @@ describe('rerank', () => {
     const query = 'How do I bake a cake?'
     const docs = [
       { content: 'Mix flour and eggs.', meta: { title: 'Baking' } },
-      { content: 'Mars is far from Earth.', meta: { title: 'Astronomy' } },
+      { content: 'Mars is far from Earth.', meta: { title: 'Astronomy' } }
     ]
     const ranked = await rerank(query, docs, 2)
     for (const r of ranked) {
-      const original = docs.find(d => d.content === r.content)
+      const original = docs.find((d) => d.content === r.content)
       assert.deepStrictEqual(r.meta, original.meta, 'meta must be preserved')
       assert(typeof r.score === 'number', 'score must be a number')
     }
@@ -69,6 +70,10 @@ describe('rerank', () => {
 
   test('getReranker returns the same model instance on concurrent calls', async () => {
     const [r1, r2] = await Promise.all([getReranker(), getReranker()])
-    assert.strictEqual(r1, r2, 'must resolve to the same [tokenizer, model] tuple to prevent double model loading')
+    assert.strictEqual(
+      r1,
+      r2,
+      'must resolve to the same [tokenizer, model] tuple to prevent double model loading'
+    )
   })
 })
