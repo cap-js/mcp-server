@@ -200,8 +200,12 @@ describe('searchMarkdownDocs', () => {
 
   describe('CDS_MCP_MAX_RESULTS env var', () => {
     let _prev
-    before(() => { _prev = process.env.CDS_MCP_MAX_RESULTS })
-    beforeEach(() => { delete process.env.CDS_MCP_MAX_RESULTS })
+    before(() => {
+      _prev = process.env.CDS_MCP_MAX_RESULTS
+    })
+    beforeEach(() => {
+      delete process.env.CDS_MCP_MAX_RESULTS
+    })
     after(() => {
       if (_prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
       else process.env.CDS_MCP_MAX_RESULTS = _prev
@@ -215,21 +219,31 @@ describe('searchMarkdownDocs', () => {
       process.env.CDS_MCP_MAX_RESULTS = '1'
       const result = await searchMarkdownDocs('entity service', 10)
       const chunks = result.split('\n---\n')
-      assert.strictEqual(chunks.length, 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query')
+      assert.strictEqual(
+        chunks.length,
+        1,
+        'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query'
+      )
     })
 
     test('overrides the default maxResults', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '2'
       const result = await searchMarkdownDocs('entity service')
       const chunks = result.split('\n---\n')
-      assert(chunks.length <= 2, 'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given')
+      assert(
+        chunks.length <= 2,
+        'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given'
+      )
     })
 
     test('does not inflate a smaller caller request', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '10'
       const result = await searchMarkdownDocs('entity service', 1)
       const chunks = result.split('\n---\n')
-      assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1')
+      assert(
+        chunks.length <= 1,
+        'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1'
+      )
     })
 
     test('throws on non-integer value', async () => {
