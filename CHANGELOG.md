@@ -4,6 +4,41 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Version 0.0.8 - 2026-10-14
+
+### Added
+
+- Accept precomputed `canonicalChunks` in `createEmbeddings`, validated as an array at creation time
+- Export the default `MODEL` constant from `calculateEmbeddings`
+
+### Changed
+
+- Changed the default embedding model from `sentence-transformers/all-MiniLM-L6-v2` to `BAAI/bge-small-en-v1.5` for improved retrieval quality
+- Clarified the `search_docs` tool and query parameter descriptions, guiding term choice toward specific concepts and away from corpus-wide terms
+
+### Fixed
+
+- Bound all network requests with `AbortSignal.timeout` (manifest 6 s, bundle download 10 s) so hung or slow upstream servers cannot block the server indefinitely
+
+## Version 0.0.7 - 2026-10-09
+
+### Added
+
+- Hybrid search for `search_docs`: semantic cosine similarity combined with BM25 keyword search (SQLite FTS5, with a pure-JS fallback when FTS5 is not compiled into `node:sqlite`) via weighted Reciprocal Rank Fusion
+- Optional local cross-encoder reranking of `search_docs` results, opt-in via `RERANK_ENABLED`
+- Fall back to the globally installed `cds-dk`'s `@sap/cds` runtime version when the project provides no local CDS
+
+### Changed
+
+- Skip the daily embeddings-bundle re-check when the local files are fresh (within one day), scoped to the detected runtime
+
+### Fixed
+
+- Fall back to local embeddings when the bundle download fails due to a network error
+- Read the RFC 9457 `detail` field from non-OK bundle fetch responses for clearer error messages
+- Anchor the ONNX model cache to the package root instead of the caller's working directory
+- Exclude OData-contained entities from the exposed model by computing the contained set from the compiled model (the runtime `_containedEntities` getter is absent on compiled definitions)
+
 ## Version 0.0.6 - 2026-09-21
 
 ### Added

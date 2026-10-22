@@ -1,5 +1,11 @@
 #!/usr/bin/env node
 
+import { emitWarning } from 'node:process'
+process.emitWarning = (warning, ...args) => {
+  if (typeof warning === 'string' && warning.includes('SQLite is an experimental feature')) return
+  emitWarning(warning, ...args)
+}
+
 import { parseArgs } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
@@ -15,11 +21,13 @@ Options:
   -v, --version              Show version number
       --download             Download latest embeddings and model files
       --offline              Skip downloading of embeddings updates
-      --model <name>         Embedding model (e.g. org/model); default: sentence-transformers/all-MiniLM-L6-v2
+      --model <name>         Embedding model (e.g. org/model); default: BAAI/bge-small-en-v1.5
 
 Environment variables:
   CDS_MCP_OFFLINE=true       Same as --offline
   CDS_MCP_MODEL=<name>       Same as --model
+  CDS_MCP_MANIFEST_TIMEOUT   Manifest request timeout in milliseconds (default: 15000)
+  CDS_MCP_DOWNLOAD_TIMEOUT   Bundle response-header timeout in milliseconds (default: 30000)
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
@@ -51,7 +59,9 @@ const { default: run, runTool } = await import('./lib/run.js')
 const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')
 
 if (values.download || values['download-embeddings']) {
-  const otherFlags = Object.entries(values).filter(([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings')
+  const otherFlags = Object.entries(values).filter(
+    ([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings'
+  )
   if (otherFlags.length > 0 || positionals.length > 0) {
     console.error('--download must be the only argument (aside from --model)')
     process.exit(1)

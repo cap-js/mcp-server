@@ -7,7 +7,7 @@ module.exports = class AdminService extends cds.ApplicationService {
     /**
      * Generate IDs for new Books drafts
      */
-    this.before('NEW', Books.drafts, async req => {
+    this.before('NEW', Books.drafts, async (req) => {
       if (req.data.ID) return
       const { ID: id1 } = await SELECT.one.from(Books).columns('max(ID) as ID')
       const { ID: id2 } = await SELECT.one.from(Books.drafts).columns('max(ID) as ID')
