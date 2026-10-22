@@ -1,4 +1,4 @@
-import { test, describe, beforeEach, afterEach, mock } from 'node:test'
+import { it, describe, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
@@ -64,7 +64,7 @@ describe('evaluate', () => {
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
-  test('should exit 0 and append one result line to result.jsonl', async () => {
+  it('should exit 0 and append one result line to result.jsonl', async () => {
     await writeGolden([
       { id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] },
       { id: 'q-002', question: 'q2', relevant_doc_ids: ['doc-b#0002'] }
@@ -87,7 +87,7 @@ describe('evaluate', () => {
     assert.deepEqual(entries.sort(), ['result.jsonl'])
   })
 
-  test('should record the label in the report config', async () => {
+  it('should record the label in the report config', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     const res = await evaluate({
@@ -102,7 +102,7 @@ describe('evaluate', () => {
     assert.ok(rows[0].config.label.includes('tuned chunker'))
   })
 
-  test('should credit a multi-section chunk for every section it covers', async () => {
+  it('should credit a multi-section chunk for every section it covers', async () => {
     const firstUrl = 'https://x/docs/get-started/#initial-setup'
     const secondUrl = 'https://x/docs/get-started/#nodejs-and-cds-dk'
     await writeGolden([
@@ -123,7 +123,7 @@ describe('evaluate', () => {
     assert.equal(res.report.per_question[0].metrics.recall_at_k, 1)
   })
 
-  test('should not set or mutate CDS_MCP_OFFLINE', async () => {
+  it('should not set or mutate CDS_MCP_OFFLINE', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     delete process.env.CDS_MCP_OFFLINE
 
@@ -132,7 +132,7 @@ describe('evaluate', () => {
     assert.equal('CDS_MCP_OFFLINE' in process.env, false)
   })
 
-  test('should exit 1 with overall_status fail when retrieval is below the gate threshold', async () => {
+  it('should exit 1 with overall_status fail when retrieval is below the gate threshold', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['not-retrieved#9999'] }])
 
     const res = await evaluate({
@@ -146,7 +146,7 @@ describe('evaluate', () => {
     assert.ok(res.report.gated_failures.includes('recall_at_k'))
   })
 
-  test('should score a stale golden id as a miss and still write the run', async () => {
+  it('should score a stale golden id as a miss and still write the run', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['ghost#dead'] }])
 
     const res = await evaluate({
@@ -160,19 +160,19 @@ describe('evaluate', () => {
     await fs.access(path.join(runsDir, 'result.jsonl'))
   })
 
-  test('should exit 3 when the golden set is missing', async () => {
+  it('should exit 3 when the golden set is missing', async () => {
     const res = await evaluateAndCompare({ overrides: baseOverrides() })
 
     assert.equal(res.code, 3)
   })
 
-  test('should rethrow a non-ENOENT error when reading the golden set', async () => {
+  it('should rethrow a non-ENOENT error when reading the golden set', async () => {
     await fs.mkdir(goldenPath)
 
     await assert.rejects(() => evaluateAndCompare({ overrides: baseOverrides() }), /EISDIR/)
   })
 
-  test('should exit 3 and write no run when the golden question is malformed', async () => {
+  it('should exit 3 and write no run when the golden question is malformed', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1' }])
 
     const res = await evaluateAndCompare({ overrides: baseOverrides() })
@@ -181,7 +181,7 @@ describe('evaluate', () => {
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })
 
-  test('should diff the second run against the first (oldest) run as baseline', async () => {
+  it('should diff the second run against the first (oldest) run as baseline', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const first = await evaluate({
       golden: await loadGolden(),
@@ -204,7 +204,7 @@ describe('evaluate', () => {
     assert.match(second.report.diagnosis, /ranking\/scoring regression/)
   })
 
-  test('should diff against the pinned run when baselineRunId is set', async () => {
+  it('should diff against the pinned run when baselineRunId is set', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
@@ -227,7 +227,7 @@ describe('evaluate', () => {
     assert.notEqual(r3.report.baseline_run_id, r1.report.run_id)
   })
 
-  test('should proceed without a baseline when the pinned baselineRunId is not found', async () => {
+  it('should proceed without a baseline when the pinned baselineRunId is not found', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
 
@@ -240,7 +240,7 @@ describe('evaluate', () => {
     assert.equal(r.report.baseline_run_id, null)
   })
 
-  test('should not pick an automatic baseline from a run with a different k', async () => {
+  it('should not pick an automatic baseline from a run with a different k', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
 
@@ -254,7 +254,7 @@ describe('evaluate', () => {
     assert.equal(second.report.baseline_run_id, null)
   })
 
-  test('should not pick an automatic baseline from a run with a different golden set', async () => {
+  it('should not pick an automatic baseline from a run with a different golden set', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-a')
     await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
 
@@ -269,7 +269,7 @@ describe('evaluate', () => {
     assert.equal(second.report.baseline_run_id, null)
   })
 
-  test('should still use a pinned baseline even when k differs', async () => {
+  it('should still use a pinned baseline even when k differs', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
@@ -286,7 +286,7 @@ describe('evaluate', () => {
     assert.equal(r2.report.baseline_run_id, r1.report.run_id)
   })
 
-  test('should accumulate one line per run chronologically in result.jsonl', async () => {
+  it('should accumulate one line per run chronologically in result.jsonl', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     for (let i = 0; i < 3; i++) {
@@ -303,7 +303,7 @@ describe('evaluate', () => {
     assert.deepEqual(ids, [...ids].sort())
   })
 
-  test('should cap result.jsonl to the most recent keepRuns lines', async () => {
+  it('should cap result.jsonl to the most recent keepRuns lines', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     for (let i = 0; i < 5; i++) {
@@ -318,7 +318,7 @@ describe('evaluate', () => {
     assert.equal(rows.length, 2)
   })
 
-  test('should write results to the custom resultsName when configured', async () => {
+  it('should write results to the custom resultsName when configured', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
 
     await evaluate({
@@ -331,7 +331,7 @@ describe('evaluate', () => {
     assert.deepEqual(entries.sort(), ['runs.jsonl'])
   })
 
-  test('should run the eval once and write a compare file', async () => {
+  it('should run the eval once and write a compare file', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const embDir = path.join(tmpDir, 'embeddings')
     await fs.mkdir(embDir, { recursive: true })
@@ -348,7 +348,7 @@ describe('evaluate', () => {
     await fs.access(path.join(runsDir, 'compare.html'))
   })
 
-  test('should exit nonzero when the compare step fails after the evals pass', async () => {
+  it('should exit nonzero when the compare step fails after the evals pass', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const embDir = path.join(tmpDir, 'embeddings')
     await fs.mkdir(embDir, { recursive: true })
@@ -366,7 +366,7 @@ describe('evaluate', () => {
     assert.equal(rows.length, 1) // the eval itself still ran and was recorded
   })
 
-  test('should exit 3 and not write results when the golden set is missing', async () => {
+  it('should exit 3 and not write results when the golden set is missing', async () => {
     const res = await evaluateAndCompare({ overrides: baseOverrides(), logger: silentLogger })
 
     assert.equal(res.code, 3)
@@ -374,7 +374,7 @@ describe('evaluate', () => {
   })
 
   describe('side-effects', () => {
-    test('should not mutate the overrides object passed to evaluate', async () => {
+    it('should not mutate the overrides object passed to evaluate', async () => {
       await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
       const overrides = baseOverrides()
       const keysBefore = Object.keys(overrides)
@@ -424,7 +424,7 @@ describe('evaluateSweep', () => {
       .map((l) => JSON.parse(l))
   }
 
-  test('should throw when no embedding dirs are found under sweepDir', async () => {
+  it('should throw when no embedding dirs are found under sweepDir', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     await fs.mkdir(sweepDir, { recursive: true })
 
@@ -434,7 +434,7 @@ describe('evaluateSweep', () => {
     )
   })
 
-  test('should run once per embedding dir and append each result to result.jsonl', async () => {
+  it('should run once per embedding dir and append each result to result.jsonl', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-1'), { recursive: true })
     await fs.mkdir(path.join(sweepDir, 'model-a', 'cfg-2'), { recursive: true })
@@ -451,7 +451,7 @@ describe('evaluateSweep', () => {
     assert.ok(res.code === 0 || res.code === 1)
   })
 
-  test('should build the label from all path segments relative to sweepDir', async () => {
+  it('should build the label from all path segments relative to sweepDir', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const dir = path.join(sweepDir, 'group', 'subgroup', 'variant')
     await fs.mkdir(dir, { recursive: true })
@@ -463,7 +463,7 @@ describe('evaluateSweep', () => {
     assert.equal(rows[0].config.label, 'group/subgroup/variant')
   })
 
-  test('should include only dirs that contain code-chunks.json', async () => {
+  it('should include only dirs that contain code-chunks.json', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const hasChunks = path.join(sweepDir, 'has-chunks')
     await fs.mkdir(hasChunks, { recursive: true })
@@ -478,7 +478,7 @@ describe('evaluateSweep', () => {
   })
 
   describe('side-effects', () => {
-    test('should not mutate the overrides object passed to evaluateAndCompare', async () => {
+    it('should not mutate the overrides object passed to evaluateAndCompare', async () => {
       await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
       const hasChunks = path.join(sweepDir, 'has-chunks')
       await fs.mkdir(hasChunks, { recursive: true })

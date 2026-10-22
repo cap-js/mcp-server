@@ -1,4 +1,4 @@
-import { test, describe } from 'node:test'
+import { it, describe } from 'node:test'
 import assert from 'node:assert/strict'
 import { resolveIds } from '../../lib/ids.js'
 
@@ -10,7 +10,7 @@ const SM = [
 const Q = { id: 'q1', question: 'test?' }
 
 describe('ids', () => {
-  test('should return one entry with the resolved id and original text for a single chunk', async () => {
+  it('should return one entry with the resolved id and original text for a single chunk', async () => {
     const text = '# Getting Started\n\nSource: /docs/get-started/\nbody'
 
     const result = await resolveIds([text], Q, SM)
@@ -20,7 +20,7 @@ describe('ids', () => {
     assert.equal(result[0].text, text)
   })
 
-  test('should resolve the id from a Source line that follows a blank line', async () => {
+  it('should resolve the id from a Source line that follows a blank line', async () => {
     const text = '# Section A\n\nSource: /docs/a\nmore'
 
     const result = await resolveIds([text], Q, [])
@@ -28,7 +28,7 @@ describe('ids', () => {
     assert.deepEqual(result[0].ids, ['/docs/a'])
   })
 
-  test('should collect ids from all Source lines in a multi-section chunk', async () => {
+  it('should collect ids from all Source lines in a multi-section chunk', async () => {
     const text = [
       '# Getting Started',
       '',
@@ -46,7 +46,7 @@ describe('ids', () => {
     assert.ok(result[0].ids.includes('/docs/get-started/#initial-setup'))
   })
 
-  test('should return two entries for two independent chunks', async () => {
+  it('should return two entries for two independent chunks', async () => {
     const sm = [
       { source: '/a', title: 'A', depth: 1 },
       { source: '/b', title: 'B', depth: 1 }
@@ -61,18 +61,18 @@ describe('ids', () => {
     assert.deepEqual(result[1].ids, ['/b'])
   })
 
-  test('should return an empty array when given an empty chunks array', async () => {
+  it('should return an empty array when given an empty chunks array', async () => {
     const result = await resolveIds([], Q, [])
 
     assert.deepEqual(result, [])
   })
 
-  test('should throw "No IDs found" when text has a source prefix but no URL', async () => {
+  it('should throw "No IDs found" when text has a source prefix but no URL', async () => {
     await assert.rejects(() => resolveIds(['source: '], Q, []), { message: 'No IDs found' })
   })
 
   describe('side-effects', () => {
-    test('should not mutate the question object', async () => {
+    it('should not mutate the question object', async () => {
       const question = { id: 'q1', question: 'test?' }
       const keysBefore = Object.keys(question)
 
@@ -81,7 +81,7 @@ describe('ids', () => {
       assert.deepEqual(Object.keys(question), keysBefore)
     })
 
-    test('should not add properties to source map entries', async () => {
+    it('should not add properties to source map entries', async () => {
       const entry = { source: '/docs/get-started/', title: 'Getting Started', depth: 1 }
       const keysBefore = Object.keys(entry)
 

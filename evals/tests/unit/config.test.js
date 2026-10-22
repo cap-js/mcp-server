@@ -1,4 +1,4 @@
-import { test, describe, afterEach, beforeEach } from 'node:test'
+import { it, describe, afterEach, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'node:fs/promises'
 import os from 'node:os'
@@ -13,7 +13,7 @@ function clearEnv() {
 describe('config', () => {
   afterEach(clearEnv)
 
-  test('should load default values for k, gates, and file paths', async () => {
+  it('should load default values for k, gates, and file paths', async () => {
     const cfg = await loadConfig()
 
     assert.equal(cfg.k, 5)
@@ -24,7 +24,7 @@ describe('config', () => {
     for (const key of METRIC_KEYS) assert.ok(key in cfg.gates)
   })
 
-  test('should apply programmatic overrides over file-based config', async () => {
+  it('should apply programmatic overrides over file-based config', async () => {
     const cfg = await loadConfig({
       overrides: {
         k: 3,
@@ -39,69 +39,69 @@ describe('config', () => {
     assert.equal(cfg.output.compareFormat, 'md')
   })
 
-  test('should default compareFormat to html', async () => {
+  it('should default compareFormat to html', async () => {
     const cfg = await loadConfig()
 
     assert.equal(cfg.output.compareFormat, 'html')
   })
 
-  test('should reject an invalid compareFormat value', async () => {
+  it('should reject an invalid compareFormat value', async () => {
     await assert.rejects(
       () => loadConfig({ overrides: { output: { compareFormat: 'pdf' } } }),
       /compareFormat must be "html" or "md"/
     )
   })
 
-  test('should reject k when it is not a positive integer', async () => {
+  it('should reject k when it is not a positive integer', async () => {
     await assert.rejects(() => loadConfig({ overrides: { k: 0 } }), /k must be a positive integer/)
   })
 
-  test('should reject a gate value outside [0,1]', async () => {
+  it('should reject a gate value outside [0,1]', async () => {
     await assert.rejects(
       () => loadConfig({ overrides: { gates: { recall_at_k: 1.5 } } }),
       /must be null or a number in \[0,1\]/
     )
   })
 
-  test('should reject keepRuns of 0', async () => {
+  it('should reject keepRuns of 0', async () => {
     await assert.rejects(
       () => loadConfig({ overrides: { output: { keepRuns: 0 } } }),
       /keepRuns must be -1 .* or a positive integer/
     )
   })
 
-  test('should reject a fractional keepRuns value', async () => {
+  it('should reject a fractional keepRuns value', async () => {
     await assert.rejects(
       () => loadConfig({ overrides: { output: { keepRuns: 1.5 } } }),
       /keepRuns must be -1/
     )
   })
 
-  test('should accept keepRuns of -1', async () => {
+  it('should accept keepRuns of -1', async () => {
     const cfg = await loadConfig({ overrides: { output: { keepRuns: -1 } } })
 
     assert.equal(cfg.output.keepRuns, -1)
   })
 
-  test('should accept an absolute path for embeddingsDir when overridden', async () => {
+  it('should accept an absolute path for embeddingsDir when overridden', async () => {
     const cfg = await loadConfig({ overrides: { embeddingsDir: '/abs/sweep' } })
 
     assert.equal(cfg.embeddingsDir, '/abs/sweep')
   })
 
-  test('should set embeddingsDir to null when overridden with null', async () => {
+  it('should set embeddingsDir to null when overridden with null', async () => {
     const cfg = await loadConfig({ overrides: { embeddingsDir: null } })
 
     assert.equal(cfg.embeddingsDir, null)
   })
 
-  test('should reflect a label override in the loaded config', async () => {
+  it('should reflect a label override in the loaded config', async () => {
     const cfg = await loadConfig({ overrides: { label: 'my-run' } })
 
     assert.equal(cfg.label, 'my-run')
   })
 
-  test('should clear the label when overridden with null', async () => {
+  it('should clear the label when overridden with null', async () => {
     const cfg = await loadConfig({ overrides: { label: null } })
 
     assert.equal(cfg.label, null)
@@ -118,13 +118,13 @@ describe('config', () => {
       await fs.rm(dir, { recursive: true, force: true })
     })
 
-    test('should read the label from the config file', async () => {
+    it('should read the label from the config file', async () => {
       const cfg = await loadConfig({ configPath: tmp })
 
       assert.equal(cfg.label, 'from-file')
     })
 
-    test('should use the override label over the config file label', async () => {
+    it('should use the override label over the config file label', async () => {
       const cfg = await loadConfig({ configPath: tmp, overrides: { label: 'override' } })
 
       assert.equal(cfg.label, 'override')
@@ -132,7 +132,7 @@ describe('config', () => {
   })
 
   describe('side-effects', () => {
-    test('should not mutate the overrides object passed to loadConfig', async () => {
+    it('should not mutate the overrides object passed to loadConfig', async () => {
       const overrides = { k: 3, gates: { recall_at_k: 0.9 } }
       const keysBefore = Object.keys(overrides)
 

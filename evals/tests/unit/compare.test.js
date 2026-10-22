@@ -1,4 +1,4 @@
-import { test, describe, beforeEach, afterEach } from 'node:test'
+import { it, describe, beforeEach, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
@@ -47,24 +47,24 @@ function pq(id, question, { recall = 1, mrr = 1, hit = 1, ndcg = 1 } = {}) {
 }
 
 describe('renderDelta', () => {
-  test('should render an up arrow with three decimal places for a positive delta', () => {
+  it('should render an up arrow with three decimal places for a positive delta', () => {
     assert.equal(renderDelta(1.0, 0.5), ' <span class="d">▲+0.500</span>')
   })
 
-  test('should render a down arrow with three decimal places for a negative delta', () => {
+  it('should render a down arrow with three decimal places for a negative delta', () => {
     assert.equal(renderDelta(0.25, 0.5), ' <span class="d">▼−0.250</span>')
   })
 
-  test('should render an empty string when the delta is zero', () => {
+  it('should render an empty string when the delta is zero', () => {
     assert.equal(renderDelta(0.5, 0.5), '')
   })
 
-  test('should render an empty string when the baseline is null', () => {
+  it('should render an empty string when the baseline is null', () => {
     assert.equal(renderDelta(0.5, null), '')
   })
 
   describe('side-effects', () => {
-    test('should not affect subsequent calls', () => {
+    it('should not affect subsequent calls', () => {
       renderDelta(1.0, 0.5)
 
       const result = renderDelta(0.25, 0.5)
@@ -93,7 +93,7 @@ describe('compare', () => {
   const overrides = () => ({ output: { runsDir } })
 
   describe('when there are no runs', () => {
-    test('should exit 3 and not write a compare file', async () => {
+    it('should exit 3 and not write a compare file', async () => {
       const res = await compare({ overrides: overrides(), logger: silentLogger })
 
       assert.equal(res.code, 3)
@@ -102,7 +102,7 @@ describe('compare', () => {
   })
 
   describe('with corrupt or malformed data in result.jsonl', () => {
-    test('should skip corrupt and blank lines and process valid entries', async () => {
+    it('should skip corrupt and blank lines and process valid entries', async () => {
       const p = path.join(runsDir, 'result.jsonl')
       await fs.writeFile(
         p,
@@ -114,7 +114,7 @@ describe('compare', () => {
       assert.equal(res.runs, 1)
     })
 
-    test('should skip valid JSON lines that are not run report objects', async () => {
+    it('should skip valid JSON lines that are not run report objects', async () => {
       const p = path.join(runsDir, 'result.jsonl')
       await fs.writeFile(
         p,
@@ -133,8 +133,8 @@ describe('compare', () => {
     })
   })
 
-  describe('html output', () => {
-    test('should collect all runs from result.jsonl and write compare.html', async () => {
+  describe('when rendering html output', () => {
+    it('should collect all runs from result.jsonl and write compare.html', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa'))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5 }))
 
@@ -148,7 +148,7 @@ describe('compare', () => {
       assert.equal((html.match(/class="gate"/g) || []).length, 3)
     })
 
-    test('should show the label in html and fall back to the timestamp when unset', async () => {
+    it('should show the label in html and fall back to the timestamp when unset', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb'))
 
@@ -159,7 +159,7 @@ describe('compare', () => {
       assert.ok(html.includes('07-30 11:00:00'))
     })
 
-    test('should escape quotes and markup in a run label to prevent HTML injection', async () => {
+    it('should escape quotes and markup in a run label to prevent HTML injection', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'evil"<img>' }))
 
       await compare({ overrides: overrides(), logger: silentLogger })
@@ -171,7 +171,7 @@ describe('compare', () => {
       assert.ok(!html.includes('evil"<img>'))
     })
 
-    test('should keep per-question series aligned by run when a question is missing from a run', async () => {
+    it('should keep per-question series aligned by run when a question is missing from a run', async () => {
       // q-002 is present in the oldest and newest runs but absent from the middle run.
       await writeRun(
         fakeReport('2026-07-30T10:00:00Z_r1', {
@@ -202,7 +202,7 @@ describe('compare', () => {
       assert.equal(q2.avg.mrr, 0.5)
     })
 
-    test('should order runs newest-first in the run-list section', async () => {
+    it('should order runs newest-first in the run-list section', async () => {
       await writeRun(fakeReport('2026-07-30T12:00:00Z_zzz'))
       await writeRun(fakeReport('2026-07-30T09:00:00Z_aaa'))
 
@@ -217,7 +217,7 @@ describe('compare', () => {
       assert.ok(iLate < iEarly, 'run-list: later (newest) run should appear before earlier run')
     })
 
-    test('should use 2 columns in the chart grid', async () => {
+    it('should use 2 columns in the chart grid', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa'))
 
       await compare({ overrides: overrides(), logger: silentLogger })
@@ -226,7 +226,7 @@ describe('compare', () => {
       assert.ok(html.includes('repeat(2,1fr)'))
     })
 
-    test('should render one x-axis tick per run with truncation for long labels', async () => {
+    it('should render one x-axis tick per run with truncation for long labels', async () => {
       const longLabel = 'a'.repeat(40) + ' / model-name-here'
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: longLabel }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb'))
@@ -243,7 +243,7 @@ describe('compare', () => {
   })
 
   describe('when using md format', () => {
-    test('should write compare.md with tables and no svg', async () => {
+    it('should write compare.md with tables and no svg', async () => {
       await writeRun(
         fakeReport('2026-07-30T10:00:00Z_a', {
           perQuestion: [pq('cap-001', 'How do I define X?', { mrr: 0.5 })]
@@ -269,7 +269,7 @@ describe('compare', () => {
       await assert.rejects(() => fs.access(path.join(runsDir, 'compare.html')))
     })
 
-    test('should show the label in the aggregate matrix header', async () => {
+    it('should show the label in the aggregate matrix header', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
 
       await compare({
@@ -282,7 +282,7 @@ describe('compare', () => {
       assert.ok(md.includes('tuned chunker — `2026-07-30T10:00:00Z_aaa`'))
     })
 
-    test('should escape backslashes and pipes in question text', async () => {
+    it('should escape backslashes and pipes in question text', async () => {
       await writeRun(
         fakeReport('2026-07-30T10:00:00Z_a', {
           perQuestion: [pq('cap-001', 'a\\b | c', { mrr: 0.5 })]
@@ -298,7 +298,7 @@ describe('compare', () => {
       assert.ok(md.includes('a\\\\b \\| c'))
     })
 
-    test('should cap the per-question table to the top 50 for large golden sets', async () => {
+    it('should cap the per-question table to the top 50 for large golden sets', async () => {
       const mk = (rid, seed) => {
         const per = []
         for (let i = 1; i <= 120; i++) {
@@ -326,8 +326,8 @@ describe('compare', () => {
     })
   })
 
-  describe('per-question section', () => {
-    test('should omit the per-question section when no run has per_question data', async () => {
+  describe('when rendering the per-question section', () => {
+    it('should omit the per-question section when no run has per_question data', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_x'))
 
       await compare({ overrides: overrides(), logger: silentLogger })
@@ -336,7 +336,7 @@ describe('compare', () => {
       assert.ok(!html.includes('Per-question metric trends'))
     })
 
-    test('should render a searchable table and embedded data blob ordered by regression', async () => {
+    it('should render a searchable table and embedded data blob ordered by regression', async () => {
       const q1a = pq('cap-001', 'How do I define X?', { mrr: 1 })
       const q2a = pq('cap-002', 'How do I do Y?', { mrr: 0.5 })
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q1a, q2a] }))
@@ -359,7 +359,7 @@ describe('compare', () => {
       assert.ok(blob.data[0].question === 'How do I define X?')
     })
 
-    test('should make all 6 metric header columns sortable', async () => {
+    it('should make all 6 metric header columns sortable', async () => {
       const q = pq('cap-001', 'Q?', { recall: 1, mrr: 0.5 })
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
@@ -372,7 +372,7 @@ describe('compare', () => {
       assert.ok(!html.includes('data-col="6"'))
     })
 
-    test('should render one clickable row and one hidden detail row per question', async () => {
+    it('should render one clickable row and one hidden detail row per question', async () => {
       const q1 = pq('cap-001', 'First question?')
       const q2 = pq('cap-002', 'Second question?')
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q1, q2] }))
@@ -385,7 +385,7 @@ describe('compare', () => {
       assert.ok(html.includes('class="rd-pq-detail" style="display:none"'))
     })
 
-    test('should place retrieval content inside the detail row, not in a separate section', async () => {
+    it('should place retrieval content inside the detail row, not in a separate section', async () => {
       const q = {
         id: 'cap-001',
         question: 'Q?',
@@ -405,7 +405,7 @@ describe('compare', () => {
       assert.ok(!html.includes('Retrieved results per question'))
     })
 
-    test('should assign a unique id based on the sanitized run_id to the per-question table', async () => {
+    it('should assign a unique id based on the sanitized run_id to the per-question table', async () => {
       const q = pq('cap-001', 'Q?')
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
@@ -417,7 +417,7 @@ describe('compare', () => {
       assert.ok(html.includes(`id="rd-pq-${sanitized}"`))
     })
 
-    test('should emit an inline script for a run that has per-question data', async () => {
+    it('should emit an inline script for a run that has per-question data', async () => {
       const q = pq('cap-001', 'Q?')
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
@@ -431,7 +431,7 @@ describe('compare', () => {
       assert.ok(html.includes('rd-pq-detail'))
     })
 
-    test('should not emit a pq table or script when the run has no per-question data', async () => {
+    it('should not emit a pq table or script when the run has no per-question data', async () => {
       const run_id = '2026-07-30T10:00:00Z_a'
       await writeRun(fakeReport(run_id))
 
@@ -444,7 +444,7 @@ describe('compare', () => {
       assert.ok(html.includes('No per-question data recorded'))
     })
 
-    test('should show delta vs baseline in per-question metric cells when baseline_run_id is set', async () => {
+    it('should show delta vs baseline in per-question metric cells when baseline_run_id is set', async () => {
       const baseQ = pq('cap-001', 'How do I define X?', { mrr: 0.5 })
       const base = fakeReport('2026-07-30T10:00:00Z_base', { perQuestion: [baseQ] })
       const currQ = pq('cap-001', 'How do I define X?', { mrr: 1 })
@@ -461,7 +461,7 @@ describe('compare', () => {
       assert.ok(html.includes('▲+0.500'))
     })
 
-    test('should include runIds in the pq-data blob for client-side baseline selection', async () => {
+    it('should include runIds in the pq-data blob for client-side baseline selection', async () => {
       const q = pq('cap-001', 'Q?')
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_b', { perQuestion: [q] }))
@@ -477,7 +477,7 @@ describe('compare', () => {
       assert.ok(blob.runIds.includes('2026-07-30T11:00:00Z_b'))
     })
 
-    test('should include a diff-only button that is active by default', async () => {
+    it('should include a diff-only button that is active by default', async () => {
       const q = pq('cap-001', 'Q?')
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
@@ -493,8 +493,8 @@ describe('compare', () => {
     })
   })
 
-  describe('leaderboard', () => {
-    test('should show all 5 metric rows', async () => {
+  describe('when rendering the leaderboard', () => {
+    it('should show all 5 metric rows', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5, mrr: 0.4 }))
 
@@ -515,7 +515,7 @@ describe('compare', () => {
       assert.equal(runRows, 2)
     })
 
-    test('should rank the best run first with a gold medal marker', async () => {
+    it('should rank the best run first with a gold medal marker', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8, hit: 0.9 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.3, mrr: 0.2, hit: 0.3 }))
 
@@ -533,8 +533,8 @@ describe('compare', () => {
     })
   })
 
-  describe('run detail card', () => {
-    test('should include an aggregate table and a per-question table in the card', async () => {
+  describe('when rendering a run detail card', () => {
+    it('should include an aggregate table and a per-question table in the card', async () => {
       const q = pq('cap-001', 'How do I define X?', { recall: 1, mrr: 0.5, hit: 1, ndcg: 0.65 })
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
@@ -547,7 +547,7 @@ describe('compare', () => {
       assert.ok(html.includes('0.500'))
     })
 
-    test('should show a rank column instead of delta and baseline columns', async () => {
+    it('should show a rank column instead of delta and baseline columns', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5 }))
 
@@ -560,7 +560,7 @@ describe('compare', () => {
       assert.ok(html.includes('>#1<') || html.includes('>#2<'))
     })
 
-    test('should include a baseline radio button with a data-run-id attribute', async () => {
+    it('should include a baseline radio button with a data-run-id attribute', async () => {
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id))
 
@@ -571,7 +571,7 @@ describe('compare', () => {
       assert.ok(html.includes('name="pq-baseline"'))
     })
 
-    test('should use the snapshot text for retrieved chunks even when the corpus is empty', async () => {
+    it('should use the snapshot text for retrieved chunks even when the corpus is empty', async () => {
       const q = {
         id: 'cap-001',
         question: 'q',
@@ -592,7 +592,7 @@ describe('compare', () => {
       assert.ok(html.includes('snapshot body A') && html.includes('snapshot body B'))
     })
 
-    test('should render a chunk without expansion when text is unavailable', async () => {
+    it('should render a chunk without expansion when text is unavailable', async () => {
       const q = {
         id: 'cap-001',
         question: 'q',
@@ -613,8 +613,8 @@ describe('compare', () => {
     })
   })
 
-  describe('labels and x-axis', () => {
-    test('should render the run label as a run-label span', async () => {
+  describe('when rendering labels and the x-axis', () => {
+    it('should render the run label as a run-label span', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { label: 'my-embedding-v2' }))
 
       await compare({ overrides: overrides(), logger: silentLogger })
@@ -623,7 +623,7 @@ describe('compare', () => {
       assert.ok(html.includes('<span class="run-label">my-embedding-v2</span>'))
     })
 
-    test('should use the label as the x-axis tick in trend charts', async () => {
+    it('should use the label as the x-axis tick in trend charts', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { label: 'baseline' }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_b', { label: 'new-chunker' }))
 
@@ -636,7 +636,7 @@ describe('compare', () => {
   })
 
   describe('side-effects', () => {
-    test('should not mutate the overrides object passed to compare', async () => {
+    it('should not mutate the overrides object passed to compare', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa'))
       const opts = overrides()
       const keysBefore = Object.keys(opts)

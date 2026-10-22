@@ -1,4 +1,4 @@
-import { test, describe, mock } from 'node:test'
+import { it, describe, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { buildReport, diagnose, preflight, validateGolden, makeRunId } from '../../lib/report.js'
 
@@ -28,7 +28,7 @@ function fixtureRaw(ret1, ret2) {
 }
 
 describe('report', () => {
-  test('should detect stale relevant ids in preflight', async () => {
+  it('should detect stale relevant ids in preflight', async () => {
     const fakeDb = { run: mock.fn(async () => [{ source: 'a' }, { source: 'c' }]) }
 
     const stale = await preflight([{ id: 'q1', relevant_doc_ids: ['a', 'b'] }], fakeDb)
@@ -36,7 +36,7 @@ describe('report', () => {
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'b' }])
   })
 
-  test('should accept a well-formed golden set in validateGolden', () => {
+  it('should accept a well-formed golden set in validateGolden', () => {
     const ok = [
       { id: 'q-001', question: 'a?', relevant_doc_ids: ['x'] },
       { id: 'q-002', question: 'b?', relevant_doc_ids: ['y', 'z'] }
@@ -45,7 +45,7 @@ describe('report', () => {
     assert.deepEqual(validateGolden(ok), [])
   })
 
-  test('should report all validation errors for missing, duplicate, empty, and null entries', () => {
+  it('should report all validation errors for missing, duplicate, empty, and null entries', () => {
     const bad = [
       { id: 'q-001', question: 'a?', relevant_doc_ids: ['x'] },
       { id: 'q-001', question: 'dup id', relevant_doc_ids: ['y'] },
@@ -66,7 +66,7 @@ describe('report', () => {
     assert.ok(problems.some((p) => /not an object/.test(p)))
   })
 
-  test('should sort per_question by id ascending in the built report', () => {
+  it('should sort per_question by id ascending in the built report', () => {
     const r = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
@@ -80,7 +80,7 @@ describe('report', () => {
     )
   })
 
-  test('should set overall_status to pass and have no gated failures for a healthy run', () => {
+  it('should set overall_status to pass and have no gated failures for a healthy run', () => {
     const r = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a', 'x', 'y'), mkChunks('b', 'x', 'y')),
@@ -93,7 +93,7 @@ describe('report', () => {
     assert.equal(r.aggregate.recall_at_k.status, 'pass')
   })
 
-  test('should produce a ranking diagnosis and record the gated failure when MRR falls below gate', () => {
+  it('should produce a ranking diagnosis and record the gated failure when MRR falls below gate', () => {
     const baseReport = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
@@ -118,7 +118,7 @@ describe('report', () => {
     assert.equal(r.baseline_run_id, 'base_1')
   })
 
-  test('should compute a real delta and not null when the baseline value is zero', () => {
+  it('should compute a real delta and not null when the baseline value is zero', () => {
     const baseReport = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('x', 'y'), mkChunks('x', 'y')),
@@ -139,7 +139,7 @@ describe('report', () => {
     assert.equal(r.aggregate.mrr.delta, 1)
   })
 
-  test('should produce a chunking diagnosis when recall drops', () => {
+  it('should produce a chunking diagnosis when recall drops', () => {
     const baseReport = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
@@ -164,7 +164,7 @@ describe('report', () => {
     assert.equal(r.overall_status, 'fail')
   })
 
-  test('should return no_regression when all metric deltas are non-negative', () => {
+  it('should return no_regression when all metric deltas are non-negative', () => {
     const agg = {
       recall_at_k: { delta: 0.02 },
       mrr: { delta: 0.01 },
@@ -174,7 +174,7 @@ describe('report', () => {
     assert.equal(diagnose(agg), 'no_regression')
   })
 
-  test('should return no_regression for drops within the dead band', () => {
+  it('should return no_regression for drops within the dead band', () => {
     const agg = {
       recall_at_k: { delta: -0.02 },
       mrr: { delta: -0.01 },
@@ -184,7 +184,7 @@ describe('report', () => {
     assert.equal(diagnose(agg), 'no_regression')
   })
 
-  test('should produce a chunking diagnosis and suppress a ranking diagnosis when recall drops', () => {
+  it('should produce a chunking diagnosis and suppress a ranking diagnosis when recall drops', () => {
     const agg = {
       recall_at_k: { delta: -0.1 },
       mrr: { delta: 0 },
@@ -197,7 +197,7 @@ describe('report', () => {
     assert.doesNotMatch(d, /ranking\/scoring regression/)
   })
 
-  test('should round aggregate values to 2dp and per-question values to 3dp', () => {
+  it('should round aggregate values to 2dp and per-question values to 3dp', () => {
     const baseReport = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a'), mkChunks('b')),
@@ -219,7 +219,7 @@ describe('report', () => {
     assert.equal(q1.metrics.mrr, 0.5)
   })
 
-  test('should produce byte-identical reports for the same inputs', () => {
+  it('should produce byte-identical reports for the same inputs', () => {
     const r1 = buildReport({
       config: CONFIG,
       perQuestionRaw: fixtureRaw(mkChunks('a', 'x'), mkChunks('x', 'b')),
@@ -236,26 +236,26 @@ describe('report', () => {
     assert.equal(JSON.stringify(r1), JSON.stringify(r2))
   })
 
-  test('should produce a deterministic run id when now and rand are fixed', () => {
+  it('should produce a deterministic run id when now and rand are fixed', () => {
     const id = makeRunId(new Date('2026-07-30T07:11:55.123Z'), 'abc123')
 
     assert.equal(id, '2026-07-30T07:11:55.123Z_abc123')
   })
 
-  test('should keep millisecond precision in run ids so same-second runs sort by time', () => {
+  it('should keep millisecond precision in run ids so same-second runs sort by time', () => {
     const early = makeRunId(new Date('2026-07-30T07:11:55.001Z'), 'zzzzzz')
     const late = makeRunId(new Date('2026-07-30T07:11:55.005Z'), 'aaaaaa')
 
     assert.ok(early < late)
   })
 
-  test('should accept OR-group entries alongside plain strings in validateGolden', () => {
+  it('should accept OR-group entries alongside plain strings in validateGolden', () => {
     const ok = [{ id: 'q-001', question: 'a?', relevant_doc_ids: ['x', ['y1', 'y2']] }]
 
     assert.deepEqual(validateGolden(ok), [])
   })
 
-  test('should reject empty OR-groups and empty ids inside a group in validateGolden', () => {
+  it('should reject empty OR-groups and empty ids inside a group in validateGolden', () => {
     const bad = [
       { id: 'q-001', question: 'a?', relevant_doc_ids: [[]] },
       { id: 'q-002', question: 'b?', relevant_doc_ids: [['']] },
@@ -269,7 +269,7 @@ describe('report', () => {
     assert.ok(problems.some((p) => /q-003.*empty OR-group/.test(p)))
   })
 
-  test('should flag a stale alternate inside an OR-group and leave valid siblings clean', async () => {
+  it('should flag a stale alternate inside an OR-group and leave valid siblings clean', async () => {
     const fakeDb = { run: mock.fn(async () => [{ source: 'y1' }]) }
 
     const stale = await preflight([{ id: 'q1', relevant_doc_ids: [['y1', 'y2-stale']] }], fakeDb)
@@ -277,7 +277,7 @@ describe('report', () => {
     assert.deepEqual(stale, [{ question: 'q1', doc_id: 'y2-stale' }])
   })
 
-  test('should score an OR-group as one group in buildReport', () => {
+  it('should score an OR-group as one group in buildReport', () => {
     const raw = [
       {
         id: 'q-001',
@@ -297,7 +297,7 @@ describe('report', () => {
   })
 
   describe('side-effects', () => {
-    test('should not mutate the gates object passed to buildReport', () => {
+    it('should not mutate the gates object passed to buildReport', () => {
       const gates = { ...GATES }
       const keysBefore = Object.keys(gates)
 
@@ -311,7 +311,7 @@ describe('report', () => {
       assert.deepEqual(Object.keys(gates), keysBefore)
     })
 
-    test('should not add properties to question entries in the golden set passed to validateGolden', () => {
+    it('should not add properties to question entries in the golden set passed to validateGolden', () => {
       const entry = { id: 'q-001', question: 'a?', relevant_doc_ids: ['x'] }
       const keysBefore = Object.keys(entry)
 

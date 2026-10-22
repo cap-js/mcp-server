@@ -1,4 +1,4 @@
-import { test, describe, afterEach, mock } from 'node:test'
+import { it, describe, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import { makeSearchDocsRunner, retrievalRuntime } from '../../lib/retrieval.js'
 
@@ -14,7 +14,7 @@ describe('search-docs', () => {
     mock.restoreAll()
   })
 
-  test('should return a retrieve function', async () => {
+  it('should return a retrieve function', async () => {
     mock.method(
       retrievalRuntime,
       'searchMarkdownDocs',
@@ -26,7 +26,7 @@ describe('search-docs', () => {
     assert.equal(typeof retrieve, 'function')
   })
 
-  test('should call search with the question text and k as maxResults', async () => {
+  it('should call search with the question text and k as maxResults', async () => {
     const search = mock.fn(async () => null)
     mock.method(retrievalRuntime, 'searchMarkdownDocs', search)
     const retrieve = await makeSearchDocsRunner(3, SOURCE_MAP)
@@ -39,7 +39,7 @@ describe('search-docs', () => {
     assert.equal(opts, undefined)
   })
 
-  test('should return an empty array when search returns null', async () => {
+  it('should return an empty array when search returns null', async () => {
     mock.method(
       retrievalRuntime,
       'searchMarkdownDocs',
@@ -52,7 +52,7 @@ describe('search-docs', () => {
     assert.deepEqual(result, [])
   })
 
-  test('should split results on the separator and resolve ids from the source map', async () => {
+  it('should split results on the separator and resolve ids from the source map', async () => {
     const out = '# A\n\nSource: /docs/a\nbody\n---\n# B\n\nSource: /docs/b\nbody'
     mock.method(
       retrievalRuntime,
@@ -70,7 +70,7 @@ describe('search-docs', () => {
   })
 
   describe('side-effects', () => {
-    test('should not add properties to source map entries passed to makeSearchDocsRunner', async () => {
+    it('should not add properties to source map entries passed to makeSearchDocsRunner', async () => {
       const entry = { source: '/docs/a', title: 'A', depth: 1 }
       const keysBefore = Object.keys(entry)
       mock.method(
