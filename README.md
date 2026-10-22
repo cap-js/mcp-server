@@ -26,6 +26,7 @@ The server helps AI models answer questions such as:
   - [Usage in OpenAI Codex](#usage-in-openai-codex)
   - [Usage in opencode](#usage-in-opencode)
   - [CLI Usage](#cli-usage)
+  - [Environment Variables](#environment-variables)
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
@@ -66,6 +67,11 @@ claude mcp add cds-mcp -- npx -y @cap-js/mcp-server
 claude mcp add --scope project cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
+To set an environment variable, add `--env` before the server name:
+```sh
+claude mcp add --scope user --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 cds-mcp -- npx -y @cap-js/mcp-server
+```
+
 ### Usage in VS Code
 
 Example for VS Code extension [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev):
@@ -97,6 +103,13 @@ Example for VS Code global [mcp.json](https://code.visualstudio.com/docs/copilot
 }
 ```
 
+To set an environment variable, replace the server's empty `env` object with:
+```json
+"env": {
+  "CDS_MCP_MODEL": "nomic-ai/nomic-embed-text-v1.5"
+}
+```
+
 See [VS Code Marketplace](https://marketplace.visualstudio.com/search?term=tag%3Aagent&target=VSCode&category=All%20categories&sortBy=Relevance) for more agent extensions.
 
 ### Usage in OpenAI Codex
@@ -107,20 +120,59 @@ Register the server with [OpenAI Codex](https://openai.com/codex):
 codex mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
+To set an environment variable, add `--env` before the command:
+```sh
+codex mcp add cds-mcp --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 -- npx -y @cap-js/mcp-server
+```
+
 ### Usage in opencode
 
-Example for [opencode](https://github.com/sst/opencode):
-```json
+Add to `opencode.jsonc` in your project, or to `~/.config/opencode/opencode.jsonc` for global use:
+
+```jsonc
 {
+  "$schema": "https://opencode.ai/config.json",
   "mcp": {
     "cds-mcp": {
       "type": "local",
       "command": ["npx", "-y", "@cap-js/mcp-server"],
+      "environment": {
+        "CDS_MCP_MODEL": "nomic-ai/nomic-embed-text-v1.5"
+      },
       "enabled": true
     }
   }
 }
 ```
+
+This is the [opencode v1](https://opencode.ai/docs/mcp-servers/) format. In [opencode v2](https://opencode.ai/v2/docs/mcp-servers/), use the same config but nest the server under `"servers"` — `"mcp": { "servers": { "cds-mcp": { ... } } }` — or use the CLI instead:
+
+```sh
+opencode mcp add --global cds-mcp -- npx -y @cap-js/mcp-server
+```
+
+To set an environment variable:
+```sh
+opencode mcp add --global cds-mcp \
+  --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 \
+  -- npx -y @cap-js/mcp-server
+```
+
+### Environment Variables
+
+| Variable | Description |
+| --- | --- |
+| `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. Accepts `true` or `false`. |
+| `CDS_MCP_MODEL` | Non-empty embedding model name. |
+| `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
+| `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
+| `CDS_MCP_GENERIC_EMBEDDINGS` | Set to `true` to skip the runtime filter and search all runtimes. By default `search_docs` keeps only the chunks of the detected project runtime (Node.js or Java) plus the runtime-agnostic chunks. |
+| `CDS_MCP_MAX_RESULTS` | Upper limit on the number of `search_docs` results, as a positive integer. Caps the per-call `maxResults`. |
+| `RERANK_ENABLED` | Set to `true` to rerank `search_docs` results with a local cross-encoder model. Accepts `true` or `false`; disabled by default. |
+| `CDS_MCP_RERANK_MODEL` | Non-empty cross-encoder model name used when reranking. Defaults to `Xenova/ms-marco-MiniLM-L-6-v2`. |
+| `CDS_MCP_RERANK_DTYPE` | Non-empty data type used to load the reranking model. Defaults to `q8`; set to `fp32` for models without `model_quantized.onnx`. |
+| `CDS_MCP_RERANK_EXTERNAL_DATA` | Set to `true` for reranking models whose ONNX weights are stored in external `.onnx_data` files. Accepts `true` or `false`. |
+| `CDS_MCP_RERANK_BATCH_SIZE` | Positive integer number of results to process in each reranking batch. Defaults to `1`. |
 
 ### Rules
 
@@ -156,17 +208,6 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 # Search for CDS model definitions
 cds-mcp search_model . Books entity
 ```
-
-### Environment Variables
-
-| Variable | Description |
-| --- | --- |
-| `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. |
-| `CDS_MCP_MODEL` | Embedding model name. |
-| `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
-| `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
-| `CDS_MCP_MAX_RESULTS` | Maximum number of documentation chunks returned per `search_docs` call. When set, caps the result count regardless of the value the caller requests. Must be a positive integer. |
-| `CDS_MCP_GENERIC_EMBEDDINGS` | Set to `true` to skip the runtime filter and search all runtimes. By default `search_docs` keeps only the chunks of the detected project runtime (Node.js or Java) plus the runtime-agnostic chunks. |
 
 ## Available Tools
 
