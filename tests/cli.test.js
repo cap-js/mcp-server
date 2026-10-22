@@ -2,6 +2,7 @@
 import assert from 'node:assert'
 import { test, describe, before, after } from 'node:test'
 import { spawn } from 'node:child_process'
+import { createRequire } from 'node:module'
 import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
@@ -15,17 +16,20 @@ const cds = (await import('@sap/cds')).default
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
+const installerPath = createRequire(import.meta.url).resolve('@cap-js/ai/models.js')
 
 // Subprocess fetch mock — injected via NODE_OPTIONS=--import into child processes.
 // Reads a prebuilt bundle from CDS_MCP_TEST_BUNDLE_PATH and serves it for /getEmbeddings.
 const bundleMockScript = `
 import { readFileSync } from 'node:fs'
 import { mock } from 'node:test'
-mock.module('@cap-js/ai/models.js', {
-  namedExports: {
-    installModel: async (model) => ({ model })
-  }
-})
+if (process.argv.includes('--download') || process.argv.includes('--download-embeddings')) {
+  mock.module(${JSON.stringify(installerPath)}, {
+    namedExports: {
+      installModel: async (model) => ({ model })
+    }
+  })
+}
 const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
 const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
 mock.method(globalThis, 'fetch', async () =>
@@ -122,8 +126,7 @@ function runCliCommand(args, options = {}) {
 
 const noFetchEnv = {
   ...process.env,
-  NODE_OPTIONS:
-    '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
+  NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "data:text/javascript,globalThis.fetch = () => { throw new Error('fetch disabled in offline mode') }"`
 }
 
 before(async () => {
@@ -136,7 +139,7 @@ describe('CLI usage', () => {
   test('search_model returns matching definitions for a project path', async () => {
     const result = await runCliCommand(['search_model', sampleProjectPath, 'Books', 'entity'])
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
 
     const output = JSON.parse(result.stdout)
@@ -153,7 +156,7 @@ describe('CLI usage', () => {
       }
     )
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert.equal(JSON.parse(result.stdout)[0].name, 'AdminService.Books')
   })
 
@@ -195,11 +198,11 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
     assert(typeof result.stdout === 'string', 'Output should be a string')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
@@ -211,11 +214,11 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert.equal(result.stderr, '', `Expected no stderr output, got: ${result.stderr}`)
     const lines = result.stdout.split('\n')
     assert.equal(
@@ -239,7 +242,7 @@ describe('CLI usage', () => {
   test('--help shows usage information', async () => {
     const result = await runCliCommand(['--help'])
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.includes('Usage: cds-mcp'), 'Should show usage line')
     assert(result.stdout.includes('--help'), 'Should list --help option')
     assert(result.stdout.includes('search_model'), 'Should list search_model tool')
@@ -248,7 +251,7 @@ describe('CLI usage', () => {
   test('--version shows version number', async () => {
     const result = await runCliCommand(['--version'])
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(/^\d+\.\d+\.\d+/.test(result.stdout.trim()), 'Should print a semver version')
   })
 
@@ -272,11 +275,11 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "${pathToFileURL(ctx.mockScriptPath).href}"`
       }
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     const output = JSON.parse(result.stdout)
     assert(typeof output.commitId === 'string', 'Should return a commitId string')
     assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
@@ -287,7 +290,7 @@ describe('CLI usage', () => {
       env: noFetchEnv
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
@@ -304,7 +307,7 @@ describe('CLI usage', () => {
       env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true' }
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
@@ -339,11 +342,11 @@ describe('CLI usage', () => {
           ...process.env,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+          NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "${pathToFileURL(ctx.mockScriptPath).href}"`
         }
       })
 
-      assert.equal(result.code, 0, 'Command should exit with code 0')
+      assert.equal(result.code, 0, result.stderr)
       const output = JSON.parse(result.stdout)
       assert.strictEqual(output.commitId, TEST_COMMIT_ID)
 
@@ -380,11 +383,11 @@ describe('CLI usage', () => {
           CDS_MCP_MODEL: altModel,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+          NODE_OPTIONS: `${process.env.NODE_OPTIONS || ''} --import "${pathToFileURL(ctx.mockScriptPath).href}"`
         }
       })
 
-      assert.equal(result.code, 0, 'Command should exit with code 0')
+      assert.equal(result.code, 0, result.stderr)
       const bundleJson = join(altDir, TEST_COMMIT_ID, 'code-chunks.json')
       const exists = await fs
         .access(bundleJson)

@@ -4,7 +4,7 @@ import fs from 'fs'
 import fsp from 'node:fs/promises'
 import path from 'path'
 import os from 'node:os'
-import { getEmbeddings, createEmbeddings } from '../lib/embeddings.js'
+import { getEmbeddings, createEmbeddings, hybridSearch } from '../lib/embeddings.js'
 import calculateEmbeddings, {
   getQueryDb,
   getActiveEmbeddingsDir,
@@ -339,6 +339,115 @@ describe('embeddings', () => {
         ts >= before && ts <= after,
         `createdAt must be between test start and end, got: ${meta.createdAt}`
       )
+    })
+  })
+
+  describe('hybridSearch runtime filter', () => {
+    // Build chunks with real embeddings so cosine and BM25 both run.
+    async function buildChunks() {
+      const specs = [
+        { content: 'Write custom handlers in Java with the CAP runtime', meta: { label: 'java' } },
+        {
+          content: 'Write custom handlers in Node.js with the CAP runtime',
+          meta: { label: 'node' }
+        },
+        { content: 'Deploy the service to the cloud', meta: { source: 'deploy' } },
+        { content: 'Model your domain with CDS entities' }
+      ]
+      const chunks = []
+      for (const spec of specs) {
+        const embeddings = await getEmbeddings(spec.content)
+        const entry = { content: spec.content, embeddings }
+        if (spec.meta) entry.meta = spec.meta
+        chunks.push(entry)
+      }
+      return chunks
+    }
+
+    describe('when a runtime is given', () => {
+      test('should keep java and unlabeled chunks and drop node chunks when runtime is java', async () => {
+        const chunks = await buildChunks()
+
+        const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+
+        const labels = results.map((r) => r.meta?.label)
+        assert.ok(!labels.includes('node'), 'node-labeled chunks must be dropped')
+        assert.ok(labels.includes('java'), 'java-labeled chunk must stay')
+        assert.strictEqual(results.length, 3, 'java + two unlabeled chunks must stay')
+      })
+
+      test('should keep node and unlabeled chunks and drop java chunks when runtime is node', async () => {
+        const chunks = await buildChunks()
+
+        const results = await hybridSearch('custom handlers', chunks, { runtime: 'node' })
+
+        const labels = results.map((r) => r.meta?.label)
+        assert.ok(!labels.includes('java'), 'java-labeled chunks must be dropped')
+        assert.ok(labels.includes('node'), 'node-labeled chunk must stay')
+        assert.strictEqual(results.length, 3, 'node + two unlabeled chunks must stay')
+      })
+
+      test('should keep all chunks when none carry the other runtime label', async () => {
+        const chunks = (await buildChunks()).filter((c) => c.meta?.label !== 'node')
+
+        const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+
+        assert.strictEqual(results.length, chunks.length, 'java and unlabeled chunks must all stay')
+      })
+
+      test('should read chunks.model for the query embedding before filtering', async () => {
+        const chunks = await buildChunks()
+        chunks.model = getActiveModel()
+
+        // The filter must not drop chunks.model; a wrong model throws on dim mismatch.
+        const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+
+        assert.ok(results.length > 0, 'search must return results with the chunk model')
+      })
+    })
+
+    describe('when no runtime is given', () => {
+      test('should keep every chunk', async () => {
+        const chunks = await buildChunks()
+
+        const results = await hybridSearch('custom handlers', chunks)
+
+        const labels = results.map((r) => r.meta?.label)
+        assert.strictEqual(results.length, 4, 'all chunks must stay when runtime is not set')
+        assert.ok(labels.includes('node') && labels.includes('java'), 'both runtimes must stay')
+      })
+    })
+
+    describe('side-effects', () => {
+      test('should not mutate the input chunks array or its objects', async () => {
+        const chunks = await buildChunks()
+        const lengthBefore = chunks.length
+        const keysBefore = chunks.map((c) => Object.keys(c).sort().join(','))
+
+        await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+
+        assert.strictEqual(chunks.length, lengthBefore, 'input length must not change')
+        assert.deepStrictEqual(
+          chunks.map((c) => Object.keys(c).sort().join(',')),
+          keysBefore,
+          'input chunk keys must not change'
+        )
+        assert.ok(
+          chunks.every((c) => c.similarity === undefined),
+          'similarity must not leak onto input chunks'
+        )
+      })
+
+      test('should return new objects rather than the input chunk references', async () => {
+        const chunks = await buildChunks()
+
+        const results = await hybridSearch('custom handlers', chunks, { runtime: 'java' })
+
+        assert.ok(
+          results.every((r) => !chunks.includes(r)),
+          'results must be copies, not input references'
+        )
+      })
     })
   })
 })
