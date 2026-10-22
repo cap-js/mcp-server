@@ -28,6 +28,7 @@ Environment variables:
   CDS_MCP_MODEL=<name>           Same as --model
   CDS_MCP_MANIFEST_TIMEOUT       Manifest request timeout in milliseconds (default: 15000)
   CDS_MCP_DOWNLOAD_TIMEOUT       Bundle response-header timeout in milliseconds (default: 30000)
+  CDS_MCP_GENERIC_EMBEDDINGS=true  Search all runtimes (skip the detected-runtime filter)
   CDS_MCP_MAX_RESULTS            Upper limit on search_docs results (positive integer)
   RERANK_ENABLED=true            Rerank search_docs results with a local cross-encoder (default: false)
   CDS_MCP_RERANK_MODEL=<name>    Cross-encoder model for reranking (default: Xenova/ms-marco-MiniLM-L-6-v2)
