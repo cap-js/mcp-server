@@ -13,11 +13,14 @@ export const TEST_CHUNKS = [
   'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc',
   'xq7kz sentinel dedup test phrase',
   'xq7kz sentinel dedup test phrase',
-  'xq7kz sentinel dedup test phrase'
+  'xq7kz sentinel dedup test phrase',
+  'xq8mw sentinel no-label dedup phrase',
+  'xq8mw sentinel no-label dedup phrase'
 ]
 
-// Parallel metadata for TEST_CHUNKS: null for the content-only slots, distinct
-// labels for the duplicate pair so the surviving copy is identifiable in tests.
+// Parallel metadata for TEST_CHUNKS: distinct labels for the runtime-specific
+// duplicate trio so the surviving copy is identifiable; no label on the
+// no-runtime duplicate pair to cover the label-free dedup path.
 const _DEFAULT_METADATA = [
   { headingPath: 'Alpha > Init',        source: 'https://example.test/docs/alpha#init' },
   { headingPath: 'Alpha > Init',        source: 'https://example.test/docs/alpha#hana',   label: 'node' },
@@ -28,7 +31,9 @@ const _DEFAULT_METADATA = [
   { headingPath: 'Gamma > Query',       source: 'https://example.test/docs/gamma#cql' },
   { headingPath: 'Delta > Dedup',       source: 'https://example.test/docs/delta#dedup',   label: 'node' },
   { headingPath: 'Delta > Dedup',       source: 'https://example.test/docs/delta#dedup',   label: 'java' },
-  { headingPath: 'Delta > Dedup',       source: 'https://example.test/docs/delta#dedup' }
+  { headingPath: 'Delta > Dedup',       source: 'https://example.test/docs/delta#dedup' },
+  { headingPath: 'Epsilon > Generic',   source: 'https://example.test/docs/epsilon#a' },
+  { headingPath: 'Epsilon > Generic',   source: 'https://example.test/docs/epsilon#b' }
 ]
 
 export async function buildTestBundle({ chunks = TEST_CHUNKS, metadata = chunks === TEST_CHUNKS ? _DEFAULT_METADATA : undefined } = {}) {

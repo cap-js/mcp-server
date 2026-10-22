@@ -233,6 +233,15 @@ describe('searchMarkdownDocs', () => {
       const uniqueContents = new Set(sections)
       assert.strictEqual(uniqueContents.size, sections.length, 'all returned sections must have distinct content')
     })
+
+    test('deduplicates chunks with no runtime label (no node/java metadata)', async () => {
+      const NO_LABEL_TEXT = 'xq8mw sentinel no-label dedup phrase'
+      const result = await searchMarkdownDocs(NO_LABEL_TEXT, 5)
+      const sections = result.split('\n---\n')
+
+      const dupSections = sections.filter(s => s.includes(NO_LABEL_TEXT))
+      assert.strictEqual(dupSections.length, 1, 'both label-free copies must not both appear')
+    })
   })
 
   describe('CDS_MCP_MAX_RESULTS env var', () => {
