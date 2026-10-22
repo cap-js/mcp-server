@@ -234,8 +234,9 @@ describe('searchMarkdownDocs', () => {
       assert.strictEqual(uniqueContents.size, sections.length, 'all returned sections must have distinct content')
     })
 
-    test('deduplicates chunks with no runtime label (no node/java metadata)', async () => {
+    test('returns only one section when duplicate chunks have no runtime label', async () => {
       const NO_LABEL_TEXT = 'xq8mw sentinel no-label dedup phrase'
+
       const result = await searchMarkdownDocs(NO_LABEL_TEXT, 5)
       const sections = result.split('\n---\n')
 
