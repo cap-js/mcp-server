@@ -11,11 +11,11 @@ export const TEST_CHUNKS = [
   'Define CDS entities: entity Books { key ID: Integer; title: String; author: Association to Authors; }',
   'Expose entities via services: service CatalogService { entity Books as projection on my.Books; }',
   'CQL SELECT statement syntax: SELECT from Books where title = :title order by title asc',
-  'xq7kz sentinel dedup test phrase',
-  'xq7kz sentinel dedup test phrase',
-  'xq7kz sentinel dedup test phrase',
-  'xq8mw sentinel no-label dedup phrase',
-  'xq8mw sentinel no-label dedup phrase'
+  'Register custom event handlers to add business logic to a CAP service.',
+  'Register custom event handlers to add business logic to a CAP service.',
+  'Register custom event handlers to add business logic to a CAP service.',
+  'Provide localized texts for your model using i18n properties files.',
+  'Provide localized texts for your model using i18n properties files.'
 ]
 
 // Parallel metadata for TEST_CHUNKS: distinct labels for the runtime-specific

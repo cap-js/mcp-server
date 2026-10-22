@@ -199,7 +199,7 @@ describe('searchMarkdownDocs', () => {
   })
 
   describe('deduplication', () => {
-    const DUPLICATE_TEXT = 'xq7kz sentinel dedup test phrase'
+    const DUPLICATE_TEXT = 'Register custom event handlers to add business logic to a CAP service.'
 
     describe('when the bundle contains two chunks with identical content', () => {
       test('should return only one section', async () => {
@@ -251,7 +251,7 @@ describe('searchMarkdownDocs', () => {
 
     describe('when duplicate chunks have no runtime label', () => {
       test('should return only one section', async () => {
-        const NO_LABEL_TEXT = 'xq8mw sentinel no-label dedup phrase'
+        const NO_LABEL_TEXT = 'Provide localized texts for your model using i18n properties files.'
 
         const result = await searchMarkdownDocs(NO_LABEL_TEXT, 5)
         const sections = result.split('\n---\n')
