@@ -348,6 +348,24 @@ describe('evaluate', () => {
     await fs.access(path.join(runsDir, 'compare.html'))
   })
 
+  test('should exit nonzero when the compare step fails after the evals pass', async () => {
+    await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
+    const embDir = path.join(tmpDir, 'embeddings')
+    await fs.mkdir(embDir, { recursive: true })
+    await fs.writeFile(path.join(embDir, 'code-chunks.json'), '{}')
+    // Make the report write fail: a directory where compare.html must be written.
+    await fs.mkdir(path.join(runsDir, 'compare.html'), { recursive: true })
+
+    const res = await evaluateAndCompare({
+      overrides: { ...baseOverrides(), label: null, embeddingsDir: embDir },
+      logger: silentLogger
+    })
+
+    assert.notEqual(res.code, 0)
+    const rows = await readResults()
+    assert.equal(rows.length, 1) // the eval itself still ran and was recorded
+  })
+
   test('should exit 3 and not write results when the golden set is missing', async () => {
     const res = await evaluateAndCompare({ overrides: baseOverrides(), logger: silentLogger })
 

@@ -1,10 +1,11 @@
 import fs from 'fs/promises'
 import cds from '@sap/cds'
 import { randomUUID } from 'node:crypto'
+import { fileURLToPath } from 'node:url'
 import { runPipeline } from './pipeline/pipeline.js'
 
 const { INSERT, SELECT } = cds.ql
-const DEFAULT_SRC = new URL('llms-full.txt', import.meta.url).pathname
+const DEFAULT_SRC = fileURLToPath(new URL('llms-full.txt', import.meta.url))
 
 export async function createSourceDb() {
   let text
@@ -34,7 +35,7 @@ export async function createSourceDb() {
     minChunkSize: 0
   })
   const entries = sections.map(toDb)
-  const model = await cds.load(new URL('./source-docs.cds', import.meta.url).pathname)
+  const model = await cds.load(fileURLToPath(new URL('./source-docs.cds', import.meta.url)))
   const sourceDb = await cds.connect.to({
     embedding: { model: 'sentence-transformers/all-MiniLM-L6-v2' },
     impl: '@cap-js/ai/lib/sqlite/AISQLiteService.js',

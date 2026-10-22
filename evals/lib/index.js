@@ -131,6 +131,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
     await compare({ configPath, overrides })
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
+    if (code === 0) code = 3
   }
 
   return { code }

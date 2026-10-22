@@ -171,6 +171,37 @@ describe('compare', () => {
       assert.ok(!html.includes('evil"<img>'))
     })
 
+    test('should keep per-question series aligned by run when a question is missing from a run', async () => {
+      // q-002 is present in the oldest and newest runs but absent from the middle run.
+      await writeRun(
+        fakeReport('2026-07-30T10:00:00Z_r1', {
+          perQuestion: [pq('q-001', 'q1', { mrr: 1 }), pq('q-002', 'q2', { mrr: 0.4 })]
+        })
+      )
+      await writeRun(
+        fakeReport('2026-07-30T11:00:00Z_r2', { perQuestion: [pq('q-001', 'q1', { mrr: 0.9 })] })
+      )
+      await writeRun(
+        fakeReport('2026-07-30T12:00:00Z_r3', {
+          perQuestion: [pq('q-001', 'q1', { mrr: 0.8 }), pq('q-002', 'q2', { mrr: 0.6 })]
+        })
+      )
+
+      await compare({ overrides: overrides(), logger: silentLogger })
+
+      const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
+      const m = html.match(/<script id="pq-data" type="application\/json">(.*?)<\/script>/s)
+      assert.ok(m)
+      const blob = JSON.parse(m[1])
+      const q2 = blob.data.find((q) => q.id === 'q-002')
+      // One slot per run (3), null in the middle run that omitted it, newest value last.
+      assert.equal(q2.series.mrr.length, 3)
+      assert.equal(q2.series.mrr[1], null)
+      assert.equal(q2.series.mrr[2], 0.6)
+      // The average ignores the null slot: mean(0.4, 0.6) = 0.5.
+      assert.equal(q2.avg.mrr, 0.5)
+    })
+
     test('should order runs newest-first in the run-list section', async () => {
       await writeRun(fakeReport('2026-07-30T12:00:00Z_zzz'))
       await writeRun(fakeReport('2026-07-30T09:00:00Z_aaa'))

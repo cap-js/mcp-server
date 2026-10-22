@@ -54,7 +54,7 @@ for (const model of MODELS) {
   setLabel(model)
 
   const { status } = spawnSync('npm', ['run', 'evals'], {
-    cwd: __dirname,
+    cwd: path.join(__dirname, '..'),
     env: { ...process.env, CDS_MCP_RERANK_MODEL: model },
     stdio: 'inherit',
     shell: false

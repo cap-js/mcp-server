@@ -74,16 +74,19 @@ function buildPerQuestionModel(runs) {
     const avg = {}
     const delta = {}
     for (const key of METRIC_KEYS) {
+      // One slot per run, aligned by run index; null where the question is
+      // absent from that run. Consumers (chart, baseline) skip nulls.
       const vals = []
       for (const m of metricsByRun) {
         const qm = m.get(id)
-        if (qm) vals.push(round(qm[key], 3))
+        vals.push(qm ? round(qm[key], 3) : null)
       }
       series[key] = vals
-      avg[key] = vals.length ? round(vals.reduce((s, v) => s + v, 0) / vals.length, 3) : 0
+      const present = vals.filter((v) => v !== null)
+      avg[key] = present.length ? round(present.reduce((s, v) => s + v, 0) / present.length, 3) : 0
       const b = baseMetrics.get(id)
-      const last = vals.length ? vals[vals.length - 1] : 0
-      delta[key] = b ? round(last - b[key], 3) : null
+      const last = vals.length ? vals[vals.length - 1] : null
+      delta[key] = b && last != null ? round(last - b[key], 3) : null
     }
     return { id, question: textById.get(id) || '', series, avg, delta }
   })
@@ -128,16 +131,18 @@ const PQ_SCRIPT = `
     });
     if(gate!=null){ out+='<line class="gate" x1="'+m.left+'" y1="'+y(gate).toFixed(1)+'" x2="'+(m.left+iw)+'" y2="'+y(gate).toFixed(1)+'"/>';
       out+='<text class="gatelabel" x="'+(m.left+iw)+'" y="'+(y(gate)-4).toFixed(1)+'" text-anchor="end">gate ≥ '+gate.toFixed(2)+'</text>'; }
-    var d=vals.map(function(v,i){ return (i?'L':'M')+x(i).toFixed(1)+','+y(v).toFixed(1); }).join(' ');
+    var pts=[]; vals.forEach(function(v,i){ if(v!=null) pts.push({i:i,v:v}); });
+    var d=pts.map(function(p,j){ return (j?'L':'M')+x(p.i).toFixed(1)+','+y(p.v).toFixed(1); }).join(' ');
     out+='<path class="series" d="'+d+'" fill="none"/>';
-    vals.forEach(function(v,i){ var below=gate!=null&&v<gate;
+    vals.forEach(function(v,i){ if(v==null) return; var below=gate!=null&&v<gate;
       out+='<circle class="dot'+(below?' below':'')+'" cx="'+x(i).toFixed(1)+'" cy="'+y(v).toFixed(1)+'" r="3"><title>'+RUNS[i]+': '+v.toFixed(3)+'</title></circle>'; });
     var dly=(H-m.bottom+12).toFixed(1);
     vals.forEach(function(v,i){
       var tx=x(i).toFixed(1);
       out+='<text class="axis" x="'+tx+'" y="'+dly+'" text-anchor="end" transform="rotate(-45,'+tx+','+dly+')">'+RUNS[i]+'</text>'; });
     out+='</svg>';
-    var avg=vals.reduce(function(s,v){return s+v;},0)/(n||1);
+    var present=vals.filter(function(v){return v!=null;});
+    var avg=present.length?present.reduce(function(s,v){return s+v;},0)/present.length:0;
     var gated = gate!=null;
     return '<figure class="pqchart"><figcaption>'+LBL[key]+'@K'
       +(gated?' <span class="tag">gated</span>':' <span class="tag muted">reported</span>')
