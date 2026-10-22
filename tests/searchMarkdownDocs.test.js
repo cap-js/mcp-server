@@ -206,17 +206,24 @@ describe('searchMarkdownDocs', () => {
         const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
         const sections = result.split('\n---\n')
 
-        const dupSections = sections.filter(s => s.includes(DUPLICATE_TEXT))
-        assert.strictEqual(dupSections.length, 1, 'both copies of the duplicate text must not both appear')
+        const dupSections = sections.filter((s) => s.includes(DUPLICATE_TEXT))
+        assert.strictEqual(
+          dupSections.length,
+          1,
+          'both copies of the duplicate text must not both appear'
+        )
       })
 
       test('should keep the highest-ranked entry (label: node, not label: java)', async () => {
         const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
         const sections = result.split('\n---\n')
 
-        const dupSection = sections.find(s => s.includes(DUPLICATE_TEXT))
+        const dupSection = sections.find((s) => s.includes(DUPLICATE_TEXT))
         assert(dupSection, 'at least one section must contain the duplicate text')
-        assert(dupSection.includes('label: node'), 'the surviving section must be the higher-ranked node entry')
+        assert(
+          dupSection.includes('label: node'),
+          'the surviving section must be the higher-ranked node entry'
+        )
         assert(!dupSection.includes('label: java'), 'the lower-ranked java entry must not appear')
       })
 
@@ -234,7 +241,11 @@ describe('searchMarkdownDocs', () => {
         const sections = result.split('\n---\n')
 
         const uniqueContents = new Set(sections)
-        assert.strictEqual(uniqueContents.size, sections.length, 'all returned sections must have distinct content')
+        assert.strictEqual(
+          uniqueContents.size,
+          sections.length,
+          'all returned sections must have distinct content'
+        )
       })
     })
 
@@ -245,7 +256,7 @@ describe('searchMarkdownDocs', () => {
         const result = await searchMarkdownDocs(NO_LABEL_TEXT, 5)
         const sections = result.split('\n---\n')
 
-        const dupSections = sections.filter(s => s.includes(NO_LABEL_TEXT))
+        const dupSections = sections.filter((s) => s.includes(NO_LABEL_TEXT))
         assert.strictEqual(dupSections.length, 1, 'both label-free copies must not both appear')
       })
     })
@@ -253,8 +264,12 @@ describe('searchMarkdownDocs', () => {
 
   describe('CDS_MCP_MAX_RESULTS env var', () => {
     let _prev
-    before(() => { _prev = process.env.CDS_MCP_MAX_RESULTS })
-    beforeEach(() => { delete process.env.CDS_MCP_MAX_RESULTS })
+    before(() => {
+      _prev = process.env.CDS_MCP_MAX_RESULTS
+    })
+    beforeEach(() => {
+      delete process.env.CDS_MCP_MAX_RESULTS
+    })
     after(() => {
       if (_prev === undefined) delete process.env.CDS_MCP_MAX_RESULTS
       else process.env.CDS_MCP_MAX_RESULTS = _prev
@@ -268,21 +283,31 @@ describe('searchMarkdownDocs', () => {
       process.env.CDS_MCP_MAX_RESULTS = '1'
       const result = await searchMarkdownDocs('entity service', 10)
       const chunks = result.split('\n---\n')
-      assert.strictEqual(chunks.length, 1, 'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query')
+      assert.strictEqual(
+        chunks.length,
+        1,
+        'CDS_MCP_MAX_RESULTS=1 should cap results to exactly 1 for this multi-result query'
+      )
     })
 
     test('overrides the default maxResults', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '2'
       const result = await searchMarkdownDocs('entity service')
       const chunks = result.split('\n---\n')
-      assert(chunks.length <= 2, 'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given')
+      assert(
+        chunks.length <= 2,
+        'CDS_MCP_MAX_RESULTS=2 should cap results to 2 when no argument is given'
+      )
     })
 
     test('does not inflate a smaller caller request', async () => {
       process.env.CDS_MCP_MAX_RESULTS = '10'
       const result = await searchMarkdownDocs('entity service', 1)
       const chunks = result.split('\n---\n')
-      assert(chunks.length <= 1, 'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1')
+      assert(
+        chunks.length <= 1,
+        'CDS_MCP_MAX_RESULTS=10 must not inflate a caller request of maxResults=1'
+      )
     })
 
     test('throws on non-integer value', async () => {
