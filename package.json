@@ -39,7 +39,7 @@
     "onnxruntime-node": "^1.20.1"
   },
   "devDependencies": {
-    "oxfmt": ">=0.70.0"
+    "oxfmt": ">=0.73.0"
   },
   "cds": {
     "log": {
