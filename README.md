@@ -209,14 +209,6 @@ cds-mcp search_docs "how to add columns to a select statement in CAP Node.js" 1
 cds-mcp search_model . Books entity
 ```
 
-### Embedding model cache
-
-Embedding model files are looked up first under the MCP server package's `.cds/models/<organization>/<model>`, then in `~/.cds/models/<organization>/<model>`. Missing models are downloaded on demand into the user's home cache (on Windows, `%USERPROFILE%\.cds\models`), which can be shared across package installations. The caller's CAP project is not searched for embedding models.
-
-Package-local models are read-only overrides: incomplete or invalid local models fail validation and must be explicitly repaired or removed; the server does not replace them or fall back silently. Missing or damaged files in a home-cache model with a valid lock are repaired on demand. Documentation embeddings bundles and the optional reranker retain their existing storage locations.
-
-Cache lookup and provisioning are handled by `@cap-js/ai` through its supported `embedding.root` setting. The MCP package root is supplied only for model lookup; the server does not change the caller's working directory or CAP root.
-
 ## Available Tools
 
 > [!NOTE]
