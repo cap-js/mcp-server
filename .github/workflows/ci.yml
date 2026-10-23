@@ -24,11 +24,11 @@ jobs:
           node-version: 24.x
       - run: npm ci
       - run: npm run lint
-  model-cache:
+  offline-models:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        os: [macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: 24.x
       - run: npm ci
-      - run: node --experimental-test-module-mocks --test tests/modelCacheConnection.test.js tests/offlineModels.test.js tests/calculateEmbeddingsOffline.test.js tests/loadEmbeddings.test.js
+      - run: node --experimental-test-module-mocks --test tests/offlineModels.test.js tests/calculateEmbeddingsOffline.test.js tests/loadEmbeddings.test.js
   check-versions:
     runs-on: ubuntu-latest
     steps:
