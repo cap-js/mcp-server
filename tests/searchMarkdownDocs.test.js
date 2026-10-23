@@ -120,6 +120,22 @@ describe('dedupByContent', () => {
     const items = [make('a'), make('b')]
     assert.strictEqual(dedupByContent(items, 100).length, 2)
   })
+
+  test('limit 0 returns empty array', () => {
+    assert.deepStrictEqual(dedupByContent([make('a'), make('b')], 0), [])
+  })
+
+  test('throws on non-integer limit (2.5)', () => {
+    assert.throws(() => dedupByContent([make('a')], 2.5), /non-negative integer/)
+  })
+
+  test('throws on NaN limit', () => {
+    assert.throws(() => dedupByContent([make('a')], NaN), /non-negative integer/)
+  })
+
+  test('throws on negative limit', () => {
+    assert.throws(() => dedupByContent([make('a')], -1), /non-negative integer/)
+  })
 })
 
 describe('searchMarkdownDocs', () => {
