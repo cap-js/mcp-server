@@ -81,8 +81,6 @@ export function buildReport({ config, perQuestionRaw, baseline, gates }) {
         question: q.question,
         relevant_doc_ids: q.relevant_doc_ids,
         retrieved_ids: q.retrievedIds.slice(0, k),
-        // Per-slot text snapshot (when provided), so compare needn't re-read the corpus.
-        ...(q.retrieved_texts ? { retrieved_texts: q.retrieved_texts.slice(0, k) } : {}),
         relevant_hits_at_rank: relevantHitsAtRank(groups, q.retrievedIds, k),
         metrics: {
           recall_at_k: round(m.recall_at_k, 3),

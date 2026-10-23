@@ -34,14 +34,6 @@ const gateStr = (g) => (g === null || g === undefined ? '—' : `≥ ${g.toFixed
 // Render a delta span for a metric cell.
 // baseV = null → no baseline set; returns ''.
 // Exported so tests can verify the delta rendering logic without a DOM.
-export function renderDelta(v, baseV) {
-  if (baseV == null) return ''
-  const d = Math.round((v - baseV) * 1000) / 1000
-  if (d > 0) return ` <span class="d">▲+${d.toFixed(3)}</span>`
-  if (d < 0) return ` <span class="d">▼−${Math.abs(d).toFixed(3)}</span>`
-  return ''
-}
-
 async function collectRuns(cfg) {
   return sortByRunId(await readRuns(cfg))
 }
@@ -459,7 +451,7 @@ function renderLeaderboard(runs) {
 // per-question table (all 5 metrics, sortable, each row expands to show retrieval).
 // `runRanks` (optional Map<run_id, {metric:rank}>) shows rank vs other runs.
 // `baselinePqMap` (optional Map<id, metrics>) provides per-question baseline for delta.
-function renderRunDetails(r, textById, runRanks, baselinePqMap) {
+function renderRunDetails(r, runRanks, baselinePqMap) {
   const summaryCells = METRIC_KEYS.map(
     (k) => `<span class="sum-metric">${METRIC_LABEL[k]} ${r.aggregate[k].value.toFixed(2)}</span>`
   ).join('')
@@ -519,7 +511,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
           const hit = chunkIds.some((id) => relevantIds.has(id))
           const label = chunkIds.join(', ')
           const marker = `${i + 1}. ${hit ? '✅' : '✗'} ${label}`
-          const text = chunk.text || (q.retrieved_texts && q.retrieved_texts[i])
+          const text = chunk.text
           if (text) {
             return `<li class="${hit ? 'hit' : 'miss'}"><details class="chunk"><summary class="mono">${marker}</summary><pre class="chunk-text">${escHtml(text)}</pre></details></li>`
           }
@@ -645,7 +637,7 @@ function renderRunDetails(r, textById, runRanks, baselinePqMap) {
 </details>`
 }
 
-function renderHtml(runs, textById) {
+function renderHtml(runs) {
   const ranks = buildRanks(runs)
 
   // Build per-metric point series.
@@ -674,7 +666,7 @@ function renderHtml(runs, textById) {
           baselinePqMap = new Map(base.per_question.map((q) => [q.id, q.metrics]))
         }
       }
-      return renderRunDetails(r, textById, ranks, baselinePqMap)
+      return renderRunDetails(r, ranks, baselinePqMap)
     })
     .join('\n')
 
@@ -1000,7 +992,7 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({ config, outPath, logger = console, perQuestionRaw } = {}) {
+export async function compare({ config } = {}) {
   const cfg = {
     ...CONFIG,
     ...config,
@@ -1010,7 +1002,7 @@ export async function compare({ config, outPath, logger = console, perQuestionRa
   const runs = await collectRuns(cfg)
 
   if (runs.length === 0) {
-    logger.error(
+    console.error(
       `No runs found under ${path.relative(process.cwd(), cfg.output.runsDir)}. Run the eval first.`
     )
     return { code: 3 }
@@ -1021,31 +1013,20 @@ export async function compare({ config, outPath, logger = console, perQuestionRa
   if (fmt === 'md') {
     content = renderMarkdownCompare(runs)
   } else {
-    let textById = null
-    if (perQuestionRaw) {
-      textById = new Map()
-      for (const q of perQuestionRaw) {
-        for (const chunk of q.retrievedIds) {
-          for (const id of chunk.ids) {
-            if (!textById.has(id)) textById.set(id, chunk.text)
-          }
-        }
-      }
-    }
-    content = renderHtml(runs, textById)
+    content = renderHtml(runs)
   }
-  const out = outPath ? path.resolve(outPath) : path.join(cfg.output.runsDir, `compare.${fmt}`)
+  const out = path.join(cfg.output.runsDir, `compare.${fmt}`)
   await fs.writeFile(out, content)
 
   const rel = path.relative(process.cwd(), out)
-  logger.log(`Compared ${runs.length} run(s) → ${rel}`)
+  console.log(`Compared ${runs.length} run(s) → ${rel}`)
   if (fmt === 'html') {
     const opener =
       process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
-    logger.log(`Open it in your browser:  ${opener} ${rel}`)
-    logger.log(`  or paste this into the address bar:  file://${out}`)
+    console.log(`Open it in your browser:  ${opener} ${rel}`)
+    console.log(`  or paste this into the address bar:  file://${out}`)
   } else {
-    logger.log(`Open it in your editor/viewer:  ${rel}`)
+    console.log(`Open it in your editor/viewer:  ${rel}`)
   }
   return { code: 0, runs: runs.length, outPath: out, format: fmt }
 }

@@ -1,11 +1,9 @@
-import { it, describe, beforeEach, afterEach } from 'node:test'
+import { it, describe, beforeEach, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { compare, renderDelta } from '../../lib/compare.js'
-
-const silentLogger = { log() {}, error() {} }
+import { compare } from '../../lib/compare.js'
 
 function fakeReport(
   run_id,
@@ -46,42 +44,17 @@ function pq(id, question, { recall = 1, mrr = 1, hit = 1, ndcg = 1 } = {}) {
   }
 }
 
-describe('renderDelta', () => {
-  it('should render an up arrow with three decimal places for a positive delta', () => {
-    assert.equal(renderDelta(1.0, 0.5), ' <span class="d">▲+0.500</span>')
-  })
-
-  it('should render a down arrow with three decimal places for a negative delta', () => {
-    assert.equal(renderDelta(0.25, 0.5), ' <span class="d">▼−0.250</span>')
-  })
-
-  it('should render an empty string when the delta is zero', () => {
-    assert.equal(renderDelta(0.5, 0.5), '')
-  })
-
-  it('should render an empty string when the baseline is null', () => {
-    assert.equal(renderDelta(0.5, null), '')
-  })
-
-  describe('side-effects', () => {
-    it('should not affect subsequent calls', () => {
-      renderDelta(1.0, 0.5)
-
-      const result = renderDelta(0.25, 0.5)
-
-      assert.equal(result, ' <span class="d">▼−0.250</span>')
-    })
-  })
-})
-
 describe('compare', () => {
   let tmpDir, runsDir
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-compare-'))
     runsDir = path.join(tmpDir, 'runs')
     await fs.mkdir(runsDir, { recursive: true })
+    mock.method(console, 'log', () => {})
+    mock.method(console, 'error', () => {})
   })
   afterEach(async () => {
+    mock.restoreAll()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
@@ -94,7 +67,7 @@ describe('compare', () => {
 
   describe('when there are no runs', () => {
     it('should exit 3 and not write a compare file', async () => {
-      const res = await compare({ config: config(), logger: silentLogger })
+      const res = await compare({ config: config() })
 
       assert.equal(res.code, 3)
       await assert.rejects(() => fs.access(path.join(runsDir, 'compare.html')))
@@ -109,7 +82,7 @@ describe('compare', () => {
         JSON.stringify(fakeReport('2026-07-30T10:00:00Z_ok')) + '\n\nnot-json\n'
       )
 
-      const res = await compare({ config: config(), logger: silentLogger })
+      const res = await compare({ config: config() })
 
       assert.equal(res.runs, 1)
     })
@@ -127,7 +100,7 @@ describe('compare', () => {
         ].join('\n') + '\n'
       )
 
-      const res = await compare({ config: config(), logger: silentLogger })
+      const res = await compare({ config: config() })
 
       assert.equal(res.runs, 1)
     })
@@ -138,7 +111,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa'))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5 }))
 
-      const res = await compare({ config: config(), logger: silentLogger })
+      const res = await compare({ config: config() })
 
       assert.equal(res.code, 0)
       assert.equal(res.runs, 2)
@@ -152,7 +125,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb'))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('<span class="run-label">tuned chunker</span>'))
@@ -162,7 +135,7 @@ describe('compare', () => {
     it('should escape quotes and markup in a run label to prevent HTML injection', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'evil"<img>' }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       // The label is escaped wherever it appears (run-label span, title= and
@@ -187,7 +160,7 @@ describe('compare', () => {
         })
       )
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const m = html.match(/<script id="pq-data" type="application\/json">(.*?)<\/script>/s)
@@ -206,7 +179,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T12:00:00Z_zzz'))
       await writeRun(fakeReport('2026-07-30T09:00:00Z_aaa'))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const runListStart = html.indexOf('class="run-list"')
@@ -220,7 +193,7 @@ describe('compare', () => {
     it('should use 2 columns in the chart grid', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa'))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('repeat(2,1fr)'))
@@ -231,7 +204,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: longLabel }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb'))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const tickCount = (html.match(/class="axis xtick"/g) || []).length
@@ -251,8 +224,7 @@ describe('compare', () => {
       )
 
       const res = await compare({
-        config: { output: { runsDir, compareFormat: 'md' } },
-        logger: silentLogger
+        config: { output: { runsDir, compareFormat: 'md' } }
       })
 
       assert.equal(res.code, 0)
@@ -273,8 +245,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { label: 'tuned chunker' }))
 
       await compare({
-        config: { output: { runsDir, compareFormat: 'md' } },
-        logger: silentLogger
+        config: { output: { runsDir, compareFormat: 'md' } }
       })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
@@ -290,8 +261,7 @@ describe('compare', () => {
       )
 
       await compare({
-        config: { output: { runsDir, compareFormat: 'md' } },
-        logger: silentLogger
+        config: { output: { runsDir, compareFormat: 'md' } }
       })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
@@ -312,8 +282,7 @@ describe('compare', () => {
       await writeRun(mk('2026-07-30T11:00:00Z_b', 2))
 
       await compare({
-        config: { output: { runsDir, compareFormat: 'md' } },
-        logger: silentLogger
+        config: { output: { runsDir, compareFormat: 'md' } }
       })
 
       const md = await fs.readFile(path.join(runsDir, 'compare.md'), 'utf8')
@@ -330,7 +299,7 @@ describe('compare', () => {
     it('should omit the per-question section when no run has per_question data', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_x'))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(!html.includes('Per-question metric trends'))
@@ -344,7 +313,7 @@ describe('compare', () => {
       const q2b = pq('cap-002', 'How do I do Y?', { mrr: 0.5 })
       await writeRun(fakeReport('2026-07-30T11:00:00Z_b', { perQuestion: [q1b, q2b] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('Per-question metric trends'))
@@ -363,7 +332,7 @@ describe('compare', () => {
       const q = pq('cap-001', 'Q?', { recall: 1, mrr: 0.5 })
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       for (let col = 0; col <= 5; col++) {
@@ -377,7 +346,7 @@ describe('compare', () => {
       const q2 = pq('cap-002', 'Second question?')
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q1, q2] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.equal((html.match(/class="rd-pq-row"/g) || []).length, 2)
@@ -396,7 +365,7 @@ describe('compare', () => {
       }
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const detailIdx = html.indexOf('class="rd-pq-detail"')
@@ -410,7 +379,7 @@ describe('compare', () => {
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
@@ -422,7 +391,7 @@ describe('compare', () => {
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
@@ -435,7 +404,7 @@ describe('compare', () => {
       const run_id = '2026-07-30T10:00:00Z_a'
       await writeRun(fakeReport(run_id))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
@@ -455,7 +424,7 @@ describe('compare', () => {
       await writeRun(base)
       await writeRun(curr)
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('▲+0.500'))
@@ -466,7 +435,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_b', { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const m = html.match(/id="pq-data"[^>]*>(.*?)<\/script>/s)
@@ -482,7 +451,7 @@ describe('compare', () => {
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id, { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       const sanitized = run_id.replace(/[^a-z0-9]/gi, '')
@@ -498,7 +467,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5, mrr: 0.4 }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('class="lb-table"'))
@@ -519,7 +488,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9, mrr: 0.8, hit: 0.9 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.3, mrr: 0.2, hit: 0.3 }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('🥇'))
@@ -538,7 +507,7 @@ describe('compare', () => {
       const q = pq('cap-001', 'How do I define X?', { recall: 1, mrr: 0.5, hit: 1, ndcg: 0.65 })
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.equal((html.match(/<details class="run-detail"/g) || []).length, 1)
@@ -551,7 +520,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_aaa', { recall: 0.9 }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_bbb', { recall: 0.5 }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('>rank<'))
@@ -564,7 +533,7 @@ describe('compare', () => {
       const run_id = '2026-07-30T10:00:00Z_abc'
       await writeRun(fakeReport(run_id))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes(`class="baseline-radio" data-run-id="${run_id}"`))
@@ -585,7 +554,7 @@ describe('compare', () => {
       }
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { perQuestion: [q] }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('<details class="chunk">'))
@@ -605,7 +574,7 @@ describe('compare', () => {
         fakeReport('2026-07-30T10:00:00Z_a', { recall: 0, mrr: 0, hit: 0, perQuestion: [q] })
       )
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('(text unavailable)'))
@@ -617,7 +586,7 @@ describe('compare', () => {
     it('should render the run label as a run-label span', async () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { label: 'my-embedding-v2' }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('<span class="run-label">my-embedding-v2</span>'))
@@ -627,7 +596,7 @@ describe('compare', () => {
       await writeRun(fakeReport('2026-07-30T10:00:00Z_a', { label: 'baseline' }))
       await writeRun(fakeReport('2026-07-30T11:00:00Z_b', { label: 'new-chunker' }))
 
-      await compare({ config: config(), logger: silentLogger })
+      await compare({ config: config() })
 
       const html = await fs.readFile(path.join(runsDir, 'compare.html'), 'utf8')
       assert.ok(html.includes('baseline'))
@@ -641,7 +610,7 @@ describe('compare', () => {
       const opts = config()
       const keysBefore = Object.keys(opts)
 
-      await compare({ config: opts, logger: silentLogger })
+      await compare({ config: opts })
 
       assert.deepEqual(Object.keys(opts), keysBefore)
     })

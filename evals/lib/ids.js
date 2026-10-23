@@ -199,7 +199,7 @@ export async function resolveIds(results, q, sourceDb) {
 
     // Step 4: for every headingBody, find source in sourceDb
     for (const { headingText, headingBody } of sections) {
-      const { source } = await findSource(headingText, headingBody, sourceDb, meta)
+      const { source } = await findSource(headingText, headingBody, sourceDb)
       if (source) {
         ids.push(source)
       }
