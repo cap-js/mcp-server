@@ -13,16 +13,26 @@ and the determinism guarantees.
 
 ```
 evals/
-  lib/                 # implementation (imported by the tests and npm run evals)
+  bin/                 # CLI entry points
+    evals.js           #   `npm run evals` → evaluateAndCompare()
+    compare.js         #   `npm run evals:compare` → compare()
+  lib/                 # implementation (imported by the tests and the bin/ entries)
     config.js          #   CONFIG (edit here) + metric key/label constants
+    util.js            #   generic helpers: readJsonOrNull, round, mean
+    golden.js          #   golden set: loadGolden, validateGolden, preflight
     index.js           #   evaluate() + evaluateAndCompare() — orchestration
-    retrieval.js       #   readJsonOrNull, makeSearchDocsRunner, retrieveAll, findEmbeddingDirs, readCapireVersion
-    compare.js         #   compare(): chart every run's metrics into an HTML dashboard
-    store.js           #   result.jsonl read/append (cap to keepRuns) + baseline = oldest run
-    report.js          #   pure core: buildReport, diagnose, worstQuestions, console render
+    store.js           #   result.jsonl read/append (cap to keepRuns) + baseline + makeRunId
+    report.js          #   pure core: buildReport, diagnose
     metrics.js         #   pure metric math (Recall@K, MRR, Hit-Rate@K, nDCG@K)
-    ids.js             #   parse doc id (the Source: URL) from a chunk's first line
-    createSourceDb/    #   pipeline to build chunk embeddings from capire source docs
+    retrieval/         #   corpus ingestion + search
+      retrieval.js     #     makeSearchDocsRunner, retrieveAll, findEmbeddingDirs, readCapireVersion
+      ids.js           #     parse doc id (the Source: URL) from a chunk's first line
+      createSourceDb/  #     pipeline to build chunk embeddings from capire source docs
+    compare/           #   comparison report
+      compare.js       #     compare(): orchestrate read runs → render → write file
+      model.js         #     shared view-model + cell formatters (HTML + Markdown)
+      html.js          #     self-contained HTML dashboard (charts, tables, client JS/CSS)
+      md.js            #     markdown report (tables only)
   data/                # committed input
     golden-set.json    #   frozen { id, question, relevant_doc_ids }; relevance authored once
   docs/

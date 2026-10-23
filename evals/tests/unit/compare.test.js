@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
-import { compare } from '../../lib/compare.js'
+import { compare } from '../../lib/compare/compare.js'
 
 function fakeReport(
   run_id,

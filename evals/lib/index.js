@@ -1,6 +1,5 @@
 /* eslint-disable no-console */
 import path from 'path'
-import { fileURLToPath } from 'url'
 import { CONFIG } from './config.js'
 import { buildReport } from './report.js'
 import { loadGolden, validateGolden, preflight } from './golden.js'
@@ -134,7 +133,7 @@ export async function evaluateAndCompare() {
   code = worstCode
 
   try {
-    const { compare } = await import('./compare.js')
+    const { compare } = await import('./compare/compare.js')
     await compare()
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
@@ -142,13 +141,4 @@ export async function evaluateAndCompare() {
   }
 
   return { code }
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  evaluateAndCompare()
-    .then((r) => process.exit(r.code))
-    .catch((e) => {
-      console.error(e)
-      process.exit(3)
-    })
 }

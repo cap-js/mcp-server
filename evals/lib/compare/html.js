@@ -1,98 +1,14 @@
-/* eslint-disable no-console */
-import path from 'path'
-import fs from 'fs/promises'
-import { fileURLToPath } from 'url'
-import { CONFIG, METRIC_KEYS, METRIC_LABEL } from './config.js'
-import { readRuns, sortByRunId } from './store.js'
-import { round } from './util.js'
-
-// Markdown can't be searched/lazy-loaded, so its per-question tables are capped
-// to the top-N most-attention-worthy (regressed/weakest first). Full set lives
-// in compare.html / result.jsonl.
-const MD_TOP_N = 50
-
-// Escape a cell for a markdown table: backslashes first, then pipes.
-function mdCell(text) {
-  return (text || '').replace(/\\/g, '\\\\').replace(/\|/g, '\\|')
-}
-
-// Escape text for HTML text content AND quoted attribute values (prevent
-// `<` injection and `"`/`'` attribute break-out).
-function escHtml(text) {
-  return String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
-// Shared cell formatters (HTML + Markdown run-detail tables).
-const statusIcon = (s) => (s === 'pass' ? '✅' : s === 'fail' ? '❌' : 'ℹ️')
-const gateStr = (g) => (g === null || g === undefined ? '—' : `≥ ${g.toFixed(2)}`)
-
-// Render a delta span for a metric cell.
-// baseV = null → no baseline set; returns ''.
-// Exported so tests can verify the delta rendering logic without a DOM.
-async function collectRuns(cfg) {
-  return sortByRunId(await readRuns(cfg))
-}
-
-// Shared per-question model for both the HTML and Markdown reports: question
-// order + latest text, and one row per question with {id, question, series
-// (per-metric values across runs, 3dp), avg, delta-vs-baseline}. Rows are sorted
-// regressed/weakest-first (biggest MRR drop, then lowest MRR, then id). Baseline
-// = oldest run. Uses a per-run id→metrics Map so lookups aren't O(questions²).
-function buildPerQuestionModel(runs) {
-  const order = []
-  const seen = new Set()
-  const textById = new Map()
-  const metricsByRun = runs.map((r) => {
-    const m = new Map()
-    for (const q of r.per_question || []) {
-      if (!seen.has(q.id)) {
-        seen.add(q.id)
-        order.push(q.id)
-      }
-      textById.set(q.id, q.question)
-      m.set(q.id, q.metrics)
-    }
-    return m
-  })
-  const baseMetrics = metricsByRun[0]
-
-  const rows = order.map((id) => {
-    const series = {}
-    const avg = {}
-    const delta = {}
-    for (const key of METRIC_KEYS) {
-      // One slot per run, aligned by run index; null where the question is
-      // absent from that run. Consumers (chart, baseline) skip nulls.
-      const vals = []
-      for (const m of metricsByRun) {
-        const qm = m.get(id)
-        vals.push(qm ? round(qm[key], 3) : null)
-      }
-      series[key] = vals
-      const present = vals.filter((v) => v !== null)
-      avg[key] = present.length ? round(present.reduce((s, v) => s + v, 0) / present.length, 3) : 0
-      const b = baseMetrics.get(id)
-      const last = vals.length ? vals[vals.length - 1] : null
-      delta[key] = b && last != null ? round(last - b[key], 3) : null
-    }
-    return { id, question: textById.get(id) || '', series, avg, delta }
-  })
-
-  rows.sort((a, b) => {
-    const da = a.delta.mrr === null ? 0 : a.delta.mrr
-    const db = b.delta.mrr === null ? 0 : b.delta.mrr
-    if (da !== db) return da - db // biggest MRR drop first
-    if (a.avg.mrr !== b.avg.mrr) return a.avg.mrr - b.avg.mrr // then lowest MRR
-    return a.id.localeCompare(b.id, undefined, { numeric: true })
-  })
-
-  return { order, textById, rows }
-}
+import { METRIC_KEYS, METRIC_LABEL } from '../config.js'
+import { round } from '../util.js'
+import {
+  buildPerQuestionModel,
+  buildRanks,
+  runDisplay,
+  shortLabel,
+  escHtml,
+  statusIcon,
+  gateStr
+} from './model.js'
 
 // Inline browser script for the per-question section: builds table rows from the
 // embedded JSON blob, supports search + column sort, and lazily renders a row's
@@ -341,42 +257,6 @@ function renderPerQuestionSection(runs) {
   <script id="pq-data" type="application/json">${JSON.stringify(blob).replace(/</g, '\\u003c')}</script>
   <script>${PQ_SCRIPT}</script>
 </details>`
-}
-
-// short run id for chart tooltips / x-axis (time-of-day)
-function shortRunId(r) {
-  return r.run_id
-    .replace(/T/, ' ')
-    .replace(/(\.\d+)?Z.*$/, '')
-    .slice(5)
-}
-
-// Display name for a run: its label if set, else the short timestamp.
-function runDisplay(r) {
-  return (r.config && r.config.label) || shortRunId(r)
-}
-
-// Truncated label for chart axes (28 chars max + ellipsis). Full label in tooltips.
-function shortLabel(r) {
-  const full = runDisplay(r)
-  return full.length > 28 ? full.slice(0, 27) + '…' : full
-}
-
-// Rank each run for each metric (1 = best). Returns Map<run_id, Map<metric_key, rank>>.
-function buildRanks(runs) {
-  const overallValue = (r) => METRIC_KEYS.reduce((s, k) => s + r.aggregate[k].value, 0)
-  const ranks = new Map(runs.map((r) => [r.run_id, {}]))
-  for (const key of METRIC_KEYS) {
-    const sorted = [...runs].sort((a, b) => {
-      const vd = b.aggregate[key].value - a.aggregate[key].value
-      if (vd !== 0) return vd
-      return overallValue(b) - overallValue(a)
-    })
-    sorted.forEach((r, i) => {
-      ranks.get(r.run_id)[key] = i + 1
-    })
-  }
-  return ranks
 }
 
 // Leaderboard table: rows = runs (top 15), cols = metrics. Sorted by total rank
@@ -637,7 +517,7 @@ function renderRunDetails(r, runRanks, baselinePqMap) {
 </details>`
 }
 
-function renderHtml(runs) {
+export function renderHtml(runs) {
   const ranks = buildRanks(runs)
 
   // Build per-metric point series.
@@ -870,172 +750,4 @@ ${runDetails}
 </body>
 </html>
 `
-}
-
-// ---- markdown compare report (full parity, tables only — no charts) -------
-function renderMarkdownCompare(runs) {
-  const L = []
-  const first = runs[0].run_id
-  const last = runs[runs.length - 1].run_id
-
-  L.push('# CAP MCP RAG — Metric trends across runs')
-  L.push('')
-  L.push(`${runs.length} run${runs.length === 1 ? '' : 's'} · ${first} → ${last}`)
-  L.push('')
-
-  // 1) Aggregate: metric × run matrix
-  L.push('## Aggregate metrics across runs')
-  L.push('')
-  L.push(`| metric | gate | ${runs.map((r) => mdCell(runDisplay(r))).join(' | ')} |`)
-  L.push(`|---|:--:|${runs.map(() => '--:').join('|')}|`)
-  for (const key of METRIC_KEYS) {
-    const gate = runs[runs.length - 1].aggregate[key].gate
-    const cells = runs
-      .map((r) => {
-        const a = r.aggregate[key]
-        const flag = a.gate !== null && a.gate !== undefined && a.value < a.gate ? ' ❌' : ''
-        return `${a.value.toFixed(2)}${flag}`
-      })
-      .join(' | ')
-    L.push(`| ${METRIC_LABEL[key]}@K | ${gateStr(gate)} | ${cells} |`)
-  }
-  L.push(
-    `| **result** |  | ${runs.map((r) => (r.overall_status === 'fail' ? '❌' : '✅')).join(' | ')} |`
-  )
-  L.push('')
-
-  // 2) Per-question: one compact avg+Δ table, regressed/weakest-first, capped to MD_TOP_N.
-  const { order: qOrder, rows } = buildPerQuestionModel(runs)
-  if (qOrder.length) {
-    const shown = rows.slice(0, MD_TOP_N)
-
-    L.push('## Per-question metrics (avg across runs)')
-    L.push('')
-    L.push(
-      qOrder.length > shown.length
-        ? `Showing the ${shown.length} most-attention-worthy of ${qOrder.length} questions (sorted by MRR drop vs baseline, then lowest MRR). Full per-question detail: open \`compare.html\` or read \`result.jsonl\`.`
-        : `All ${qOrder.length} questions (sorted by MRR drop vs baseline, then lowest MRR).`
-    )
-    L.push('')
-    const fmtCell = (avg, d) => {
-      const dz =
-        d === null
-          ? ''
-          : d > 0
-            ? ` (▲+${d.toFixed(2)})`
-            : d < 0
-              ? ` (▼−${Math.abs(d).toFixed(2)})`
-              : ''
-      return `${avg.toFixed(2)}${dz}`
-    }
-    L.push(`| id | question | ${METRIC_KEYS.map((k) => METRIC_LABEL[k]).join(' | ')} |`)
-    L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|`)
-    for (const row of shown) {
-      const cells = METRIC_KEYS.map((k) => fmtCell(row.avg[k], row.delta[k])).join(' | ')
-      const text = mdCell(row.question)
-      L.push(`| ${row.id} | ${text} | ${cells} |`)
-    }
-    L.push('')
-  }
-
-  // 3) Per-run drill-down: aggregate + per-question tables (newest first)
-  L.push('## Inspect each run')
-  for (const r of [...runs].reverse()) {
-    L.push('')
-    const heading =
-      r.config && r.config.label ? `${r.config.label} — \`${r.run_id}\`` : `\`${r.run_id}\``
-    L.push(`### ${heading} — ${r.overall_status === 'fail' ? '❌ FAIL' : '✅ PASS'}`)
-    L.push('')
-    L.push(
-      `capire ${r.config.capire_version} · K=${r.config.k} · baseline ${r.baseline_run_id ? `\`${r.baseline_run_id}\`` : '—'} · diagnosis: \`${r.diagnosis}\``
-    )
-    L.push('')
-    L.push('| metric | value | Δ vs base | baseline | gate | status |')
-    L.push('|---|--:|:--:|--:|:--:|:--:|')
-    for (const key of METRIC_KEYS) {
-      const a = r.aggregate[key]
-      const delta =
-        a.delta === null || a.delta === undefined
-          ? '—'
-          : `${a.delta > 0 ? '+' : a.delta < 0 ? '−' : ''}${Math.abs(a.delta).toFixed(2)}`
-      const base = a.baseline === null || a.baseline === undefined ? '—' : a.baseline.toFixed(2)
-      L.push(
-        `| ${METRIC_LABEL[key]}@${r.config.k} | ${a.value.toFixed(2)} | ${delta} | ${base} | ${gateStr(a.gate)} | ${statusIcon(a.status)} |`
-      )
-    }
-    if ((r.per_question || []).length) {
-      L.push('')
-      const pq = r.per_question
-      const shownPq = pq.slice(0, MD_TOP_N)
-      if (pq.length > shownPq.length) {
-        L.push(
-          `_First ${shownPq.length} of ${pq.length} questions (full detail in \`compare.html\` / \`result.jsonl\`)._`
-        )
-        L.push('')
-      }
-      L.push(
-        `| id | question | ${METRIC_KEYS.map((k) => METRIC_LABEL[k]).join(' | ')} | hit ranks |`
-      )
-      L.push(`|---|---|${METRIC_KEYS.map(() => '--:').join('|')}|:--|`)
-      for (const q of shownPq) {
-        const cells = METRIC_KEYS.map((k) => (q.metrics[k] ?? 0).toFixed(3)).join(' | ')
-        const ranks =
-          q.relevant_hits_at_rank && q.relevant_hits_at_rank.length
-            ? q.relevant_hits_at_rank.join(', ')
-            : '—'
-        const text = mdCell(q.question)
-        L.push(`| ${q.id} | ${text} | ${cells} | ${ranks} |`)
-      }
-    }
-  }
-  L.push('')
-  return L.join('\n')
-}
-
-export async function compare({ config } = {}) {
-  const cfg = {
-    ...CONFIG,
-    ...config,
-    gates: { ...CONFIG.gates, ...config?.gates },
-    output: { ...CONFIG.output, ...config?.output }
-  }
-  const runs = await collectRuns(cfg)
-
-  if (runs.length === 0) {
-    console.error(
-      `No runs found under ${path.relative(process.cwd(), cfg.output.runsDir)}. Run the eval first.`
-    )
-    return { code: 3 }
-  }
-
-  const fmt = cfg.output.compareFormat // 'html' | 'md' (validated in config)
-  let content
-  if (fmt === 'md') {
-    content = renderMarkdownCompare(runs)
-  } else {
-    content = renderHtml(runs)
-  }
-  const out = path.join(cfg.output.runsDir, `compare.${fmt}`)
-  await fs.writeFile(out, content)
-
-  const rel = path.relative(process.cwd(), out)
-  console.log(`Compared ${runs.length} run(s) → ${rel}`)
-  if (fmt === 'html') {
-    const opener =
-      process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open'
-    console.log(`Open it in your browser:  ${opener} ${rel}`)
-    console.log(`  or paste this into the address bar:  file://${out}`)
-  } else {
-    console.log(`Open it in your editor/viewer:  ${rel}`)
-  }
-  return { code: 0, runs: runs.length, outPath: out, format: fmt }
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  compare()
-    .then((r) => process.exit(r.code))
-    .catch((e) => {
-      console.error(e)
-      process.exit(3)
-    })
 }
