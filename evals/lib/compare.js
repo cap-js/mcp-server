@@ -2,7 +2,7 @@
 import path from 'path'
 import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
-import { loadConfig, METRIC_KEYS, METRIC_LABEL } from './config.js'
+import { CONFIG, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
 import { round } from './metrics.js'
 
@@ -1000,13 +1000,13 @@ function renderMarkdownCompare(runs) {
   return L.join('\n')
 }
 
-export async function compare({
-  overrides,
-  outPath,
-  logger = console,
-  perQuestionRaw
-} = {}) {
-  const cfg = await loadConfig({ overrides })
+export async function compare({ config, outPath, logger = console, perQuestionRaw } = {}) {
+  const cfg = {
+    ...CONFIG,
+    ...config,
+    gates: { ...CONFIG.gates, ...config?.gates },
+    output: { ...CONFIG.output, ...config?.output }
+  }
   const runs = await collectRuns(cfg)
 
   if (runs.length === 0) {

@@ -14,7 +14,7 @@ and the determinism guarantees.
 ```
 evals/
   lib/                 # implementation (imported by the tests and npm run evals)
-    config.js          #   DEFAULT_CONFIG (edit here) + config loader (EVAL_* env overrides)
+    config.js          #   CONFIG (edit here) + metric key/label constants
     index.js           #   evaluate() + evaluateAndCompare() — orchestration
     retrieval.js       #   readJsonOrNull, makeSearchDocsRunner, retrieveAll, findEmbeddingDirs, readCapireVersion
     compare.js         #   compare(): chart every run's metrics into an HTML dashboard
@@ -33,7 +33,7 @@ evals/
     compare.html       #   metric-trend dashboard (or compare.md if compareFormat=md)
   tests/
     unit/              # unit tests
-      metrics.test.js  config.test.js  ids.test.js  evaluate.test.js  store.test.js
+      metrics.test.js  ids.test.js  evaluate.test.js  store.test.js
       compare.test.js  report.test.js  search-docs.test.js  checkScoreForDifferentTexts.test.js
 ```
 
@@ -43,7 +43,7 @@ From the repo root (`@cap-js/mcp-server`):
 
 ```sh
 npm run evals        # run the eval → appends to result.jsonl, then builds compare report
-npm run evals:test   # unit + determinism + config tests
+npm run evals:test   # unit + determinism tests
 ```
 
 `npm run evals` runs the eval (each run appended to
@@ -58,7 +58,7 @@ weakest questions.
 ### Comparison report
 
 Built automatically at the end of every `npm run evals`. The format is controlled by
-`output.compareFormat` in `DEFAULT_CONFIG` (`config.js`):
+`output.compareFormat` in `CONFIG` (`config.js`):
 
 - **`html`** (default) → `runs/compare.html`: leaderboard (all runs ranked by gated
   metrics), one line chart per metric (Recall@K, MRR, Hit-Rate@K, nDCG@K)
@@ -78,11 +78,11 @@ determinism). So the cache (`embeddings/code-chunks.*` and the ONNX model under
 
 ## Configuration
 
-All behaviour is configured in `DEFAULT_CONFIG` at the top of [`lib/config.js`](../lib/config.js) — edit it in one place. One
-env var is honoured for day-to-day runs, and everything is also overridable
-programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win last).
+All behaviour is configured in `CONFIG` at the top of [`lib/config.js`](../lib/config.js) — edit it in one place.
+Everything is also overridable programmatically via `evaluate({ config })` in `lib/index.js` (a partial
+object, shallow-merged over `CONFIG`; overrides win last).
 
-| `DEFAULT_CONFIG` key | Default | Meaning |
+| `CONFIG` key | Default | Meaning |
 |---|---|---|
 | `k` | `5` | Cutoff K for all @K metrics. Change it and clear `runs/` (K and the baseline are coupled). |
 | `embeddingsDir` | `'../embeddings'` | Parent directory to sweep. The eval runs once per discovered leaf dir (any dir containing `code-chunks.json`), appending all results to `result.jsonl` and building one compare report. Label is derived automatically from the path segments relative to this dir. Override to `null` to disable sweep. |
@@ -92,16 +92,16 @@ programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win 
 | `output.resultsName` | `result.jsonl` | Name of the append-only results file. |
 | `output.compareFormat` | `html` | `evals:compare` output: `html` (charts) or `md` (tables). |
 
-All configuration is edited in `DEFAULT_CONFIG`.
+All configuration is edited in `CONFIG`.
 
 ### Useful configs
 
-`embeddingsDir` in `DEFAULT_CONFIG` points to a parent directory. The eval discovers
+`embeddingsDir` in `CONFIG` points to a parent directory. The eval discovers
 every descendant directory that contains `code-chunks.json`, runs once per directory,
 and appends all results to `result.jsonl`. A single `compare.html` is built at the end.
 
 ```js
-// In lib/config.js DEFAULT_CONFIG:
+// In lib/config.js CONFIG:
 embeddingsDir: '/path/to/All Embeddings/xenova_w_meta'
 ```
 

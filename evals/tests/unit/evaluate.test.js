@@ -34,7 +34,7 @@ async function loadGolden() {
   return JSON.parse(await fs.readFile(goldenPath, 'utf8'))
 }
 
-function baseOverrides(extra = {}) {
+function baseConfig(extra = {}) {
   const base = {
     k: 5,
     goldenSet: goldenPath,
@@ -72,7 +72,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -92,7 +92,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       label: 'tuned chunker',
       logger: silentLogger
     })
@@ -115,7 +115,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -127,7 +127,7 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     delete process.env.CDS_MCP_OFFLINE
 
-    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
 
     assert.equal('CDS_MCP_OFFLINE' in process.env, false)
   })
@@ -137,7 +137,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -151,7 +151,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -161,7 +161,7 @@ describe('evaluate', () => {
   })
 
   it('should exit 3 when the golden set is missing', async () => {
-    const res = await evaluateAndCompare({ overrides: baseOverrides() })
+    const res = await evaluateAndCompare({ config: baseConfig() })
 
     assert.equal(res.code, 3)
   })
@@ -169,13 +169,13 @@ describe('evaluate', () => {
   it('should rethrow a non-ENOENT error when reading the golden set', async () => {
     await fs.mkdir(goldenPath)
 
-    await assert.rejects(() => evaluateAndCompare({ overrides: baseOverrides() }), /EISDIR/)
+    await assert.rejects(() => evaluateAndCompare({ config: baseConfig() }), /EISDIR/)
   })
 
   it('should exit 3 and write no run when the golden question is malformed', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1' }])
 
-    const res = await evaluateAndCompare({ overrides: baseOverrides() })
+    const res = await evaluateAndCompare({ config: baseConfig() })
 
     assert.equal(res.code, 3)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
@@ -185,7 +185,7 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const first = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
     assert.equal(first.report.baseline_run_id, null)
@@ -195,7 +195,7 @@ describe('evaluate', () => {
 
     const second = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -208,18 +208,18 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
     const r2 = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
     const r3 = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ baselineRunId: r2.report.run_id }),
+      config: baseConfig({ baselineRunId: r2.report.run_id }),
       logger: silentLogger
     })
 
@@ -229,11 +229,11 @@ describe('evaluate', () => {
 
   it('should proceed without a baseline when the pinned baselineRunId is not found', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
 
     const r = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ baselineRunId: 'no-such-run' }),
+      config: baseConfig({ baselineRunId: 'no-such-run' }),
       logger: silentLogger
     })
 
@@ -242,11 +242,11 @@ describe('evaluate', () => {
 
   it('should not pick an automatic baseline from a run with a different k', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
 
     const second = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ k: 3 }),
+      config: baseConfig({ k: 3 }),
       logger: silentLogger
     })
 
@@ -256,12 +256,12 @@ describe('evaluate', () => {
 
   it('should not pick an automatic baseline from a run with a different golden set', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-a')
-    await evaluate({ golden: await loadGolden(), overrides: baseOverrides(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
 
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-b')
     const second = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
@@ -273,13 +273,13 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides(),
+      config: baseConfig(),
       logger: silentLogger
     })
 
     const r2 = await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ k: 3, baselineRunId: r1.report.run_id }),
+      config: baseConfig({ k: 3, baselineRunId: r1.report.run_id }),
       logger: silentLogger
     })
 
@@ -292,7 +292,7 @@ describe('evaluate', () => {
     for (let i = 0; i < 3; i++) {
       await evaluate({
         golden: await loadGolden(),
-        overrides: baseOverrides({ output: { keepRuns: 20 } }),
+        config: baseConfig({ output: { keepRuns: 20 } }),
         logger: silentLogger
       })
     }
@@ -309,7 +309,7 @@ describe('evaluate', () => {
     for (let i = 0; i < 5; i++) {
       await evaluate({
         golden: await loadGolden(),
-        overrides: baseOverrides({ output: { keepRuns: 2 } }),
+        config: baseConfig({ output: { keepRuns: 2 } }),
         logger: silentLogger
       })
     }
@@ -323,7 +323,7 @@ describe('evaluate', () => {
 
     await evaluate({
       golden: await loadGolden(),
-      overrides: baseOverrides({ output: { keepRuns: 20, resultsName: 'runs.jsonl' } }),
+      config: baseConfig({ output: { keepRuns: 20, resultsName: 'runs.jsonl' } }),
       logger: silentLogger
     })
 
@@ -338,7 +338,7 @@ describe('evaluate', () => {
     await fs.writeFile(path.join(embDir, 'code-chunks.json'), '{}')
 
     const res = await evaluateAndCompare({
-      overrides: { ...baseOverrides(), label: null, embeddingsDir: embDir },
+      config: { ...baseConfig(), label: null, embeddingsDir: embDir },
       logger: silentLogger
     })
 
@@ -357,7 +357,7 @@ describe('evaluate', () => {
     await fs.mkdir(path.join(runsDir, 'compare.html'), { recursive: true })
 
     const res = await evaluateAndCompare({
-      overrides: { ...baseOverrides(), label: null, embeddingsDir: embDir },
+      config: { ...baseConfig(), label: null, embeddingsDir: embDir },
       logger: silentLogger
     })
 
@@ -367,21 +367,21 @@ describe('evaluate', () => {
   })
 
   it('should exit 3 and not write results when the golden set is missing', async () => {
-    const res = await evaluateAndCompare({ overrides: baseOverrides(), logger: silentLogger })
+    const res = await evaluateAndCompare({ config: baseConfig(), logger: silentLogger })
 
     assert.equal(res.code, 3)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
   })
 
   describe('side-effects', () => {
-    it('should not mutate the overrides object passed to evaluate', async () => {
+    it('should not mutate the config object passed to evaluate', async () => {
       await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-      const overrides = baseOverrides()
-      const keysBefore = Object.keys(overrides)
+      const config = baseConfig()
+      const keysBefore = Object.keys(config)
 
-      await evaluate({ golden: await loadGolden(), overrides, logger: silentLogger })
+      await evaluate({ golden: await loadGolden(), config, logger: silentLogger })
 
-      assert.deepEqual(Object.keys(overrides), keysBefore)
+      assert.deepEqual(Object.keys(config), keysBefore)
     })
   })
 })
@@ -405,7 +405,7 @@ describe('evaluateSweep', () => {
     await fs.writeFile(goldenPath, JSON.stringify({ golden_set: 'test', questions }))
   }
 
-  function sweepOverrides(extra = {}) {
+  function sweepConfig(extra = {}) {
     const base = {
       k: 5,
       label: null,
@@ -429,7 +429,7 @@ describe('evaluateSweep', () => {
     await fs.mkdir(sweepDir, { recursive: true })
 
     await assert.rejects(
-      () => evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger }),
+      () => evaluateAndCompare({ config: sweepConfig(), logger: silentLogger }),
       /No embedding dirs found/
     )
   })
@@ -442,7 +442,7 @@ describe('evaluateSweep', () => {
       await fs.writeFile(path.join(sweepDir, 'model-a', sub, 'code-chunks.json'), '{}')
     }
 
-    const res = await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger })
+    const res = await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
 
     const rows = await readResults()
     assert.equal(rows.length, 2)
@@ -457,7 +457,7 @@ describe('evaluateSweep', () => {
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
 
-    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger })
+    await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
 
     const rows = await readResults()
     assert.equal(rows[0].config.label, 'group/subgroup/variant')
@@ -470,7 +470,7 @@ describe('evaluateSweep', () => {
     await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
     await fs.mkdir(path.join(sweepDir, 'no-chunks'), { recursive: true })
 
-    await evaluateAndCompare({ overrides: sweepOverrides(), logger: silentLogger })
+    await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
 
     const rows = await readResults()
     assert.equal(rows.length, 1)
@@ -478,17 +478,17 @@ describe('evaluateSweep', () => {
   })
 
   describe('side-effects', () => {
-    it('should not mutate the overrides object passed to evaluateAndCompare', async () => {
+    it('should not mutate the config object passed to evaluateAndCompare', async () => {
       await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
       const hasChunks = path.join(sweepDir, 'has-chunks')
       await fs.mkdir(hasChunks, { recursive: true })
       await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
-      const overrides = sweepOverrides()
-      const keysBefore = Object.keys(overrides)
+      const config = sweepConfig()
+      const keysBefore = Object.keys(config)
 
-      await evaluateAndCompare({ overrides, logger: silentLogger })
+      await evaluateAndCompare({ config, logger: silentLogger })
 
-      assert.deepEqual(Object.keys(overrides), keysBefore)
+      assert.deepEqual(Object.keys(config), keysBefore)
     })
   })
 })

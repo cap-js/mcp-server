@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 import path from 'path'
 import { fileURLToPath } from 'url'
-import { loadConfig } from './config.js'
+import { CONFIG } from './config.js'
 import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
 import { appendRun, readRuns, baselineRun } from './store.js'
 import { sourceDbRuntime } from './createSourceDb/createSourceDb.js'
@@ -16,11 +16,16 @@ import {
 export async function evaluate({
   sourceDb,
   golden,
-  overrides,
+  config,
   label = '',
   capire_version = 'unknown'
 } = {}) {
-  const cfg = await loadConfig({ overrides })
+  const cfg = {
+    ...CONFIG,
+    ...config,
+    gates: { ...CONFIG.gates, ...config?.gates },
+    output: { ...CONFIG.output, ...config?.output }
+  }
 
   // Only compare against runs with the same evaluation dimensions (K + golden
   // set); a baseline from a different config makes deltas meaningless. A pinned
@@ -41,14 +46,19 @@ export async function evaluate({
   const retrieve = await retrievalRuntime.makeSearchDocsRunner(cfg.k, sourceDb)
   const perQuestionRaw = await retrieveAll(golden, retrieve)
 
-  const config = {
+  const runConfig = {
     capire_version,
     golden_set: golden.golden_set,
     golden_set_size: golden.questions.length,
     k: cfg.k,
     label
   }
-  const report = buildReport({ config, perQuestionRaw, baseline, gates: cfg.gates })
+  const report = buildReport({
+    config: runConfig,
+    perQuestionRaw,
+    baseline,
+    gates: cfg.gates
+  })
   const run_id = makeRunId()
   const full = { run_id, ...report }
 
@@ -69,8 +79,13 @@ export async function evaluate({
 
 // Entry point for `npm run evals`: sweep all embedding subdirs under
 // cfg.embeddingsDir, then build the comparison report.
-export async function evaluateAndCompare({ overrides, logger = console } = {}) {
-  const cfg = await loadConfig({ overrides })
+export async function evaluateAndCompare({ config, logger = console } = {}) {
+  const cfg = {
+    ...CONFIG,
+    ...config,
+    gates: { ...CONFIG.gates, ...config?.gates },
+    output: { ...CONFIG.output, ...config?.output }
+  }
 
   const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
@@ -112,7 +127,7 @@ export async function evaluateAndCompare({ overrides, logger = console } = {}) {
       const { code: c } = await evaluate({
         sourceDb,
         golden,
-        overrides,
+        config,
         label,
         capire_version
       })
@@ -126,7 +141,7 @@ export async function evaluateAndCompare({ overrides, logger = console } = {}) {
 
   try {
     const { compare } = await import('./compare.js')
-    await compare({ overrides })
+    await compare({ config })
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
     if (code === 0) code = 3
