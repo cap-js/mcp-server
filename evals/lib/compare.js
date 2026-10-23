@@ -1001,13 +1001,12 @@ function renderMarkdownCompare(runs) {
 }
 
 export async function compare({
-  configPath,
   overrides,
   outPath,
   logger = console,
   perQuestionRaw
 } = {}) {
-  const cfg = await loadConfig({ configPath, overrides })
+  const cfg = await loadConfig({ overrides })
   const runs = await collectRuns(cfg)
 
   if (runs.length === 0) {
@@ -1052,10 +1051,7 @@ export async function compare({
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2)
-  const configIdx = args.indexOf('--config')
-  const configPath = configIdx !== -1 ? args[configIdx + 1] : undefined
-  compare({ configPath })
+  compare()
     .then((r) => process.exit(r.code))
     .catch((e) => {
       console.error(e)

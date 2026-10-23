@@ -1,6 +1,5 @@
 import { fileURLToPath } from 'url'
 import path from 'path'
-import fs from 'fs/promises'
 
 // ── Run configuration --
 export const DEFAULT_CONFIG = {
@@ -37,25 +36,10 @@ export const METRIC_LABEL = {
 }
 
 // Load and resolve the effective configuration.
-// Default values come from DEFAULT_CONFIG above. An external JSON file at
-// configPath (used by tests) overrides them. Env vars and programmatic
+// Default values come from DEFAULT_CONFIG above. Programmatic
 // overrides win last.
-export async function loadConfig({ configPath, overrides } = {}) {
-  let file = DEFAULT_CONFIG
-
-  if (configPath) {
-    try {
-      const parsed = JSON.parse(await fs.readFile(path.resolve(configPath), 'utf8'))
-      file = {
-        ...DEFAULT_CONFIG,
-        ...parsed,
-        gates: { ...DEFAULT_CONFIG.gates, ...(parsed.gates || {}) },
-        output: { ...DEFAULT_CONFIG.output, ...(parsed.output || {}) }
-      }
-    } catch (err) {
-      if (err.code !== 'ENOENT') throw err
-    }
-  }
+export async function loadConfig({ overrides } = {}) {
+  const file = DEFAULT_CONFIG
 
   const gatesFile = { ...(file.gates || {}) }
   delete gatesFile.$comment

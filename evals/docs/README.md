@@ -94,7 +94,7 @@ programmatically via `evaluate({ overrides })` in `lib/index.js` (overrides win 
 
 All configuration is edited in `DEFAULT_CONFIG`.
 
-### Useful commands
+### Useful configs
 
 `embeddingsDir` in `DEFAULT_CONFIG` points to a parent directory. The eval discovers
 every descendant directory that contains `code-chunks.json`, runs once per directory,

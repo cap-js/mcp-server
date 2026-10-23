@@ -16,12 +16,11 @@ import {
 export async function evaluate({
   sourceDb,
   golden,
-  configPath,
   overrides,
   label = '',
   capire_version = 'unknown'
 } = {}) {
-  const cfg = await loadConfig({ configPath, overrides })
+  const cfg = await loadConfig({ overrides })
 
   // Only compare against runs with the same evaluation dimensions (K + golden
   // set); a baseline from a different config makes deltas meaningless. A pinned
@@ -70,8 +69,8 @@ export async function evaluate({
 
 // Entry point for `npm run evals`: sweep all embedding subdirs under
 // cfg.embeddingsDir, then build the comparison report.
-export async function evaluateAndCompare({ configPath, overrides, logger = console } = {}) {
-  const cfg = await loadConfig({ configPath, overrides })
+export async function evaluateAndCompare({ overrides, logger = console } = {}) {
+  const cfg = await loadConfig({ overrides })
 
   const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
@@ -113,7 +112,6 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
       const { code: c } = await evaluate({
         sourceDb,
         golden,
-        configPath,
         overrides,
         label,
         capire_version
@@ -128,7 +126,7 @@ export async function evaluateAndCompare({ configPath, overrides, logger = conso
 
   try {
     const { compare } = await import('./compare.js')
-    await compare({ configPath, overrides })
+    await compare({ overrides })
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
     if (code === 0) code = 3

@@ -1,8 +1,5 @@
-import { it, describe, afterEach, beforeEach } from 'node:test'
+import { it, describe, afterEach } from 'node:test'
 import assert from 'node:assert/strict'
-import fs from 'node:fs/promises'
-import os from 'node:os'
-import path from 'node:path'
 import { loadConfig, METRIC_KEYS } from '../../lib/config.js'
 
 const EVAL_ENV = ['EVAL_LABEL']
@@ -105,30 +102,6 @@ describe('config', () => {
     const cfg = await loadConfig({ overrides: { label: null } })
 
     assert.equal(cfg.label, null)
-  })
-
-  describe('when label is configured in a file', () => {
-    let dir, tmp
-    beforeEach(async () => {
-      dir = await fs.mkdtemp(path.join(os.tmpdir(), 'eval-config-label-'))
-      tmp = path.join(dir, 'config.json')
-      await fs.writeFile(tmp, JSON.stringify({ label: 'from-file' }))
-    })
-    afterEach(async () => {
-      await fs.rm(dir, { recursive: true, force: true })
-    })
-
-    it('should read the label from the config file', async () => {
-      const cfg = await loadConfig({ configPath: tmp })
-
-      assert.equal(cfg.label, 'from-file')
-    })
-
-    it('should use the override label over the config file label', async () => {
-      const cfg = await loadConfig({ configPath: tmp, overrides: { label: 'override' } })
-
-      assert.equal(cfg.label, 'override')
-    })
   })
 
   describe('side-effects', () => {
