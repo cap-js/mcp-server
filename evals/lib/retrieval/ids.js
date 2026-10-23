@@ -35,9 +35,16 @@ function isNotInsideFence(lines, lastHeadingIndex, index) {
 }
 
 function isNotInsideContainer(lines, lastHeadingIndex, index) {
+  let closesSeen = 0
   for (let i = index - 1; i >= lastHeadingIndex; i--) {
-    if (CONTAINER_OPENER.test(lines[i])) return false
-    if (CONTAINER_CLOSER.test(lines[i])) return true
+    if (CONTAINER_CLOSER.test(lines[i])) {
+      closesSeen++
+      continue
+    }
+    if (CONTAINER_OPENER.test(lines[i])) {
+      if (closesSeen > 0) closesSeen--
+      else return false
+    }
   }
   return true
 }

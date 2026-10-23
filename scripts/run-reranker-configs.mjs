@@ -105,10 +105,13 @@ for (const cfg of CONFIGS) {
 
   setLabel(label)
 
-  const env = { ...process.env, CDS_MCP_RERANK_MODEL: model, RERANK_ENABLED: true }
+  const env = { ...process.env, CDS_MCP_RERANK_MODEL: model, RERANK_ENABLED: 'true' }
   if (dtype != null) env.CDS_MCP_RERANK_DTYPE = dtype
+  else delete env.CDS_MCP_RERANK_DTYPE
   if (batchSize != null) env.CDS_MCP_RERANK_BATCH_SIZE = String(batchSize)
+  else delete env.CDS_MCP_RERANK_BATCH_SIZE
   if (overRetrieve != null) env.CDS_MCP_RERANK_OVER_RETRIEVE = String(overRetrieve)
+  else delete env.CDS_MCP_RERANK_OVER_RETRIEVE
 
   const { status } = spawnSync('npm', ['run', 'evals'], {
     cwd: path.join(__dirname, '..'),

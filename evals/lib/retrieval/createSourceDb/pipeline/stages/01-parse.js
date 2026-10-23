@@ -42,10 +42,17 @@ export function isHeadingLine(lines, index) {
 }
 
 function isNotInsideContainer(lines, lastHeadingIndex, index) {
+  let closesSeen = 0
   for (let i = index - 1; i >= lastHeadingIndex; i--) {
     const line = lines[i]
-    if (CONTAINER_OPENER.test(line)) return false
-    if (CONTAINER_CLOSER.test(line)) return true
+    if (CONTAINER_CLOSER.test(line)) {
+      closesSeen++
+      continue
+    }
+    if (CONTAINER_OPENER.test(line)) {
+      if (closesSeen > 0) closesSeen--
+      else return false
+    }
   }
   return true
 }

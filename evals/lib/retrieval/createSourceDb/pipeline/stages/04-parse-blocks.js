@@ -19,6 +19,10 @@ export const LEAD_IN_PATTERNS = [
   /outlined below/i
 ]
 const FENCE_OPENER = /^(\s*)(```+|~~~+)/
+// A closing fence carries no info string (CommonMark), so the closer must be
+// fence characters + optional trailing whitespace only — otherwise a body line
+// like ```js would be mistaken for the closer and truncate the block.
+const FENCE_CLOSER = /^(\s*)(```+|~~~+)\s*$/
 const HTML_TABLE_OPEN = /^<table(\s|>)/i
 const HTML_TABLE_CLOSE = /^<\/table>/i
 const NUMBERED_ITEM = /^\d+\.\s/
@@ -93,7 +97,7 @@ function parseBlockLines(lines) {
       while (i < lines.length) {
         const l = lines[i]
         fenceLines.push(l)
-        const cm = FENCE_OPENER.exec(l)
+        const cm = FENCE_CLOSER.exec(l)
         if (i > startI && cm && cm[2][0] === fenceChar && cm[2].length >= fenceLen) {
           i++
           break
