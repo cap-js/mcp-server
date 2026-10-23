@@ -79,22 +79,17 @@ export async function evaluate({
 
 // Entry point for `npm run evals`: sweep all embedding subdirs under
 // cfg.embeddingsDir, then build the comparison report.
-export async function evaluateAndCompare({ config, logger = console } = {}) {
-  const cfg = {
-    ...CONFIG,
-    ...config,
-    gates: { ...CONFIG.gates, ...config?.gates },
-    output: { ...CONFIG.output, ...config?.output }
-  }
+export async function evaluateAndCompare() {
+  const cfg = CONFIG
 
   const golden = await readJsonOrNull(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
-    logger.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
+    console.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
     return { code: 3 }
   }
   const problems = validateGolden(golden.questions)
   if (problems.length > 0) {
-    logger.error(
+    console.error(
       `Golden set at ${cfg.goldenSet} has ${problems.length} problem(s): ${JSON.stringify(problems)}`
     )
     return { code: 3 }
@@ -127,7 +122,6 @@ export async function evaluateAndCompare({ config, logger = console } = {}) {
       const { code: c } = await evaluate({
         sourceDb,
         golden,
-        config,
         label,
         capire_version
       })
@@ -141,7 +135,7 @@ export async function evaluateAndCompare({ config, logger = console } = {}) {
 
   try {
     const { compare } = await import('./compare.js')
-    await compare({ config })
+    await compare()
   } catch (err) {
     console.error(`(compare step failed: ${err.message})`)
     if (code === 0) code = 3

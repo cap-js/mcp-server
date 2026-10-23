@@ -4,10 +4,9 @@ import fs from 'fs/promises'
 import path from 'path'
 import os from 'os'
 import { evaluate, evaluateAndCompare } from '../../lib/index.js'
+import { CONFIG } from '../../lib/config.js'
 import { sourceDbRuntime } from '../../lib/createSourceDb/createSourceDb.js'
 import { retrievalRuntime } from '../../lib/retrieval.js'
-
-const silentLogger = { log() {}, error() {} }
 
 const CHUNK_IDS = ['doc-a#0001', 'doc-b#0002', 'doc-c#0003', 'doc-d#0004', 'doc-e#0005']
 
@@ -25,6 +24,31 @@ function mockEvaluationRuntime(makeSearchDocsRunner = retriever()) {
 let tmpDir
 let goldenPath
 let runsDir
+let sweepDir
+
+let savedConfig
+// Redirect the shared CONFIG singleton at temp dirs for one test, and silence
+// its console output. restoreConfig() in afterEach puts the originals back.
+function redirectConfig(embeddingsDir) {
+  savedConfig = {
+    goldenSet: CONFIG.goldenSet,
+    runsDir: CONFIG.output.runsDir,
+    embeddingsDir: CONFIG.embeddingsDir,
+    label: CONFIG.label
+  }
+  CONFIG.goldenSet = goldenPath
+  CONFIG.output.runsDir = runsDir
+  CONFIG.embeddingsDir = embeddingsDir
+  CONFIG.label = null
+  mock.method(console, 'error', () => {})
+}
+
+function restoreConfig() {
+  CONFIG.goldenSet = savedConfig.goldenSet
+  CONFIG.output.runsDir = savedConfig.runsDir
+  CONFIG.embeddingsDir = savedConfig.embeddingsDir
+  CONFIG.label = savedConfig.label
+}
 
 async function writeGolden(questions, name = 'test-golden') {
   await fs.writeFile(goldenPath, JSON.stringify({ golden_set: name, questions }))
@@ -58,9 +82,11 @@ describe('evaluate', () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-cli-'))
     goldenPath = path.join(tmpDir, 'golden.json')
     runsDir = path.join(tmpDir, 'runs')
+    redirectConfig(path.join(tmpDir, 'embeddings'))
   })
   afterEach(async () => {
     mock.restoreAll()
+    restoreConfig()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
@@ -72,8 +98,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(res.code, 0)
@@ -93,8 +118,7 @@ describe('evaluate', () => {
     const res = await evaluate({
       golden: await loadGolden(),
       config: baseConfig(),
-      label: 'tuned chunker',
-      logger: silentLogger
+      label: 'tuned chunker'
     })
 
     assert.ok(res.report.config.label.includes('tuned chunker'))
@@ -115,8 +139,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(res.report.per_question[0].metrics.hit_rate_at_k, 1)
@@ -127,7 +150,7 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     delete process.env.CDS_MCP_OFFLINE
 
-    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig() })
 
     assert.equal('CDS_MCP_OFFLINE' in process.env, false)
   })
@@ -137,8 +160,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(res.code, 1)
@@ -151,8 +173,7 @@ describe('evaluate', () => {
 
     const res = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(res.code, 1)
@@ -161,7 +182,7 @@ describe('evaluate', () => {
   })
 
   it('should exit 3 when the golden set is missing', async () => {
-    const res = await evaluateAndCompare({ config: baseConfig() })
+    const res = await evaluateAndCompare()
 
     assert.equal(res.code, 3)
   })
@@ -169,13 +190,13 @@ describe('evaluate', () => {
   it('should rethrow a non-ENOENT error when reading the golden set', async () => {
     await fs.mkdir(goldenPath)
 
-    await assert.rejects(() => evaluateAndCompare({ config: baseConfig() }), /EISDIR/)
+    await assert.rejects(() => evaluateAndCompare(), /EISDIR/)
   })
 
   it('should exit 3 and write no run when the golden question is malformed', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1' }])
 
-    const res = await evaluateAndCompare({ config: baseConfig() })
+    const res = await evaluateAndCompare()
 
     assert.equal(res.code, 3)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
@@ -185,8 +206,7 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const first = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
     assert.equal(first.report.baseline_run_id, null)
     const worse = ['doc-x#000x', 'doc-y#000y', 'doc-a#0001', 'doc-b#0002', 'doc-c#0003']
@@ -195,8 +215,7 @@ describe('evaluate', () => {
 
     const second = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(second.report.baseline_run_id, first.report.run_id)
@@ -208,19 +227,16 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
     const r2 = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     const r3 = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig({ baselineRunId: r2.report.run_id }),
-      logger: silentLogger
+      config: baseConfig({ baselineRunId: r2.report.run_id })
     })
 
     assert.equal(r3.report.baseline_run_id, r2.report.run_id)
@@ -229,12 +245,11 @@ describe('evaluate', () => {
 
   it('should proceed without a baseline when the pinned baselineRunId is not found', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig() })
 
     const r = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig({ baselineRunId: 'no-such-run' }),
-      logger: silentLogger
+      config: baseConfig({ baselineRunId: 'no-such-run' })
     })
 
     assert.equal(r.report.baseline_run_id, null)
@@ -242,12 +257,11 @@ describe('evaluate', () => {
 
   it('should not pick an automatic baseline from a run with a different k', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig() })
 
     const second = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig({ k: 3 }),
-      logger: silentLogger
+      config: baseConfig({ k: 3 })
     })
 
     assert.equal(second.report.config.k, 3)
@@ -256,13 +270,12 @@ describe('evaluate', () => {
 
   it('should not pick an automatic baseline from a run with a different golden set', async () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-a')
-    await evaluate({ golden: await loadGolden(), config: baseConfig(), logger: silentLogger })
+    await evaluate({ golden: await loadGolden(), config: baseConfig() })
 
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }], 'set-b')
     const second = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     assert.equal(second.report.config.golden_set, 'set-b')
@@ -273,14 +286,12 @@ describe('evaluate', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     const r1 = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig(),
-      logger: silentLogger
+      config: baseConfig()
     })
 
     const r2 = await evaluate({
       golden: await loadGolden(),
-      config: baseConfig({ k: 3, baselineRunId: r1.report.run_id }),
-      logger: silentLogger
+      config: baseConfig({ k: 3, baselineRunId: r1.report.run_id })
     })
 
     assert.equal(r2.report.baseline_run_id, r1.report.run_id)
@@ -292,8 +303,7 @@ describe('evaluate', () => {
     for (let i = 0; i < 3; i++) {
       await evaluate({
         golden: await loadGolden(),
-        config: baseConfig({ output: { keepRuns: 20 } }),
-        logger: silentLogger
+        config: baseConfig({ output: { keepRuns: 20 } })
       })
     }
 
@@ -309,8 +319,7 @@ describe('evaluate', () => {
     for (let i = 0; i < 5; i++) {
       await evaluate({
         golden: await loadGolden(),
-        config: baseConfig({ output: { keepRuns: 2 } }),
-        logger: silentLogger
+        config: baseConfig({ output: { keepRuns: 2 } })
       })
     }
 
@@ -323,8 +332,7 @@ describe('evaluate', () => {
 
     await evaluate({
       golden: await loadGolden(),
-      config: baseConfig({ output: { keepRuns: 20, resultsName: 'runs.jsonl' } }),
-      logger: silentLogger
+      config: baseConfig({ output: { keepRuns: 20, resultsName: 'runs.jsonl' } })
     })
 
     const entries = await fs.readdir(runsDir)
@@ -337,10 +345,7 @@ describe('evaluate', () => {
     await fs.mkdir(embDir, { recursive: true })
     await fs.writeFile(path.join(embDir, 'code-chunks.json'), '{}')
 
-    const res = await evaluateAndCompare({
-      config: { ...baseConfig(), label: null, embeddingsDir: embDir },
-      logger: silentLogger
-    })
+    const res = await evaluateAndCompare()
 
     assert.equal(res.code, 0)
     const rows = await readResults()
@@ -356,10 +361,7 @@ describe('evaluate', () => {
     // Make the report write fail: a directory where compare.html must be written.
     await fs.mkdir(path.join(runsDir, 'compare.html'), { recursive: true })
 
-    const res = await evaluateAndCompare({
-      config: { ...baseConfig(), label: null, embeddingsDir: embDir },
-      logger: silentLogger
-    })
+    const res = await evaluateAndCompare()
 
     assert.notEqual(res.code, 0)
     const rows = await readResults()
@@ -367,7 +369,7 @@ describe('evaluate', () => {
   })
 
   it('should exit 3 and not write results when the golden set is missing', async () => {
-    const res = await evaluateAndCompare({ config: baseConfig(), logger: silentLogger })
+    const res = await evaluateAndCompare()
 
     assert.equal(res.code, 3)
     await assert.rejects(() => fs.access(path.join(runsDir, 'result.jsonl')))
@@ -379,7 +381,7 @@ describe('evaluate', () => {
       const config = baseConfig()
       const keysBefore = Object.keys(config)
 
-      await evaluate({ golden: await loadGolden(), config, logger: silentLogger })
+      await evaluate({ golden: await loadGolden(), config })
 
       assert.deepEqual(Object.keys(config), keysBefore)
     })
@@ -387,33 +389,22 @@ describe('evaluate', () => {
 })
 
 describe('evaluateSweep', () => {
-  let tmpDir, goldenPath, runsDir, sweepDir
-
   beforeEach(async () => {
     mockEvaluationRuntime()
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'evals-sweep-'))
     goldenPath = path.join(tmpDir, 'golden.json')
     runsDir = path.join(tmpDir, 'runs')
     sweepDir = path.join(tmpDir, 'sweep')
+    redirectConfig(sweepDir)
   })
   afterEach(async () => {
     mock.restoreAll()
+    restoreConfig()
     await fs.rm(tmpDir, { recursive: true, force: true })
   })
 
   async function writeGolden(questions) {
     await fs.writeFile(goldenPath, JSON.stringify({ golden_set: 'test', questions }))
-  }
-
-  function sweepConfig(extra = {}) {
-    const base = {
-      k: 5,
-      label: null,
-      goldenSet: goldenPath,
-      output: { runsDir },
-      embeddingsDir: sweepDir
-    }
-    return { ...base, ...extra, output: { ...base.output, ...(extra.output || {}) } }
   }
 
   async function readResults() {
@@ -428,10 +419,7 @@ describe('evaluateSweep', () => {
     await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
     await fs.mkdir(sweepDir, { recursive: true })
 
-    await assert.rejects(
-      () => evaluateAndCompare({ config: sweepConfig(), logger: silentLogger }),
-      /No embedding dirs found/
-    )
+    await assert.rejects(() => evaluateAndCompare(), /No embedding dirs found/)
   })
 
   it('should run once per embedding dir and append each result to result.jsonl', async () => {
@@ -442,7 +430,7 @@ describe('evaluateSweep', () => {
       await fs.writeFile(path.join(sweepDir, 'model-a', sub, 'code-chunks.json'), '{}')
     }
 
-    const res = await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
+    const res = await evaluateAndCompare()
 
     const rows = await readResults()
     assert.equal(rows.length, 2)
@@ -457,7 +445,7 @@ describe('evaluateSweep', () => {
     await fs.mkdir(dir, { recursive: true })
     await fs.writeFile(path.join(dir, 'code-chunks.json'), '{}')
 
-    await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
+    await evaluateAndCompare()
 
     const rows = await readResults()
     assert.equal(rows[0].config.label, 'group/subgroup/variant')
@@ -470,25 +458,10 @@ describe('evaluateSweep', () => {
     await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
     await fs.mkdir(path.join(sweepDir, 'no-chunks'), { recursive: true })
 
-    await evaluateAndCompare({ config: sweepConfig(), logger: silentLogger })
+    await evaluateAndCompare()
 
     const rows = await readResults()
     assert.equal(rows.length, 1)
     assert.ok(rows[0].config.label.endsWith('has-chunks'))
-  })
-
-  describe('side-effects', () => {
-    it('should not mutate the config object passed to evaluateAndCompare', async () => {
-      await writeGolden([{ id: 'q-001', question: 'q1', relevant_doc_ids: ['doc-a#0001'] }])
-      const hasChunks = path.join(sweepDir, 'has-chunks')
-      await fs.mkdir(hasChunks, { recursive: true })
-      await fs.writeFile(path.join(hasChunks, 'code-chunks.json'), '{}')
-      const config = sweepConfig()
-      const keysBefore = Object.keys(config)
-
-      await evaluateAndCompare({ config, logger: silentLogger })
-
-      assert.deepEqual(Object.keys(config), keysBefore)
-    })
   })
 })
