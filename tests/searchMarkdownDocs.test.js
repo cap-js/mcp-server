@@ -31,7 +31,7 @@ mock.method(globalThis, 'fetch', async () => {
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
-const { formatResult } = searchModule
+const { formatResult, dedupByContent } = searchModule
 
 after(async () => {
   mock.restoreAll()
@@ -74,6 +74,51 @@ describe('formatResult', () => {
   test('returns content only when all meta values are empty', () => {
     assert.strictEqual(formatResult({ content: 'body', meta: {} }), 'body')
     assert.strictEqual(formatResult({ content: 'body', meta: { x: null } }), 'body')
+  })
+})
+
+describe('dedupByContent', () => {
+  const make = (content, id = content) => ({ content, id })
+
+  test('returns all items when they are unique and count is below limit', () => {
+    const items = [make('a'), make('b'), make('c')]
+    assert.deepStrictEqual(dedupByContent(items, 5), items)
+  })
+
+  test('stops at exactly the limit', () => {
+    const items = [make('a'), make('b'), make('c'), make('d')]
+    const result = dedupByContent(items, 2)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].content, 'a')
+    assert.strictEqual(result[1].content, 'b')
+  })
+
+  test('removes duplicate content, keeping first occurrence', () => {
+    const first = make('x', 'first')
+    const dup = make('x', 'second')
+    const other = make('y', 'other')
+    const result = dedupByContent([first, dup, other], 10)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].id, 'first')
+    assert.strictEqual(result[1].content, 'y')
+  })
+
+  test('limit is applied after deduplication', () => {
+    // 4 items where two are duplicates; effective unique count is 3 — limit 2 should yield 2
+    const items = [make('a'), make('b'), make('a'), make('c')]
+    const result = dedupByContent(items, 2)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].content, 'a')
+    assert.strictEqual(result[1].content, 'b')
+  })
+
+  test('returns empty array for empty input', () => {
+    assert.deepStrictEqual(dedupByContent([], 5), [])
+  })
+
+  test('does not break when limit exceeds unique item count', () => {
+    const items = [make('a'), make('b')]
+    assert.strictEqual(dedupByContent(items, 100).length, 2)
   })
 })
 
