@@ -1,6 +1,6 @@
 import { it, describe, afterEach, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import { makeSearchDocsRunner, retrievalRuntime } from '../../lib/retrieval.js'
+import { makeSearchDocsRunner, retrievalRuntime } from '../../lib/retrieval/retrieval.js'
 
 const SOURCE_MAP = [
   { source: '/docs/a', title: 'A', depth: 1 },

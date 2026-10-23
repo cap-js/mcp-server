@@ -5,8 +5,13 @@ import { CONFIG } from './config.js'
 import { buildReport } from './report.js'
 import { loadGolden, validateGolden, preflight } from './golden.js'
 import { appendRun, readRuns, baselineRun, makeRunId } from './store.js'
-import { sourceDbRuntime } from './createSourceDb/createSourceDb.js'
-import { retrievalRuntime, retrieveAll, readCapireVersion, findEmbeddingDirs } from './retrieval.js'
+import { sourceDbRuntime } from './retrieval/createSourceDb/createSourceDb.js'
+import {
+  retrievalRuntime,
+  retrieveAll,
+  readCapireVersion,
+  findEmbeddingDirs
+} from './retrieval/retrieval.js'
 
 export async function evaluate({
   sourceDb,

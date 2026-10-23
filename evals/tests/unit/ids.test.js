@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert/strict'
-import { resolveIds } from '../../lib/ids.js'
+import { resolveIds } from '../../lib/retrieval/ids.js'
 
 const SM = [
   { source: '/docs/get-started/', title: 'Getting Started', depth: 1 },

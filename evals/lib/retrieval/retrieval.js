@@ -1,7 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { resolveIds } from './ids.js'
-import searchMarkdownDocs from '../../lib/searchMarkdownDocs.js'
+import searchMarkdownDocs from '../../../lib/searchMarkdownDocs.js'
 
 export const retrievalRuntime = {
   searchMarkdownDocs,
