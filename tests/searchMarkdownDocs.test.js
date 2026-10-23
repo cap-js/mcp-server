@@ -259,6 +259,16 @@ describe('searchMarkdownDocs', () => {
     }
   })
 
+  test('returns exactly maxResults chunks when the bundle has enough unique content', async () => {
+    // The test bundle has 9 unique chunks after deduplication, so requesting
+    // any N < 9 must yield exactly N — not "at most N".
+    for (const n of [1, 3, 5]) {
+      const result = await searchMarkdownDocs('cds entity service project', n)
+      const chunks = result.split('\n---\n')
+      assert.strictEqual(chunks.length, n, `Expected exactly ${n} chunk(s), got ${chunks.length}`)
+    }
+  })
+
   describe('deduplication', () => {
     const DUPLICATE_TEXT = 'Register custom event handlers to add business logic to a CAP service.'
 
