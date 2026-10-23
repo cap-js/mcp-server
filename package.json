@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/mcp-server",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "homepage": "https://cap.cloud.sap/",
   "license": "Apache-2.0",
@@ -32,8 +32,8 @@
     "@cap-js/ai": "^1.2.1",
     "@cap-js/sqlite": "^3.1.0",
     "@huggingface/hub": "^2.17.8",
-    "@huggingface/tokenizers": "0.2.0",
-    "@huggingface/transformers": "4.3.1",
+    "@huggingface/tokenizers": "^0.2.0",
+    "@huggingface/transformers": "^4.3.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@sap/cds": ">=10.1.0",
     "onnxruntime-node": "^1.20.1"
