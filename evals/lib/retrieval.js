@@ -8,15 +8,6 @@ export const retrievalRuntime = {
   makeSearchDocsRunner
 }
 
-export async function readJsonOrNull(p) {
-  try {
-    return JSON.parse(await fs.readFile(p, 'utf8'))
-  } catch (err) {
-    if (err.code === 'ENOENT') return null
-    throw err
-  }
-}
-
 export async function makeSearchDocsRunner(k, sourceDb) {
   return async function (q) {
     const out = await retrievalRuntime.searchMarkdownDocs(q.question, k)

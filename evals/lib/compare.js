@@ -4,7 +4,7 @@ import fs from 'fs/promises'
 import { fileURLToPath } from 'url'
 import { CONFIG, METRIC_KEYS, METRIC_LABEL } from './config.js'
 import { readRuns, sortByRunId } from './store.js'
-import { round } from './metrics.js'
+import { round } from './util.js'
 
 // Markdown can't be searched/lazy-loaded, so its per-question tables are capped
 // to the top-N most-attention-worthy (regressed/weakest first). Full set lives

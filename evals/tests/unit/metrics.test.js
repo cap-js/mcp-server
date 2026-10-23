@@ -6,10 +6,9 @@ import {
   hitRateAtK,
   ndcgAtK,
   metricsFor,
-  relevantHitsAtRank,
-  mean,
-  round
+  relevantHitsAtRank
 } from '../../lib/metrics.js'
+import { mean, round } from '../../lib/util.js'
 
 function mkChunks(...ids) {
   return ids.map((id) => ({ ids: [id], text: '' }))

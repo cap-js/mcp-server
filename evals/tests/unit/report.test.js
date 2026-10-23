@@ -1,6 +1,8 @@
 import { it, describe, mock } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReport, diagnose, preflight, validateGolden, makeRunId } from '../../lib/report.js'
+import { buildReport, diagnose } from '../../lib/report.js'
+import { validateGolden, preflight } from '../../lib/golden.js'
+import { makeRunId } from '../../lib/store.js'
 
 function mkChunks(...ids) {
   return ids.map((id) => ({ ids: [id], text: '' }))

@@ -1,6 +1,14 @@
 import path from 'path'
 import fs from 'fs/promises'
 
+// run_id is the ONLY nondeterministic value (`rand` is fixed in tests). Full ms
+// timestamp so same-second runs sort by execution time, not by the suffix.
+export function makeRunId(now = new Date(), rand) {
+  const ts = now.toISOString()
+  const suffix = rand || Math.random().toString(16).slice(2, 8)
+  return `${ts}_${suffix}`
+}
+
 // The append-only results file: one JSON run report per line (JSONL).
 export function resultsPath(cfg) {
   return path.join(cfg.output.runsDir, cfg.output.resultsName)

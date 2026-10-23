@@ -110,19 +110,3 @@ export function metricsFor(relevant, retrieved, k) {
     ndcg_at_k: ndcgAtK(relevant, retrieved, k)
   }
 }
-
-export function mean(values) {
-  if (values.length === 0) return 0
-  let s = 0
-  for (const v of values) s += v
-  return s / values.length
-}
-
-export function round(value, dp) {
-  const f = Math.pow(10, dp)
-  // Round on magnitude so negatives round symmetrically with positives (e.g.
-  // -0.005 → -0.01, mirroring 0.005 → 0.01). Epsilon counters binary-float
-  // representation of exact halves so rounding is stable across platforms.
-  const r = (Math.sign(value) * Math.round(Math.abs(value) * f + Number.EPSILON)) / f
-  return r === 0 ? 0 : r // normalise -0 → 0
-}

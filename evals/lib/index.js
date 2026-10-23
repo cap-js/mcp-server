@@ -2,16 +2,11 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { CONFIG } from './config.js'
-import { preflight, validateGolden, buildReport, makeRunId } from './report.js'
-import { appendRun, readRuns, baselineRun } from './store.js'
+import { buildReport } from './report.js'
+import { loadGolden, validateGolden, preflight } from './golden.js'
+import { appendRun, readRuns, baselineRun, makeRunId } from './store.js'
 import { sourceDbRuntime } from './createSourceDb/createSourceDb.js'
-import {
-  readJsonOrNull,
-  retrievalRuntime,
-  retrieveAll,
-  readCapireVersion,
-  findEmbeddingDirs
-} from './retrieval.js'
+import { retrievalRuntime, retrieveAll, readCapireVersion, findEmbeddingDirs } from './retrieval.js'
 
 export async function evaluate({
   sourceDb,
@@ -82,7 +77,7 @@ export async function evaluate({
 export async function evaluateAndCompare() {
   const cfg = CONFIG
 
-  const golden = await readJsonOrNull(cfg.goldenSet)
+  const golden = await loadGolden(cfg.goldenSet)
   if (!golden || !Array.isArray(golden.questions)) {
     console.error(`Golden set missing or malformed at ${cfg.goldenSet}`)
     return { code: 3 }
