@@ -39,7 +39,12 @@ mock.module('@sap/cds', {
         if (process.env.CDS_MCP_TEST_INVALID_OVERRIDE === 'true')
           throw new Error('Invalid package-local model override; explicitly repair or remove it')
         if (!available(model)) {
-          if (offline) throw new Error(`Missing or invalid local model: ${model}`)
+          if (offline) {
+            const diagnostic = fs.existsSync(modelPath(model))
+              ? 'Embedding model is not provisioned or failed integrity checks.'
+              : `Embedding model '${model}' is not available in offline mode.`
+            throw new Error(`${diagnostic} Run 'npx @cap-js/ai install-model ${model}'.`)
+          }
           await installModel(model)
         }
         return {
@@ -73,14 +78,18 @@ mock.module('@huggingface/transformers', {
   }
 })
 
-globalThis.fetch = async () => {
-  log({ kind: 'fetch' })
+globalThis.fetch = async (_url, options = {}) => {
+  log({ kind: 'fetch', headers: options.headers })
   if (process.env.CDS_MCP_TEST_NO_NETWORK === 'true') throw new Error('Network forbidden')
   if (process.env.CDS_MCP_TEST_FETCH_FAIL === 'true') throw new Error('Bundle server unavailable')
+  if (options.headers?.['If-None-Match'] === 'W/"fixture"')
+    return new Response(null, { status: 304 })
   const model =
     process.env.CDS_MCP_TEST_BUNDLE_MODEL || process.env.CDS_MCP_MODEL || 'BAAI/bge-small-en-v1.5'
   const meta = Buffer.from(
-    JSON.stringify({ dim: 2, count: 2, model, chunks: ['entity Books', 'service Catalog'] })
+    process.env.CDS_MCP_TEST_CORRUPT_BUNDLE === 'true'
+      ? 'invalid JSON'
+      : JSON.stringify({ dim: 2, count: 2, model, chunks: ['entity Books', 'service Catalog'] })
   )
   const header = Buffer.alloc(4)
   header.writeUInt32BE(meta.length)
@@ -88,7 +97,8 @@ globalThis.fetch = async () => {
   return new Response(Buffer.concat([header, meta, bin]), {
     headers: {
       'x-embeddings-version': 'fixture',
-      'x-embeddings-model': process.env.CDS_MCP_MODEL || 'BAAI/bge-small-en-v1.5'
+      'x-embeddings-model': process.env.CDS_MCP_MODEL || 'BAAI/bge-small-en-v1.5',
+      etag: 'W/"fixture"'
     }
   })
 }

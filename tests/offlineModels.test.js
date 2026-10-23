@@ -51,7 +51,7 @@ async function fixture(
         ...(await execute(
           process.execPath,
           ['--experimental-test-module-mocks', '--import', loader, cli, ...args],
-          { env: { ...env, ...extra } }
+          { env: { ...env, ...extra }, cwd: cache }
         ))
       }
     } catch (error) {
@@ -65,6 +65,88 @@ async function fixture(
       .filter(Boolean)
       .map(JSON.parse)
   return { cache, run, calls }
+}
+
+async function seedManifest(cache, { model = defaultModel, lastChecked = Date.now() } = {}) {
+  const etagPath = path.join(
+    cache,
+    'embeddings',
+    model.replaceAll('/', '--'),
+    'etags',
+    'latest',
+    'manifest.etag'
+  )
+  await fs.mkdir(path.dirname(etagPath), { recursive: true })
+  await fs.writeFile(
+    etagPath,
+    JSON.stringify({ etag: 'W/"fixture"', commitId: 'fixture', model, lastChecked })
+  )
+  return etagPath
+}
+
+for (const args of [['--download'], ['search_docs', 'entity']]) {
+  for (const lastChecked of [0, Date.now()]) {
+    test(`${args[0]} repairs a corrupt ${lastChecked ? 'fresh' : '304'} cached bundle in one invocation`, async (t) => {
+      const model = 'test/custom'
+      const { cache, run, calls } = await fixture(t, { model })
+      const etagPath = await seedManifest(cache, { model, lastChecked })
+      const metaPath = path.join(
+        cache,
+        'embeddings',
+        model.replaceAll('/', '--'),
+        'fixture',
+        'code-chunks.json'
+      )
+      await fs.writeFile(metaPath, 'invalid JSON')
+      const result = await run(['--model', model, ...args])
+      assert.equal(result.code, 0, result.stderr)
+      assert.equal(JSON.parse(await fs.readFile(metaPath, 'utf8')).model, model)
+      const events = await calls()
+      const requests = events.filter(({ kind }) => kind === 'fetch')
+      assert.equal(requests.length, lastChecked ? 1 : 2)
+      assert.equal(requests.at(-1).headers?.['If-None-Match'], undefined)
+      assert.equal(events.find(({ kind }) => kind === 'connection').embedding.model, model)
+      assert.equal(JSON.parse(await fs.readFile(etagPath, 'utf8')).etag, 'W/"fixture"')
+      const requestCount = requests.length
+      const again = await run(['--model', model, ...args])
+      assert.equal(again.code, 0, again.stderr)
+      assert.equal((await calls()).filter(({ kind }) => kind === 'fetch').length, requestCount)
+    })
+  }
+}
+
+for (const args of [['--download'], ['search_docs', 'entity']]) {
+  test(`${args[0]} ignores a stale ETag when the cached bundle files are missing`, async (t) => {
+    const { cache, run, calls } = await fixture(t, { docs: false })
+    await seedManifest(cache)
+    const result = await run(args)
+    assert.equal(result.code, 0, result.stderr)
+    const requests = (await calls()).filter(({ kind }) => kind === 'fetch')
+    assert.equal(requests.length, 1)
+    assert.equal(requests[0].headers?.['If-None-Match'], undefined)
+  })
+
+  test(`${args[0]} bounds corruption retries and leaves the next invocation able to refetch`, async (t) => {
+    const { cache, run, calls } = await fixture(t, { docs: false, queryModel: null })
+    const failed = await run(args, { CDS_MCP_TEST_CORRUPT_BUNDLE: 'true' })
+    assert.equal(failed.code, 1)
+    assert.match(failed.stderr, /Corrupted files/)
+    const events = await calls()
+    assert.equal(events.filter(({ kind }) => kind === 'fetch').length, 3)
+    assert.equal(events.filter(({ kind }) => ['install', 'connection'].includes(kind)).length, 0)
+    const etagPath = path.join(
+      cache,
+      'embeddings',
+      defaultModel.replaceAll('/', '--'),
+      'etags',
+      'latest',
+      'manifest.etag'
+    )
+    await assert.rejects(fs.access(etagPath), { code: 'ENOENT' })
+    const recovered = await run(args)
+    assert.equal(recovered.code, 0, recovered.stderr)
+    assert.equal((await calls()).filter(({ kind }) => kind === 'fetch').length, 4)
+  })
 }
 
 for (const flag of ['cli', 'env']) {
@@ -209,7 +291,12 @@ test('offline missing documentation fails with preparation hint and no network r
   assert.deepEqual(await calls(), [])
 })
 
-for (const invalid of ['invalid JSON', 'null']) {
+for (const invalid of [
+  'invalid JSON',
+  'null',
+  JSON.stringify({ dim: 1.5, chunks: ['a', 'b'], model: defaultModel }),
+  JSON.stringify({ dim: 2, chunks: ['a', 'b'], model: '  ' })
+]) {
   test(`offline corrupt documentation (${invalid}) is preserved without repair requests`, async (t) => {
     const { cache, run, calls } = await fixture(t)
     const metaPath = path.join(
@@ -220,6 +307,12 @@ for (const invalid of ['invalid JSON', 'null']) {
       'code-chunks.json'
     )
     await fs.writeFile(metaPath, invalid)
+    const binPath = path.join(path.dirname(metaPath), 'code-chunks.bin')
+    if (invalid.includes('1.5'))
+      await fs.writeFile(binPath, Buffer.from(new Float32Array([1, 2, 3]).buffer))
+    const binary = await fs.readFile(binPath)
+    const etagPath = await seedManifest(cache)
+    const manifest = await fs.readFile(etagPath, 'utf8')
     const result = await run(['--offline', 'search_docs', 'entity'], {
       CDS_MCP_TEST_NO_NETWORK: 'true'
     })
@@ -227,6 +320,8 @@ for (const invalid of ['invalid JSON', 'null']) {
     assert.match(result.stderr, /Corrupted files/)
     assert.match(result.stderr, /cds-mcp --download/)
     assert.equal(await fs.readFile(metaPath, 'utf8'), invalid)
+    assert.deepEqual(await fs.readFile(binPath), binary)
+    assert.equal(await fs.readFile(etagPath, 'utf8'), manifest)
     assert.deepEqual(await calls(), [])
   })
 }

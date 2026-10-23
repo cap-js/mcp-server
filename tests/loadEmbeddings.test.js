@@ -60,6 +60,40 @@ describe('loadChunks', () => {
       await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
     })
 
+    for (const dim of [1.5, 0, -1, '2', null, Number.MAX_SAFE_INTEGER + 1]) {
+      test(`rejects invalid dimension ${JSON.stringify(dim)} without deleting offline files`, async () => {
+        const meta = { dim, count: 2, chunks: ['a', 'b'] }
+        // A fractional dimension can match the total byte length while producing unequal vectors.
+        const bin = new Float32Array(dim === 1.5 ? [1, 2, 3] : [1, 2, 3, 4])
+        await seedCode(meta, bin)
+        await assert.rejects(
+          loadChunks('code', undefined, { removeCorrupted: false }),
+          (err) => err.code === 'EMBEDDINGS_CORRUPTED'
+        )
+        const dir = getActiveEmbeddingsDir()
+        assert.deepStrictEqual(JSON.parse(await fsp.readFile(path.join(dir, 'code.json'))), meta)
+        assert.deepStrictEqual(
+          await fsp.readFile(path.join(dir, 'code.bin')),
+          Buffer.from(bin.buffer)
+        )
+      })
+    }
+
+    for (const model of ['', '  ', 42, null, {}, []]) {
+      test(`rejects invalid encoder ${JSON.stringify(model)} without deleting offline files`, async () => {
+        const meta = { dim: 2, count: 2, chunks: ['a', 'b'], model }
+        await seedCode(meta, new Float32Array([1, 2, 3, 4]))
+        await assert.rejects(
+          loadChunks('code', undefined, { removeCorrupted: false }),
+          (err) => err.code === 'EMBEDDINGS_CORRUPTED'
+        )
+        assert.deepStrictEqual(
+          JSON.parse(await fsp.readFile(path.join(getActiveEmbeddingsDir(), 'code.json'))),
+          meta
+        )
+      })
+    }
+
     test('throws CORRUPTED when binary size does not match dim × count', async () => {
       await seedCode({ dim: 4, count: 2, chunks: ['test1', 'test2'] }, new Float32Array([1, 2, 3])) // 12 bytes, needs 32
       await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
@@ -90,6 +124,10 @@ describe('loadChunks', () => {
   })
 
   describe('valid data', () => {
+    test('preserves the encoder of a valid bundle', async () => {
+      await seedCode({ dim: 2, chunks: ['a'], model: 'test/encoder' }, new Float32Array([1, 2]))
+      assert.strictEqual((await loadChunks('code')).model, 'test/encoder')
+    })
     test('returns chunks with correct content and sliced float32 vectors', async () => {
       const chunks = ['Hello world', 'Test content']
       await seedCode({ dim: 3, count: 2, chunks }, new Float32Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))
