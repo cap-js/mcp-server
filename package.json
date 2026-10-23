@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/mcp-server",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "description": "Model Context Protocol (MCP) server for AI-assisted development of CAP applications.",
   "homepage": "https://cap.cloud.sap/",
   "license": "Apache-2.0",
