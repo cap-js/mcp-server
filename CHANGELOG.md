@@ -25,7 +25,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 ### Added
 
 - Hybrid search for `search_docs`: semantic cosine similarity combined with BM25 keyword search (SQLite FTS5, with a pure-JS fallback when FTS5 is not compiled into `node:sqlite`) via weighted Reciprocal Rank Fusion
-- Optional local cross-encoder reranking of `search_docs` results, opt-in via `RERANK_ENABLED`
+- Optional local cross-encoder reranking of `search_docs` results, opt-in via `CDS_MCP_RERANK_ENABLED`
 - Fall back to the globally installed `cds-dk`'s `@sap/cds` runtime version when the project provides no local CDS
 
 ### Changed

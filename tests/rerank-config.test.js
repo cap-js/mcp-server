@@ -8,7 +8,7 @@ import { buildTestBundle } from './helpers/test-bundle.js'
 
 // All five rerank constants are evaluated at module load time in rerank.js.
 // Set them before the dynamic imports below or they pick up the defaults.
-process.env.RERANK_ENABLED = 'true'
+process.env.CDS_MCP_RERANK_ENABLED = 'true'
 process.env.CDS_MCP_RERANK_MODEL = 'test-org/test-reranker'
 process.env.CDS_MCP_RERANK_DTYPE = 'fp32'
 process.env.CDS_MCP_RERANK_EXTERNAL_DATA = 'true'
@@ -57,7 +57,7 @@ mock.method(globalThis, 'fetch', async () => {
   })
 })
 
-const { RERANK_ENABLED, getReranker, rerank } = await import('../lib/rerank.js')
+const { CDS_MCP_RERANK_ENABLED, getReranker, rerank } = await import('../lib/rerank.js')
 const { default: searchMarkdownDocs } = await import('../lib/searchMarkdownDocs.js')
 
 after(async () => {
@@ -83,8 +83,8 @@ describe('env var → model options', () => {
     }
   })
 
-  test('RERANK_ENABLED is true when env var is "true"', () => {
-    assert.strictEqual(RERANK_ENABLED, true)
+  test('CDS_MCP_RERANK_ENABLED is true when env var is "true"', () => {
+    assert.strictEqual(CDS_MCP_RERANK_ENABLED, true)
   })
 
   test('CDS_MCP_RERANK_MODEL is passed to AutoTokenizer.from_pretrained', async () => {
@@ -128,7 +128,7 @@ describe('env var → model options', () => {
 })
 
 describe('searchMarkdownDocs integration', () => {
-  test('RERANK_ENABLED=true causes searchMarkdownDocs to invoke the reranker', async () => {
+  test('CDS_MCP_RERANK_ENABLED=true causes searchMarkdownDocs to invoke the reranker', async () => {
     const prev = modelCallCount
     await searchMarkdownDocs('entity definition', 3)
     assert.ok(
@@ -137,7 +137,7 @@ describe('searchMarkdownDocs integration', () => {
     )
   })
 
-  test('RERANK_ENABLED=true over-retrieves candidates (maxResults * 5) before reranking', async () => {
+  test('CDS_MCP_RERANK_ENABLED=true over-retrieves candidates (maxResults * 5) before reranking', async () => {
     // maxResults=1, RERANK_OVER_RETRIEVE=5 → rerank() receives up to 5 candidates.
     // batch_size=2 → ceil(5/2) = 3 model calls. Without over-retrieve: 1 call.
     const prev = modelCallCount
