@@ -161,7 +161,7 @@ opencode mcp add --global cds-mcp \
 ### Environment Variables
 
 > [!WARNING]
-> The following environment variables are experimental.
+> The following environment variables are still experimental.
 
 | Variable | Description |
 | --- | --- |
