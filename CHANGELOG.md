@@ -8,11 +8,20 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Added
 
+- Runtime-aware chunk filtering: drop chunks of the non-detected runtime (Node.js vs. Java) before semantic and BM25 ranking, keyed off the runtime detected in the project; unlabeled chunks always stay. Set `CDS_MCP_GENERIC_EMBEDDINGS=true` to keep all runtimes
+- `CDS_MCP_MAX_RESULTS` to cap the number of chunks `search_docs` returns, overriding a larger caller `maxResults` (never inflating a smaller one)
+- Configurable embeddings request timeouts via `CDS_MCP_MANIFEST_TIMEOUT` and `CDS_MCP_DOWNLOAD_TIMEOUT`
+- Startup validation of the MCP server environment configuration, rejecting invalid values with clear errors
+
 ### Changed
+
+- Expanded the `search_docs` tool and query descriptions to better guide CAP documentation searches
+- Restricted project runtime detection to the project itself (Node.js module graph or Java build files); a globally installed `cds-dk` no longer counts as the project runtime, so the chunk filter never drops the other runtime's chunks when the project runtime is unknown
 
 ### Fixed
 
-### Removed
+- Deduplicate `search_docs` results with identical content, so duplicate Node.js/Java variants of the same chunk no longer consume multiple `maxResults` slots
+- Make embeddings downloads resilient on slow networks, falling back to local embeddings when the bundle body download fails
 
 ## Version 0.0.8 - 2026-10-14
 
