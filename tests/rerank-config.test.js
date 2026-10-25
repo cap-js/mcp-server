@@ -57,7 +57,7 @@ mock.method(globalThis, 'fetch', async () => {
   })
 })
 
-const { CDS_MCP_RERANK_ENABLED, getReranker, rerank } = await import('../lib/rerank.js')
+const { RERANK_ENABLED, getReranker, rerank } = await import('../lib/rerank.js')
 const { default: searchMarkdownDocs } = await import('../lib/searchMarkdownDocs.js')
 
 after(async () => {
@@ -83,8 +83,8 @@ describe('env var → model options', () => {
     }
   })
 
-  test('CDS_MCP_RERANK_ENABLED is true when env var is "true"', () => {
-    assert.strictEqual(CDS_MCP_RERANK_ENABLED, true)
+  test('RERANK_ENABLED is true when env var is "true"', () => {
+    assert.strictEqual(RERANK_ENABLED, true)
   })
 
   test('CDS_MCP_RERANK_MODEL is passed to AutoTokenizer.from_pretrained', async () => {
