@@ -160,6 +160,9 @@ opencode mcp add --global cds-mcp \
 
 ### Environment Variables
 
+> [!WARNING]
+> The following environment variables are still experimental.
+
 | Variable | Description |
 | --- | --- |
 | `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. Accepts `true` or `false`. |
@@ -168,7 +171,7 @@ opencode mcp add --global cds-mcp \
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
 | `CDS_MCP_GENERIC_EMBEDDINGS` | Set to `true` to skip the runtime filter and search all runtimes. By default `search_docs` keeps only the chunks of the detected project runtime (Node.js or Java) plus the runtime-agnostic chunks. |
 | `CDS_MCP_MAX_RESULTS` | Upper limit on the number of `search_docs` results, as a positive integer. Caps the per-call `maxResults`. |
-| `RERANK_ENABLED` | Set to `true` to rerank `search_docs` results with a local cross-encoder model. Accepts `true` or `false`; disabled by default. |
+| `CDS_MCP_RERANK_ENABLED` | Set to `true` to rerank `search_docs` results with a local cross-encoder model. Accepts `true` or `false`; disabled by default. |
 | `CDS_MCP_RERANK_MODEL` | Non-empty cross-encoder model name used when reranking. Defaults to `Xenova/ms-marco-MiniLM-L-6-v2`. |
 | `CDS_MCP_RERANK_DTYPE` | Non-empty data type used to load the reranking model. Defaults to `q8`; set to `fp32` for models without `model_quantized.onnx`. |
 | `CDS_MCP_RERANK_EXTERNAL_DATA` | Set to `true` for reranking models whose ONNX weights are stored in external `.onnx_data` files. Accepts `true` or `false`. |
