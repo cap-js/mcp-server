@@ -31,7 +31,7 @@ mock.method(globalThis, 'fetch', async () => {
 
 const searchModule = await import('../lib/searchMarkdownDocs.js')
 const searchMarkdownDocs = searchModule.default
-const { formatResult } = searchModule
+const { formatResult, dedupByContent } = searchModule
 
 after(async () => {
   mock.restoreAll()
@@ -74,6 +74,51 @@ describe('formatResult', () => {
   test('returns content only when all meta values are empty', () => {
     assert.strictEqual(formatResult({ content: 'body', meta: {} }), 'body')
     assert.strictEqual(formatResult({ content: 'body', meta: { x: null } }), 'body')
+  })
+})
+
+describe('dedupByContent', () => {
+  const make = (content, id = content) => ({ content, id })
+
+  test('returns all items when they are unique and count is below limit', () => {
+    const items = [make('a'), make('b'), make('c')]
+    assert.deepStrictEqual(dedupByContent(items, 5), items)
+  })
+
+  test('stops at exactly the limit', () => {
+    const items = [make('a'), make('b'), make('c'), make('d')]
+    const result = dedupByContent(items, 2)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].content, 'a')
+    assert.strictEqual(result[1].content, 'b')
+  })
+
+  test('removes duplicate content, keeping first occurrence', () => {
+    const first = make('x', 'first')
+    const dup = make('x', 'second')
+    const other = make('y', 'other')
+    const result = dedupByContent([first, dup, other], 10)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].id, 'first')
+    assert.strictEqual(result[1].content, 'y')
+  })
+
+  test('limit is applied after deduplication', () => {
+    // 4 items where two are duplicates; effective unique count is 3 — limit 2 should yield 2
+    const items = [make('a'), make('b'), make('a'), make('c')]
+    const result = dedupByContent(items, 2)
+    assert.strictEqual(result.length, 2)
+    assert.strictEqual(result[0].content, 'a')
+    assert.strictEqual(result[1].content, 'b')
+  })
+
+  test('returns empty array for empty input', () => {
+    assert.deepStrictEqual(dedupByContent([], 5), [])
+  })
+
+  test('does not break when limit exceeds unique item count', () => {
+    const items = [make('a'), make('b')]
+    assert.strictEqual(dedupByContent(items, 100).length, 2)
   })
 })
 
@@ -196,6 +241,80 @@ describe('searchMarkdownDocs', () => {
       const limitedChunks = limitedResult.split('\n---\n')
       assert(limitedChunks.length <= max, `Should return at most ${max} chunks`)
     }
+  })
+
+  test('returns exactly maxResults chunks when the bundle has enough unique content', async () => {
+    // The test bundle has 9 unique chunks after deduplication, so requesting
+    // any N < 9 must yield exactly N — not "at most N".
+    for (const n of [1, 3, 5]) {
+      const result = await searchMarkdownDocs('cds entity service project', n)
+      const chunks = result.split('\n---\n')
+      assert.strictEqual(chunks.length, n, `Expected exactly ${n} chunk(s), got ${chunks.length}`)
+    }
+  })
+
+  describe('deduplication', () => {
+    const DUPLICATE_TEXT = 'Register custom event handlers to add business logic to a CAP service.'
+
+    describe('when the bundle contains two chunks with identical content', () => {
+      test('should return only one section', async () => {
+        const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
+        const sections = result.split('\n---\n')
+
+        const dupSections = sections.filter((s) => s.includes(DUPLICATE_TEXT))
+        assert.strictEqual(
+          dupSections.length,
+          1,
+          'both copies of the duplicate text must not both appear'
+        )
+      })
+
+      test('should keep the highest-ranked entry (label: node, not label: java)', async () => {
+        const result = await searchMarkdownDocs(DUPLICATE_TEXT, 5)
+        const sections = result.split('\n---\n')
+
+        const dupSection = sections.find((s) => s.includes(DUPLICATE_TEXT))
+        assert(dupSection, 'at least one section must contain the duplicate text')
+        assert(
+          dupSection.includes('label: node'),
+          'the surviving section must be the higher-ranked node entry'
+        )
+        assert(!dupSection.includes('label: java'), 'the lower-ranked java entry must not appear')
+      })
+
+      test('should not exceed maxResults', async () => {
+        const result = await searchMarkdownDocs(DUPLICATE_TEXT, 3)
+        const sections = result.split('\n---\n')
+
+        assert(sections.length <= 3, `must return at most 3 chunks, got ${sections.length}`)
+      })
+    })
+
+    describe('when all chunks are unique', () => {
+      test('should pass all chunks through unchanged', async () => {
+        const result = await searchMarkdownDocs('cds init', 5)
+        const sections = result.split('\n---\n')
+
+        const uniqueContents = new Set(sections)
+        assert.strictEqual(
+          uniqueContents.size,
+          sections.length,
+          'all returned sections must have distinct content'
+        )
+      })
+    })
+
+    describe('when duplicate chunks have no runtime label', () => {
+      test('should return only one section', async () => {
+        const NO_LABEL_TEXT = 'Provide localized texts for your model using i18n properties files.'
+
+        const result = await searchMarkdownDocs(NO_LABEL_TEXT, 5)
+        const sections = result.split('\n---\n')
+
+        const dupSections = sections.filter((s) => s.includes(NO_LABEL_TEXT))
+        assert.strictEqual(dupSections.length, 1, 'both label-free copies must not both appear')
+      })
+    })
   })
 
   describe('CDS_MCP_MAX_RESULTS env var', () => {
