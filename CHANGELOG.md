@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](http://semver.org/).
 The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
+## Unreleased
+
+### Changed
+
+- Download embedding models into the user's `~/.cds/models` cache on demand, reusing validated package-local models first without writing to the package or caller's CAP project
+
 ## Version 0.0.8 - 2026-10-14
 
 ### Added
