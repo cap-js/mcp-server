@@ -61,7 +61,14 @@ console.log('Native embedding inference passed')
 
 const result = execFileSync(
   process.execPath,
-  [...process.execArgv, path.join(installedRoot, 'index.js'), '--offline', 'search_docs', query, '1'],
+  [
+    ...process.execArgv,
+    path.join(installedRoot, 'index.js'),
+    '--offline',
+    'search_docs',
+    query,
+    '1'
+  ],
   { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'inherit'] }
 )
 assert.ok(
