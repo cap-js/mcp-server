@@ -30,7 +30,7 @@ Environment variables:
   CDS_MCP_DOWNLOAD_TIMEOUT       Bundle response-header timeout in milliseconds (default: 30000)
   CDS_MCP_GENERIC_EMBEDDINGS=true  Search all runtimes (skip the detected-runtime filter)
   CDS_MCP_MAX_RESULTS            Upper limit on search_docs results (positive integer)
-  RERANK_ENABLED=true            Rerank search_docs results with a local cross-encoder (default: false)
+  CDS_MCP_RERANK_ENABLED=true    Rerank search_docs results with a local cross-encoder (default: false)
   CDS_MCP_RERANK_MODEL=<name>    Cross-encoder model for reranking (default: Xenova/ms-marco-MiniLM-L-6-v2)
   CDS_MCP_RERANK_DTYPE=<type>    Data type for the reranking model (default: q8; use fp32 if no model_quantized.onnx)
   CDS_MCP_RERANK_EXTERNAL_DATA   Set true for reranking models with external .onnx_data weight files
