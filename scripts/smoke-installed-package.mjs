@@ -23,8 +23,8 @@ console.log({
 for (const requireRuntime of [requirePackage, requireAi, requireTransformers]) {
   assert.equal(
     requireRuntime('onnxruntime-node/package.json').version,
-    expectedRuntime,
-    'Every runtime consumer must resolve the tested ONNX Runtime version'
+    expectedRuntime || runtimeVersion,
+    'Every runtime consumer must resolve the same ONNX Runtime version'
   )
 }
 
@@ -61,7 +61,7 @@ console.log('Native embedding inference passed')
 
 const result = execFileSync(
   process.execPath,
-  [path.join(installedRoot, 'index.js'), '--offline', 'search_docs', query, '1'],
+  [...process.execArgv, path.join(installedRoot, 'index.js'), '--offline', 'search_docs', query, '1'],
   { encoding: 'utf8', timeout: 60_000, stdio: ['ignore', 'pipe', 'inherit'] }
 )
 assert.ok(

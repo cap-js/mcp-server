@@ -5,7 +5,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const packageRoot = fileURLToPath(new URL('../', import.meta.url))
+const packageRoot = path.resolve(process.argv[2] ?? fileURLToPath(new URL('../', import.meta.url)))
 const npmCli = process.env.npm_execpath
 assert.ok(npmCli, 'Run this check with npm run test:package')
 
@@ -26,14 +26,19 @@ try {
   const [archive] = JSON.parse(
     runNpm(['pack', '--json', '--pack-destination', tempDir, '--ignore-scripts'], packageRoot, true)
   )
-  assert.ok(
-    archive.files.some(({ path }) => path === 'npm-shrinkwrap.json'),
-    'The published package must include npm-shrinkwrap.json'
-  )
-  const shrinkwrap = JSON.parse(
-    await readFile(path.join(packageRoot, 'npm-shrinkwrap.json'), 'utf8')
-  )
-  const expectedRuntime = shrinkwrap.packages['node_modules/onnxruntime-node'].version
+  const shrinkwrap = await readFile(path.join(packageRoot, 'npm-shrinkwrap.json'), 'utf8')
+    .then(JSON.parse)
+    .catch((error) => {
+      if (error.code === 'ENOENT') return null
+      throw error
+    })
+  if (shrinkwrap) {
+    assert.ok(
+      archive.files.some(({ path }) => path === 'npm-shrinkwrap.json'),
+      'An adopted shrinkwrap must be included in the published package'
+    )
+  }
+  const expectedRuntime = shrinkwrap?.packages['node_modules/onnxruntime-node'].version
   const npmMajor = Number(runNpm(['--version'], packageRoot, true).split('.')[0])
   const allowScripts = npmMajor >= 11 ? ['--allow-scripts=onnxruntime-node,protobufjs'] : []
 
@@ -53,18 +58,22 @@ try {
   )
   const globalRoot = runNpm(['root', '--global', '--prefix', prefix], tempDir, true).trim()
   const installedRoot = path.join(globalRoot, '@cap-js', 'mcp-server')
-  assert.deepEqual(
-    JSON.parse(await readFile(path.join(installedRoot, 'npm-shrinkwrap.json'), 'utf8')),
-    shrinkwrap,
-    'The installed package must retain the tested dependency tree'
-  )
+  if (shrinkwrap) {
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(installedRoot, 'npm-shrinkwrap.json'), 'utf8')),
+      shrinkwrap,
+      'The installed package must retain its published shrinkwrap'
+    )
+  }
 
   execFileSync(
     process.execPath,
     [
+      '--import',
+      new URL('./private-model-cache.mjs', import.meta.url).href,
       fileURLToPath(new URL('./smoke-installed-package.mjs', import.meta.url)),
       installedRoot,
-      expectedRuntime
+      expectedRuntime ?? ''
     ],
     {
       cwd: prefix,
@@ -73,6 +82,7 @@ try {
       env: {
         ...process.env,
         CDS_MCP_MODEL: 'BAAI/bge-small-en-v1.5',
+        CDS_MCP_TEST_CACHE_HOME: path.join(tempDir, 'model-cache-home'),
         CDS_MCP_OFFLINE: 'true',
         CDS_MCP_RERANK_ENABLED: 'false',
         RERANK_ENABLED: 'false'

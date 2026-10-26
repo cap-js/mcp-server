@@ -18,8 +18,7 @@
     ".mcp.json",
     "icon.png",
     "index.js",
-    "manifest.json",
-    "npm-shrinkwrap.json"
+    "manifest.json"
   ],
   "type": "module",
   "scripts": {
@@ -28,7 +27,7 @@
     "lint": "npx eslint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "setup": "npm ci"
+    "setup": "rm -rf node_modules package-lock.json && npm i"
   },
   "dependencies": {
     "@cap-js/ai": "^1.2.1",

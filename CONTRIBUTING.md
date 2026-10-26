@@ -39,8 +39,8 @@ The following rule governs code contributions:
 
 ## Testing Package Installations
 
-The CLI publishes `npm-shrinkwrap.json` so global and `npx` installations use the tested dependency tree, including native ONNX Runtime packages. Use `npm ci` (or `npm run setup`) for development. Update dependencies with `npm install` and commit the resulting shrinkwrap changes; dependency and security updates reach users through a new server release.
+Run `npm run test:package` to pack the checkout and install it globally into a temporary prefix. The check verifies that the native runtime consumers resolve the same ONNX Runtime version, real embedding inference, and the installed `search_docs` CLI against a local documentation fixture. If a shrinkwrap is present, the check also verifies that it is published, retained, and honored by those runtime consumers; it does not require adopting one.
 
-Run `npm run test:package` to pack the checkout and install it globally into a temporary prefix. The check verifies the published shrinkwrap, the ONNX Runtime versions resolved by both runtime consumers, real embedding inference, and the installed `search_docs` CLI against a local documentation fixture. It enables dependency installation scripts and downloads the default model from Hugging Face; all installed packages and model files are removed after the check.
+The check enables dependency installation scripts and downloads the default model from Hugging Face into a private model cache. Installed packages, model files, and fixture documents are removed after the check. To check another checkout's artifact with the same harness, run `npm run test:package -- /absolute/path/to/checkout`.
 
 CI and the release workflow run this check on Linux, Windows, and macOS with Node.js 22 and 24, using the bundled CPU runtime without optional CUDA downloads. Hosted Windows runners test Windows Server compatibility, not every desktop DLL configuration; a machine-specific failure still needs its actual DLL load trace.
