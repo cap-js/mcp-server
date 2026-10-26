@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Changed
 
+- Download embedding models into the user's `~/.cds/models` cache on demand, reusing validated package-local models first without writing to the package or caller's CAP project
 - Expanded the `search_docs` tool and query descriptions to better guide CAP documentation searches
 - Restricted project runtime detection to the project itself (Node.js module graph or Java build files); a globally installed `cds-dk` no longer counts as the project runtime, so the chunk filter never drops the other runtime's chunks when the project runtime is unknown
 
