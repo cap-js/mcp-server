@@ -18,15 +18,17 @@
     ".mcp.json",
     "icon.png",
     "index.js",
-    "manifest.json"
+    "manifest.json",
+    "npm-shrinkwrap.json"
   ],
   "type": "module",
   "scripts": {
     "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
+    "test:package": "node scripts/check-package.mjs",
     "lint": "npx eslint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
-    "setup": "rm -rf node_modules package-lock.json && npm i"
+    "setup": "npm ci"
   },
   "dependencies": {
     "@cap-js/ai": "^1.2.1",
