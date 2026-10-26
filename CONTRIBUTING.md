@@ -36,3 +36,15 @@ The following rule governs code contributions:
 * We use GitHub issues to track bugs and enhancement requests.
 
 * Please provide as much context as possible when you open an issue. The information you provide must be comprehensive enough to reproduce that issue for the assignee.
+
+## Proposed dependency release policy
+
+This shrinkwrap adoption and maintenance policy is proposed for team review; it does not imply an agreed release commitment.
+
+The published `npm-shrinkwrap.json` selects the dependency graph for each server release. Use `npm ci` (or `npm run setup`) for development; do not delete the shrinkwrap to refresh dependencies. Update it with targeted `npm update <package> --package-lock-only --ignore-scripts` commands, review the graph changes, and run the tests and a production dependency audit before release. Preserve optional dependencies for all supported platforms. Do not maintain a separate `package-lock.json`.
+
+The proposed owner is the release maintainer, who reviews the existing weekly Dependabot updates and checks at least monthly whether a tested dependency-refresh release is needed. Security fixes require a new server release to reach shrinkwrapped installations; prioritize those releases according to the advisory's severity instead of relying on downstream dependency drift. Each release review should confirm there is an owner for outstanding security updates and that the dependency audit is current.
+
+Before adoption, review the internal `docs-resources` consumer, which imports server modules as a library. A published shrinkwrap also controls that consumer's nested server dependencies and can reduce dependency sharing. Confirm compatibility, installation size, and how the consumer receives security fixes; if this conflicts with its library use, consider separating reusable modules from the CLI package.
+
+Shrinkwrap selects npm package versions, not the Node.js version, operating-system DLLs, or embedding model downloads. Installation and native inference still need validation on the supported platforms.

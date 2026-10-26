@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](http://keepachangelog.com/).
 
 ### Changed
 
+- Publish a dependency shrinkwrap so installations use the dependency versions selected for each MCP server release
 - Download embedding models into the user's `~/.cds/models` cache on demand, reusing validated package-local models first without writing to the package or caller's CAP project
 
 ## Version 0.0.8 - 2026-10-14
