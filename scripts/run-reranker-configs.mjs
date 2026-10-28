@@ -24,46 +24,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // batchSize : CDS_MCP_RERANK_BATCH_SIZE (omit or null → 10)
 // overRetrieve: CDS_MCP_RERANK_OVER_RETRIEVE (omit or null → 5)
 const CONFIGS = [
-  // { model: 'Xenova/ms-marco-TinyBERT-L-2-v2',      dtype: 'q4'  },
-  // { model: 'Xenova/ms-marco-TinyBERT-L-2-v2',      dtype: 'q8'  },
-  // { model: 'Xenova/ms-marco-TinyBERT-L-2-v2',      dtype: 'fp32' },
-
-  // { model: 'Xenova/ms-marco-MiniLM-L-2-v2',        dtype: 'q4'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-2-v2',        dtype: 'q8'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-2-v2',        dtype: 'fp32' },
-
-  // { model: 'Xenova/ms-marco-MiniLM-L-4-v2',        dtype: 'q4'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-4-v2',        dtype: 'q8'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-4-v2',        dtype: 'fp32' },
-
   { model: 'Xenova/ms-marco-MiniLM-L-6-v2' },
   { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'q4' },
   { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'q8' },
   { model: 'Xenova/ms-marco-MiniLM-L-6-v2', dtype: 'fp32' }
 
-  // { model: 'Xenova/ms-marco-MiniLM-L-12-v2',       dtype: 'q4'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-12-v2',       dtype: 'q8'  },
-  // { model: 'Xenova/ms-marco-MiniLM-L-12-v2',       dtype: 'fp32' },
   // { model: 'Xenova/bge-reranker-base',             },
   // { model: 'Xenova/bge-reranker-base',              dtype: 'q4'  },
   // { model: 'Xenova/bge-reranker-base',              dtype: 'q8'  },
   // { model: 'Xenova/bge-reranker-base',              dtype: 'fp32' },
-
-  // { model: 'BAAI/bge-reranker-base',                dtype: 'fp32' },
-
-  // { model: 'BAAI/bge-reranker-large',               dtype: 'fp32' },
-
-  // { model: 'jinaai/jina-reranker-v1-tiny-en',       dtype: 'q4'  },
-  // { model: 'jinaai/jina-reranker-v1-tiny-en',       dtype: 'q8'  },
-  // { model: 'jinaai/jina-reranker-v1-tiny-en',       dtype: 'fp32' },
-
-  // { model: 'mixedbread-ai/mxbai-rerank-xsmall-v1',  dtype: 'q4'  },
-  // { model: 'mixedbread-ai/mxbai-rerank-xsmall-v1',  dtype: 'q8'  },
-  // { model: 'mixedbread-ai/mxbai-rerank-xsmall-v1',  dtype: 'fp32' },
-
-  // { model: 'mixedbread-ai/mxbai-rerank-base-v1',    dtype: 'q4'  },
-  // { model: 'mixedbread-ai/mxbai-rerank-base-v1',    dtype: 'q8'  },
-  // { model: 'mixedbread-ai/mxbai-rerank-base-v1',    dtype: 'fp32' },
 ]
 // ──────────────────────────────────────────────────────────────────────────────
 
