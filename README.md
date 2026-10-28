@@ -127,33 +127,21 @@ codex mcp add cds-mcp --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 -- npx 
 
 ### Usage in opencode
 
-Add to `opencode.jsonc` in your project, or to `~/.config/opencode/opencode.jsonc` for global use:
+Register the server with [opencode](https://opencode.ai/v2/docs/mcp-servers/) using the CLI.
 
-```jsonc
-{
-  "$schema": "https://opencode.ai/config.json",
-  "mcp": {
-    "cds-mcp": {
-      "type": "local",
-      "command": ["npx", "-y", "@cap-js/mcp-server"],
-      "environment": {
-        "CDS_MCP_MODEL": "nomic-ai/nomic-embed-text-v1.5"
-      },
-      "enabled": true
-    }
-  }
-}
+For all projects:
+```sh
+opencode mcp add cds-mcp --global -- npx -y @cap-js/mcp-server
 ```
 
-This is the [opencode v1](https://opencode.ai/docs/mcp-servers/) format. In [opencode v2](https://opencode.ai/v2/docs/mcp-servers/), use the same config but nest the server under `"servers"` — `"mcp": { "servers": { "cds-mcp": { ... } } }` — or use the CLI instead:
-
+For the current project only:
 ```sh
-opencode mcp add --global cds-mcp -- npx -y @cap-js/mcp-server
+opencode mcp add cds-mcp -- npx -y @cap-js/mcp-server
 ```
 
-To set an environment variable:
+To set an environment variable, add `--env` before the command:
 ```sh
-opencode mcp add --global cds-mcp \
+opencode mcp add cds-mcp --global \
   --env CDS_MCP_MODEL=nomic-ai/nomic-embed-text-v1.5 \
   -- npx -y @cap-js/mcp-server
 ```
@@ -258,12 +246,14 @@ We as members, contributors, and leaders pledge to make participation in our com
 
 ## Licensing
 
-Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/cds-mcp contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
+Copyright 2025 SAP SE or an SAP affiliate company and @cap-js/mcp-server contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/mcp-server).
 
 
 
 ## Acknowledgments
 
-- **onnxruntime-web** is used for creating embeddings locally.
-- **@huggingface/transformers.js** is used to compare the output of the WordPiece tokenizer.
-- **@modelcontextprotocol/sdk** provides the SDK for MCP.
+- **onnxruntime-node** runs the embedding models locally.
+- **@huggingface/hub** provides model discovery and downloads from Hugging Face.
+- **@huggingface/tokenizers** tokenizes text for the embedding models.
+- **@huggingface/transformers** provides tokenization and model inference for optional search-result reranking.
+- **@modelcontextprotocol/sdk** provides the MCP server and stdio transport.
