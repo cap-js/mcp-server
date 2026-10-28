@@ -108,27 +108,21 @@ export async function evaluateAndCompare() {
   if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsDir}`)
   console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsDir}`)
   let worstCode = 0
-  const prevEmbeddingsDir = process.env.CDS_MCP_OFFLINE_DIR
 
-  try {
-    for (const dir of dirs) {
-      const label = [cfg.label, ...path.relative(cfg.embeddingsDir, dir).split(path.sep)]
-        .filter(Boolean)
-        .join('/')
-      console.error(`\n→ ${label}`)
-      process.env.CDS_MCP_OFFLINE_DIR = dir
-      const capire_version = await readCapireVersion(dir)
-      const { code: c } = await evaluate({
-        sourceDb,
-        golden,
-        label,
-        capire_version
-      })
-      if (c > worstCode) worstCode = c
-    }
-  } finally {
-    if (prevEmbeddingsDir === undefined) delete process.env.CDS_MCP_OFFLINE_DIR
-    else process.env.CDS_MCP_OFFLINE_DIR = prevEmbeddingsDir
+  for (const dir of dirs) {
+    const label = [cfg.label, ...path.relative(cfg.embeddingsDir, dir).split(path.sep)]
+      .filter(Boolean)
+      .join('/')
+    console.error(`\n→ ${label}`)
+    process.env.CDS_MCP_OFFLINE_DIR = dir
+    const capire_version = await readCapireVersion(dir)
+    const { code: c } = await evaluate({
+      sourceDb,
+      golden,
+      label,
+      capire_version
+    })
+    if (c > worstCode) worstCode = c
   }
   code = worstCode
 
