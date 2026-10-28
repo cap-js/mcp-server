@@ -273,7 +273,7 @@ describe('CLI usage', () => {
       env: noFetchEnv
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
@@ -290,7 +290,7 @@ describe('CLI usage', () => {
       env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true' }
     })
 
-    assert.equal(result.code, 0, 'Command should exit with code 0')
+    assert.equal(result.code, 0, result.stderr)
     assert(result.stdout.length > 0, 'Should produce output')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
   })
