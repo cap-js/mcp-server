@@ -4,19 +4,16 @@ import fs from 'fs'
 import fsp from 'node:fs/promises'
 import path from 'path'
 import os from 'node:os'
-import { fileURLToPath } from 'url'
 import { getEmbeddings, createEmbeddings, hybridSearch } from '../lib/embeddings.js'
 import calculateEmbeddings, {
   getQueryDb,
   getActiveEmbeddingsDir,
   setEmbeddingsDir,
-  MODEL_CACHE_DIR,
-  getActiveModel
+  getActiveModel,
+  MODEL_CACHE_ROOT
 } from '../lib/calculateEmbeddings.js'
 import cds from '@sap/cds'
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const MODEL_DIR = path.resolve(__dirname, '..', '.cds', 'models', 'BAAI', 'bge-small-en-v1.5')
 const REQUIRED_FILES = ['model.onnx', 'tokenizer.json', 'tokenizer_config.json']
 
 describe('embeddings', () => {
@@ -28,6 +25,15 @@ describe('embeddings', () => {
   })
 
   describe('model setup', () => {
+    let MODEL_DIR
+    before(async () => {
+      await getQueryDb()
+      const modelPath = getActiveModel().split('/')
+      const localDir = path.join(MODEL_CACHE_ROOT, '.cds', 'models', ...modelPath)
+      MODEL_DIR = fs.existsSync(localDir)
+        ? localDir
+        : path.join(os.homedir(), '.cds', 'models', ...modelPath)
+    })
     test('model directory and required files exist and are non-empty', async () => {
       assert(fs.existsSync(MODEL_DIR), 'Model directory should exist after initialization')
 
@@ -58,24 +64,28 @@ describe('embeddings', () => {
       assert(modelStats.size > 1000000, 'ONNX model file should be reasonably large (>1MB)')
     })
 
-    test('model cache is anchored to the package root, not process.cwd()', async () => {
-      const [org, name] = getActiveModel().split('/')
-      const modelDir = path.join(MODEL_CACHE_DIR, org, name)
+    test('model cache is independent of the caller project', async () => {
+      const db = await getQueryDb()
+      assert.strictEqual(db.options.embedding.root, MODEL_CACHE_ROOT)
+      assert.strictEqual(db.options.embedding.directory, undefined)
       const prevRoot = cds.root
-      cds.root = os.tmpdir()
+      const callerProject = await fsp.mkdtemp(path.join(os.tmpdir(), 'mcp-caller-'))
+      cds.root = callerProject
       try {
         const result = await calculateEmbeddings('test query')
         assert.ok(result instanceof Float32Array, 'result must be a Float32Array')
         assert.ok(result.length > 0, 'embedding must be non-empty')
-        const entries = await fsp.readdir(modelDir)
-        assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${modelDir}`)
-        const strayDir = path.join(os.tmpdir(), '.cds', 'models')
+        const entries = await fsp.readdir(MODEL_DIR)
+        assert.ok(entries.includes('embedding.lock.json'), `expected model files in ${MODEL_DIR}`)
+        assert.strictEqual(cds.root, callerProject)
+        const strayDir = path.join(callerProject, '.cds', 'models')
         assert.ok(
           !fs.existsSync(strayDir),
           `model must not be created under cds.root (${strayDir})`
         )
       } finally {
         cds.root = prevRoot
+        await fsp.rm(callerProject, { recursive: true, force: true })
       }
     })
   })
