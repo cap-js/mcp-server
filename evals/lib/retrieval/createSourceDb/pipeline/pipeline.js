@@ -1,6 +1,5 @@
 import { parse } from './stages/01-parse.js';
 import { sectionize } from './stages/02-sectionize.js';
-import { mergeSections } from './stages/03-mergeSections.js';
 import { parseBlocks } from './stages/04-parse-blocks.js';
 import { splitByRuntime } from './stages/06-splitByRuntime.js';
 import { transformBlock, transformSection } from './stages/05-transform.js';
