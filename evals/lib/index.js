@@ -99,7 +99,7 @@ export async function evaluateAndCompare() {
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
     throw new Error(
-      `${stale.length} golden doc id(s) not in source db:\n${[...new Set(stale.map(p => p.doc_id))].map(id => `  - ${id}`).join('\n')}`
+      `${stale.length} golden doc id(s) not in source db:\n${[...new Set(stale.map((p) => p.doc_id))].map((id) => `  - ${id}`).join('\n')}`
     )
   }
 

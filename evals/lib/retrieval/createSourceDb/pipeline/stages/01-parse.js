@@ -1,33 +1,43 @@
-import { CONTAINER_OPENER, CONTAINER_CLOSER, HTML_DIV_CLOSE, HTML_ANY_DIV_OPEN, COLS_DIV_OPEN, JAVA_NODE_DIV_OPEN, MD_HEADING, FENCE_OPENER, FENCE_CLOSER } from './util.js';
+import {
+  CONTAINER_OPENER,
+  CONTAINER_CLOSER,
+  HTML_DIV_CLOSE,
+  HTML_ANY_DIV_OPEN,
+  COLS_DIV_OPEN,
+  JAVA_NODE_DIV_OPEN,
+  MD_HEADING,
+  FENCE_OPENER,
+  FENCE_CLOSER
+} from './util.js'
 
 function isNotInsideFence(lines, lastHeadingIndex, index) {
-  let fenceChar = null;
-  let fenceLen = 0;
+  let fenceChar = null
+  let fenceLen = 0
   for (let i = lastHeadingIndex; i < index; i++) {
-    const line = lines[i];
-    const m = FENCE_OPENER.exec(line);
-    if (!m) continue;
+    const line = lines[i]
+    const m = FENCE_OPENER.exec(line)
+    if (!m) continue
     if (fenceChar === null) {
-      fenceChar = m[2][0];
-      fenceLen = m[2].length;
+      fenceChar = m[2][0]
+      fenceLen = m[2].length
     } else if (FENCE_CLOSER.test(line) && m[2][0] === fenceChar && m[2].length >= fenceLen) {
-      fenceChar = null;
-      fenceLen = 0;
+      fenceChar = null
+      fenceLen = 0
     }
   }
-  return fenceChar === null;
+  return fenceChar === null
 }
 
-const SOURCE_LINE = /^>?\s*Source:\s/;
+const SOURCE_LINE = /^>?\s*Source:\s/
 
 export function isHeadingLine(lines, index) {
-  const match = MD_HEADING.exec(lines[index]);
-  if (!match) return null;
-  const window = lines.slice(index + 1, index + 4);
-  const offset = window.findIndex(l => /^>?\s*Source:\s/.test(l));
-  if (offset === -1) return null;
+  const match = MD_HEADING.exec(lines[index])
+  if (!match) return null
+  const window = lines.slice(index + 1, index + 4)
+  const offset = window.findIndex((l) => /^>?\s*Source:\s/.test(l))
+  if (offset === -1) return null
   const source = window[offset].replace(/^>?\s*Source:\s*/, '')
-  return { depth: match[1].length, title: match[2].trim(), source, sourceIndex: index + 1 + offset };
+  return { depth: match[1].length, title: match[2].trim(), source, sourceIndex: index + 1 + offset }
 }
 
 function isNotInsideContainer(lines, lastHeadingIndex, index) {
@@ -40,47 +50,66 @@ function isNotInsideContainer(lines, lastHeadingIndex, index) {
 }
 
 function isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, index) {
-  let closesSeen = 0;
+  let closesSeen = 0
   for (let i = index - 1; i >= lastHeadingIndex; i--) {
-    const line = lines[i];
-    if (HTML_DIV_CLOSE.test(line)) { closesSeen++; continue; }
+    const line = lines[i]
+    if (HTML_DIV_CLOSE.test(line)) {
+      closesSeen++
+      continue
+    }
     if (HTML_ANY_DIV_OPEN.test(line)) {
-      if (closesSeen > 0) { closesSeen--; continue; } // this opener matched a closer we already saw
+      if (closesSeen > 0) {
+        closesSeen--
+        continue
+      } // this opener matched a closer we already saw
       // Unclosed opener — only suppress heading if it's a special div
-      if (JAVA_NODE_DIV_OPEN.test(line) || COLS_DIV_OPEN.test(line)) return false;
+      if (JAVA_NODE_DIV_OPEN.test(line) || COLS_DIV_OPEN.test(line)) return false
     }
   }
-  return true;
+  return true
 }
 
 export function parse(text, _config) {
-  const lines = text.split('\n');
-  const roots = [];
-  const stack = [];
-  let buffer = [];
-  let preamble = null;
+  const lines = text.split('\n')
+  const roots = []
+  const stack = []
+  let buffer = []
+  let preamble = null
 
   const flushBuffer = () => {
-    const raw = buffer.join('\n');
-    buffer = [];
+    const raw = buffer.join('\n')
+    buffer = []
     if (stack.length > 0) {
-      stack[stack.length - 1].body = raw.split('\n').filter(l => !SOURCE_LINE.test(l)).join('\n').trimStart();
+      stack[stack.length - 1].body = raw
+        .split('\n')
+        .filter((l) => !SOURCE_LINE.test(l))
+        .join('\n')
+        .trimStart()
     } else if (raw.trim() !== '') {
       if (!preamble) {
-        preamble = { depth: 0, title: '', raw: '', children: [], source: '', body: '' };
+        preamble = { depth: 0, title: '', raw: '', children: [], source: '', body: '' }
       }
-      preamble.body = raw.split('\n').filter(l => !SOURCE_LINE.test(l)).join('\n').trimStart();
+      preamble.body = raw
+        .split('\n')
+        .filter((l) => !SOURCE_LINE.test(l))
+        .join('\n')
+        .trimStart()
     }
-  };
+  }
 
   let lastHeadingIndex = 0
   for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const heading = isHeadingLine(lines, i);
+    const line = lines[i]
+    const heading = isHeadingLine(lines, i)
 
-    if (heading && isNotInsideContainer(lines, lastHeadingIndex, i) && isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i) && isNotInsideFence(lines, lastHeadingIndex, i)) {
+    if (
+      heading &&
+      isNotInsideContainer(lines, lastHeadingIndex, i) &&
+      isNotInsideJavaNodeDivOrColDiv(lines, lastHeadingIndex, i) &&
+      isNotInsideFence(lines, lastHeadingIndex, i)
+    ) {
       lastHeadingIndex = i
-      flushBuffer();
+      flushBuffer()
 
       const node = {
         depth: heading.depth,
@@ -88,30 +117,30 @@ export function parse(text, _config) {
         raw: line,
         children: [],
         source: heading.source,
-        body: '',
-      };
+        body: ''
+      }
 
       while (stack.length > 0 && stack[stack.length - 1].depth >= node.depth) {
-        stack.pop();
+        stack.pop()
       }
 
       if (stack.length > 0) {
-        stack[stack.length - 1].children.push(node);
+        stack[stack.length - 1].children.push(node)
       } else {
-        roots.push(node);
+        roots.push(node)
       }
 
-      stack.push(node);
+      stack.push(node)
     } else {
-      buffer.push(line);
+      buffer.push(line)
     }
   }
 
-  flushBuffer();
+  flushBuffer()
 
   if (preamble) {
-    process.stderr.write(`[parse] warning: preamble content found before first heading\n`);
+    process.stderr.write(`[parse] warning: preamble content found before first heading\n`)
   }
 
-  return roots;
+  return roots
 }

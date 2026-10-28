@@ -1,14 +1,14 @@
-import { parseBlocks } from './04-parse-blocks.js';
-import { isHtmlStub, CONTAINER_CLOSER, HTML_DIV_CLOSE } from './util.js';
+import { parseBlocks } from './04-parse-blocks.js'
+import { isHtmlStub, CONTAINER_CLOSER, HTML_DIV_CLOSE } from './util.js'
 
 // 'foo\r\nbar\rend' → 'foo\nbar\nend'
 function normalizeLineEndings(text) {
-  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  return text.replace(/\r\n/g, '\n').replace(/\r/g, '\n')
 }
 
 // 'a\n\n\n\nb' → 'a\n\nb'
 function collapseBlankLines(text) {
-  return text.replace(/\n{3,}/g, '\n\n');
+  return text.replace(/\n{3,}/g, '\n\n')
 }
 
 // drops standalone HTML stub lines — matched cases:
@@ -20,610 +20,692 @@ function removeHtmlStubLines(text) {
   return text
     .split('\n')
     .filter((line) => !isHtmlStub(line))
-    .join('\n');
+    .join('\n')
 }
 
 // 'text {.class}' → 'text'   '<br/> {lang=js}' → '<br/>'  (any trailing {...} block)
 function stripTrailingAttrBlock(text) {
-  return text.split('\n').map(line => line.replace(/\s*\{[^}\n]*\}\s*$/, '')).join('\n');
+  return text
+    .split('\n')
+    .map((line) => line.replace(/\s*\{[^}\n]*\}\s*$/, ''))
+    .join('\n')
 }
 
 // '<iframe src="url">desc</iframe>' → 'video (url): desc'   no src → desc only
 function convertMediaEmbeds(text) {
   return text.replace(/<(iframe|video)\b([^>]*?)>([\s\S]*?)<\/\1>/gi, (m, _tag, attrs, inner) => {
-    const sm = attrs.match(SRC_ATTR);
-    const url = sm ? (sm[1] || sm[2]) : '';
-    const desc = inner.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    if (!url) return desc;
-    return desc ? `video (${url}): ${desc}` : `video (${url})`;
-  });
+    const sm = attrs.match(SRC_ATTR)
+    const url = sm ? sm[1] || sm[2] : ''
+    const desc = inner
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+    if (!url) return desc
+    return desc ? `video (${url}): ${desc}` : `video (${url})`
+  })
 }
 
 function normalizeShared(text) {
-  let t = normalizeLineEndings(text);
-  t = collapseBlankLines(t);
-  t = stripInlineHtml(t);
-  t = convertMediaEmbeds(t);
-  t = stripTrailingAttrBlock(t);
-  t = removeHtmlStubLines(t);
-  return t.trim();
+  let t = normalizeLineEndings(text)
+  t = collapseBlankLines(t)
+  t = stripInlineHtml(t)
+  t = convertMediaEmbeds(t)
+  t = stripTrailingAttrBlock(t)
+  t = removeHtmlStubLines(t)
+  return t.trim()
 }
 
 // '```js\r\ncode\r\n```' → '```js\ncode\n```'
 function normalizeFence(text) {
-  return normalizeLineEndings(text).trim();
+  return normalizeLineEndings(text).trim()
 }
 
 // 'hello  world  `a  b`' → 'hello world `a  b`'  (spaces outside backticks only)
 function collapseSpacesOutsideBackticks(line) {
-  if (!line.includes('`') && !line.includes('  ')) return line;
-  const parts = line.split('`');
-  return parts
-    .map((part, idx) => (idx % 2 === 0 ? part.replace(/ {2,}/g, ' ') : part))
-    .join('`');
+  if (!line.includes('`') && !line.includes('  ')) return line
+  const parts = line.split('`')
+  return parts.map((part, idx) => (idx % 2 === 0 ? part.replace(/ {2,}/g, ' ') : part)).join('`')
 }
 
 // 'a\n\n\n\nb' → 'a\n\nb'  (no HTML stripping — tables/admonitions safe)
 function normalizeStructural(text) {
-  let t = normalizeLineEndings(text);
-  t = collapseBlankLines(t);
-  return t.trim();
+  let t = normalizeLineEndings(text)
+  t = collapseBlankLines(t)
+  return t.trim()
 }
 
 // '[label](url)' → 'label (url)'   bare-URL label → just url   empty label → just url
 function flattenLinks(text) {
-  if (!text.includes('](')) return text;
+  if (!text.includes('](')) return text
   return text.replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target) => {
-    const url = target.trim();
-    const label = pre.slice(1, -2).trim(); // strip '[' prefix and '](' suffix
-    return (label === '' || label === url) ? url : `${label} (${url})`;
-  });
+    const url = target.trim()
+    const label = pre.slice(1, -2).trim() // strip '[' prefix and '](' suffix
+    return label === '' || label === url ? url : `${label} (${url})`
+  })
 }
 
 // '[x](../guide.md)' with source '/docs/java/ref.md' → '[x](/docs/java/guide)'
 function resolveRelativeLinks(text, source) {
-  if (!source) return text;
-  if (!text.includes('](') && !text.includes(']: ') && !text.includes('<a ')) return text;
-  const rawSource = source.replace(/^>\s*Source:\s*/, '').trim();
-  const hashPath = rawSource.replace(/#.*$/, '');
-  const dir = hashPath.replace(/\/[^/]*$/, '');
-  const ROOT = '/docs';
+  if (!source) return text
+  if (!text.includes('](') && !text.includes(']: ') && !text.includes('<a ')) return text
+  const rawSource = source.replace(/^>\s*Source:\s*/, '').trim()
+  const hashPath = rawSource.replace(/#.*$/, '')
+  const dir = hashPath.replace(/\/[^/]*$/, '')
+  const ROOT = '/docs'
   const resolve = (target) => {
-    if (target.startsWith('[')) throw new Error(`resolveRelativeLinks: bracket in URL — likely a malformed reference-style label used as a URL: ${JSON.stringify(target)} (source: ${rawSource})`);
-    if (/^(https?:|mailto:|tel:|\/\/|#\/)/i.test(target)) return target;
-    if (target.startsWith('#')) return hashPath + target;
-    if (target.startsWith('/')) return target;
-    const hashIdx = target.indexOf('#');
-    const rel = hashIdx === -1 ? target : target.slice(0, hashIdx);
-    const anchor = hashIdx === -1 ? '' : target.slice(hashIdx);
-    const base = dir.split('/');
+    if (target.startsWith('['))
+      throw new Error(
+        `resolveRelativeLinks: bracket in URL — likely a malformed reference-style label used as a URL: ${JSON.stringify(target)} (source: ${rawSource})`
+      )
+    if (/^(https?:|mailto:|tel:|\/\/|#\/)/i.test(target)) return target
+    if (target.startsWith('#')) return hashPath + target
+    if (target.startsWith('/')) return target
+    const hashIdx = target.indexOf('#')
+    const rel = hashIdx === -1 ? target : target.slice(0, hashIdx)
+    const anchor = hashIdx === -1 ? '' : target.slice(hashIdx)
+    const base = dir.split('/')
     for (const seg of rel.replace(/\.md$/, '').split('/')) {
-      if (seg === '' || seg === '.') continue;
+      if (seg === '' || seg === '.') continue
       if (seg === '..') {
         // never pop above ROOT
-        if (base.join('/') !== ROOT) base.pop();
+        if (base.join('/') !== ROOT) base.pop()
       } else {
-        base.push(seg);
+        base.push(seg)
       }
     }
-    return base.join('/') + anchor;
-  };
+    return base.join('/') + anchor
+  }
   return text
-    .replace(/(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g, (m, pre, target, post) => pre + resolve(target.trim()) + post)
+    .replace(
+      /(\[[^\]]*(?:\[[^\]]*\][^\]]*)*\]\()([^)]*)(\))/g,
+      (m, pre, target, post) => pre + resolve(target.trim()) + post
+    )
     .replace(/^(\s*\[[^\]]+\]:\s+)(\S+)/gm, (m, pre, target) => pre + resolve(target.trim()))
-    .replace(/(<a\s[^>]*href=)(["'])([^"']*)(\2)/gi, (m, pre, q, target, q2) => pre + q + resolve(target.trim()) + q2);
+    .replace(
+      /(<a\s[^>]*href=)(["'])([^"']*)(\2)/gi,
+      (m, pre, q, target, q2) => pre + q + resolve(target.trim()) + q2
+    )
 }
 
-const BOILERPLATE_ALT = /is explained in the accompanying text|^(this |the )?(graphic|image|figure|diagram)\b[^.]{0,40}(is explained|shows|illustrates)\b/i;
-const TITLE_IN_URL = /^\S+\s+(?:'([^']*)'|"([^"]*)")\s*$/;
+const BOILERPLATE_ALT =
+  /is explained in the accompanying text|^(this |the )?(graphic|image|figure|diagram)\b[^.]{0,40}(is explained|shows|illustrates)\b/i
+const TITLE_IN_URL = /^\S+\s+(?:'([^']*)'|"([^"]*)")\s*$/
 
 function isFilenameAlt(alt) {
-  const t = alt.trim();
-  if (!t) return false;
-  if (/^[A-Za-z0-9._-]+\.(?:drawio|svg|png|jpg|jpeg|gif|webp)$/i.test(t)) return true;
-  return false;
+  const t = alt.trim()
+  if (!t) return false
+  if (/^[A-Za-z0-9._-]+\.(?:drawio|svg|png|jpg|jpeg|gif|webp)$/i.test(t)) return true
+  return false
 }
 
 // '![diagram.svg](img.svg)' → ''   '![Overview](img.svg)' → 'Overview'
 function stripImageMarkup(text) {
-  return text
-    // Drop HTML image-only anchors: <a ...><img .../></a> — badge links, no prose value.
-    .replace(/<a\b[^>]*>\s*<img\b[^>]*\/?>\s*<\/a>/gi, '')
-    // Drop bare HTML img tags: <img .../> or <img ...>
-    .replace(/<img\b[^>]*\/?>/gi, '')
-    // Pre-pass: image-in-link [![alt](img)](url) → [alt](url).
-    // The alt is the link label — never drop it regardless of filename appearance.
-    .replace(/\[!\[([^\]]*)\]\([^)]*\)[ \t]*(?:\{[^}\n]*\})?\]\(([^)]*)\)/g, (m, alt, url) => {
-      const label = alt.trim();
-      return label ? `[${label}](${url})` : '';
-    })
-    .replace(/!\[([^\]]*)\]\(([^)]*)\)[ \t]*(\{[^}\n]*\})?/g, (m, alt, urlAndTitle) => {
-      const tm = urlAndTitle.match(TITLE_IN_URL);
-      const title = tm ? (tm[1] || tm[2] || '') : '';
-      if (title && title.trim().length > alt.trim().length) return title.trim();
-      return (isFilenameAlt(alt) || BOILERPLATE_ALT.test(alt.trim())) ? '' : alt.trim();
-    })
-    .replace(/\[\s*\]\([^)]*\)/g, '')
-    .replace(/[ \t]+$/, '');
+  return (
+    text
+      // Drop HTML image-only anchors: <a ...><img .../></a> — badge links, no prose value.
+      .replace(/<a\b[^>]*>\s*<img\b[^>]*\/?>\s*<\/a>/gi, '')
+      // Drop bare HTML img tags: <img .../> or <img ...>
+      .replace(/<img\b[^>]*\/?>/gi, '')
+      // Pre-pass: image-in-link [![alt](img)](url) → [alt](url).
+      // The alt is the link label — never drop it regardless of filename appearance.
+      .replace(/\[!\[([^\]]*)\]\([^)]*\)[ \t]*(?:\{[^}\n]*\})?\]\(([^)]*)\)/g, (m, alt, url) => {
+        const label = alt.trim()
+        return label ? `[${label}](${url})` : ''
+      })
+      .replace(/!\[([^\]]*)\]\(([^)]*)\)[ \t]*(\{[^}\n]*\})?/g, (m, alt, urlAndTitle) => {
+        const tm = urlAndTitle.match(TITLE_IN_URL)
+        const title = tm ? tm[1] || tm[2] || '' : ''
+        if (title && title.trim().length > alt.trim().length) return title.trim()
+        return isFilenameAlt(alt) || BOILERPLATE_ALT.test(alt.trim()) ? '' : alt.trim()
+      })
+      .replace(/\[\s*\]\([^)]*\)/g, '')
+      .replace(/[ \t]+$/, '')
+  )
 }
 
 // masks `a  b` before calling fn, restores after — lets fn skip inline code spans
 function withMaskedInlineCode(line, fn) {
-  if (!line.includes('`')) return fn(line);
-  const spans = [];
+  if (!line.includes('`')) return fn(line)
+  const spans = []
   const masked = line.replace(/`[^`\n]+?`/g, (m) => {
-    spans.push(m);
-    return `\x00${spans.length - 1}\x00`;
-  });
+    spans.push(m)
+    return `\x00${spans.length - 1}\x00`
+  })
   // eslint-disable-next-line no-control-regex
-  return fn(masked).replace(/\x00(\d+)\x00/g, (_, i) => spans[Number(i)]);
+  return fn(masked).replace(/\x00(\d+)\x00/g, (_, i) => spans[Number(i)])
 }
 
 // '# T ![x](y)' → '# T '   remaining {} → ''   (entity decoding is a separate pipeline step)
 function stripHeadingExtras(s) {
   return s
     .replace(/!\[[^\]]*\]\([^)]*\)/g, '') // inline images → ''
-    .replace(/\{\}/g, '');                 // remaining {}
+    .replace(/\{\}/g, '') // remaining {}
 }
 
 // '# Title {.class}' → '# Title'   '<UnderConstruction/>' → line dropped
 function stripClassMarkers(text) {
-  return text.split('\n').map((line) => {
-    if (line.trim() === '') return line;
-    const isHeading = /^#{1,6}\s/.test(line);
-    const stripped = withMaskedInlineCode(line, (s) => {
-      let r = s
-        .replace(/\{\s*[.#][^}\n]*\}/g, '')       // '{.className}' → ''   '{#className}' → ''
-        .replace(/<UnderConstruction\s*\/?>/gi, '') // '<UnderConstruction/>' → ''
-        .replace(/(^|\s)\{\}(?=\s|$)/g, '$1');     // 'foo {} bar' → 'foo  bar'  (orphan {})
-      if (isHeading) r = stripHeadingExtras(r);
-      return r.replace(/\s+$/, ''); // trim trailing whitespace
-    });
-    // drop lines that had content but became empty after stripping
-    return stripped.trim() === '' ? null : stripped;
-  }).filter((line) => line !== null).join('\n');
+  return text
+    .split('\n')
+    .map((line) => {
+      if (line.trim() === '') return line
+      const isHeading = /^#{1,6}\s/.test(line)
+      const stripped = withMaskedInlineCode(line, (s) => {
+        let r = s
+          .replace(/\{\s*[.#][^}\n]*\}/g, '') // '{.className}' → ''   '{#className}' → ''
+          .replace(/<UnderConstruction\s*\/?>/gi, '') // '<UnderConstruction/>' → ''
+          .replace(/(^|\s)\{\}(?=\s|$)/g, '$1') // 'foo {} bar' → 'foo  bar'  (orphan {})
+        if (isHeading) r = stripHeadingExtras(r)
+        return r.replace(/\s+$/, '') // trim trailing whitespace
+      })
+      // drop lines that had content but became empty after stripping
+      return stripped.trim() === '' ? null : stripped
+    })
+    .filter((line) => line !== null)
+    .join('\n')
 }
 
 const NAMED_ENTITIES = {
-  nbsp: ' ', emsp: '> ', ensp: ' ',
-  lt: '<', gt: '>', quot: '"', amp: '&',
-  ndash: '–', mdash: '—', rarr: '→', check: '✓',
-};
+  nbsp: ' ',
+  emsp: '> ',
+  ensp: ' ',
+  lt: '<',
+  gt: '>',
+  quot: '"',
+  amp: '&',
+  ndash: '–',
+  mdash: '—',
+  rarr: '→',
+  check: '✓'
+}
 
 // 'a &amp; b &rarr; c &#39;d&#39;' → 'a & b → c \'d\''
 function decodeEntities(text) {
-  if (!text.includes('&')) return text;
+  if (!text.includes('&')) return text
   return text
     .replace(/&#39;/g, "'")
     .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(+n))
     .replace(/&([a-zA-Z]+);/g, (m, name) => {
-      const c = NAMED_ENTITIES[name.toLowerCase()];
-      return c !== undefined ? c : m;
-    });
+      const c = NAMED_ENTITIES[name.toLowerCase()]
+      return c !== undefined ? c : m
+    })
 }
 
-const VOID_TAGS = new Set(['br', 'hr', 'wbr', 'div', 'span', 'p', 'img', 'details', 'summary']);
-const WRAPPER_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li']);
-const HREF_ATTR = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i;
-const STRIP_TAGS = /<[^>]*>/g;
+const VOID_TAGS = new Set(['br', 'hr', 'wbr', 'div', 'span', 'p', 'img', 'details', 'summary'])
+const WRAPPER_TAGS = new Set(['table', 'thead', 'tbody', 'tr', 'td', 'th', 'ul', 'ol', 'li'])
+const HREF_ATTR = /\bhref\s*=\s*(?:"([^"]*)"|'([^']*)')/i
+const SRC_ATTR = /\bsrc\s*=\s*(?:"([^"]*)"|'([^']*)')/i
+const STRIP_TAGS = /<[^>]*>/g
 
 // Tags whose semantic label should survive as plain text for embedding retrieval.
 // <Since version="v10" .../> → "since v10"   <Beta/> → "Beta"
 const JSX_BADGE_LABELS = {
-  beta: '(Beta)', alpha: '(Alpha)', gamma: '(Gamma)', 
-  concept: '(Concept)', internal: '(SAP specific)',
-  x: 'Yes', na: 'N/A', d: 'Deprecated', y: 'Yes', o: 'no'
-};
+  beta: '(Beta)',
+  alpha: '(Alpha)',
+  gamma: '(Gamma)',
+  concept: '(Concept)',
+  internal: '(SAP specific)',
+  x: 'Yes',
+  na: 'N/A',
+  d: 'Deprecated',
+  y: 'Yes',
+  o: 'no'
+}
 
 function resolveSelfClosingJsx(tag, attrs) {
-  const key = tag.toLowerCase();
+  const key = tag.toLowerCase()
   if (key === 'since') {
-    const ver = attrs.match(/\bversion=["']([^"']+)["']/i);
-    const pkg = attrs.match(/\bpackage=["']([^"']+)["']/i);
-    if (!ver) return '';
-    return pkg ? `(Since ${pkg[1]} ${ver[1]})` : `(Since ${ver[1]})`;
+    const ver = attrs.match(/\bversion=["']([^"']+)["']/i)
+    const pkg = attrs.match(/\bpackage=["']([^"']+)["']/i)
+    if (!ver) return ''
+    return pkg ? `(Since ${pkg[1]} ${ver[1]})` : `(Since ${ver[1]})`
   }
-  return JSX_BADGE_LABELS[key] ?? '';
+  return JSX_BADGE_LABELS[key] ?? ''
 }
 
 // Paired PascalCase tags: tag name (lowercase) → (inner, attrs) => string
 // Unrecognised tags fall back to inner.trim() — content kept, wrapper dropped.
 const JSX_PAIRED_TRANSFORMS = new Map([
-  ['config', (inner, attrs) => {
-    const runtime = /\bjava\b/i.test(attrs) ? 'Java' : /\bnode\b/i.test(attrs) ? 'Node.js' : null;
-    return runtime ? `${runtime}: ${inner.trim()}` : inner.trim();
-  }],
-  ['tip',     (inner) => `Tip: ${inner.trim()}`],
+  [
+    'config',
+    (inner, attrs) => {
+      const runtime = /\bjava\b/i.test(attrs) ? 'Java' : /\bnode\b/i.test(attrs) ? 'Node.js' : null
+      return runtime ? `${runtime}: ${inner.trim()}` : inner.trim()
+    }
+  ],
+  ['tip', (inner) => `Tip: ${inner.trim()}`],
   ['warning', (inner) => `Warning: ${inner.trim()}`],
-  ['danger',  (inner) => `Danger: ${inner.trim()}`],
-]);
+  ['danger', (inner) => `Danger: ${inner.trim()}`]
+])
 
 // '<Badge/>' → ''   '<Beta/>' → '(Beta)'   '<Since version="v10"/>' → '(Since v10)'
 // '<Tip>note</Tip>' → 'Tip: note'   '<Config java>key</Config>' → 'Java: key'
 function stripJsxComponents(text) {
-  let t = text;
+  let t = text
   for (let k = 0; k < 8; k++) {
-    const before = t;
+    const before = t
     // self-closing uppercase component tags: replace with label or drop
-    t = t.replace(/<([A-Z][A-Za-z0-9-]*)\b([^>]*)\/>/g, (_, tag, attrs) => resolveSelfClosingJsx(tag, attrs));
+    t = t.replace(/<([A-Z][A-Za-z0-9-]*)\b([^>]*)\/>/g, (_, tag, attrs) =>
+      resolveSelfClosingJsx(tag, attrs)
+    )
     // paired uppercase component tags: transform via lookup or keep inner text
     t = t.replace(/<([A-Z][A-Za-z0-9-]*)\b([^>]*)>([\s\S]*?)<\/\1>/g, (_, tag, attrs, inner) => {
-      const fn = JSX_PAIRED_TRANSFORMS.get(tag.toLowerCase());
-      return fn ? fn(inner.trim(), attrs) : inner.trim();
-    });
-    if (t === before) break;
+      const fn = JSX_PAIRED_TRANSFORMS.get(tag.toLowerCase())
+      return fn ? fn(inner.trim(), attrs) : inner.trim()
+    })
+    if (t === before) break
   }
-  return t;
+  return t
 }
 
 // '<span class="x">text</span>' → 'text'   '<div id="y">text</div>' → 'text'
 function unwrapAttributedSpans(text) {
-  let t = text;
+  let t = text
   for (let k = 0; k < 8; k++) {
-    const before = t;
-    t = t.replace(/<(span|div)\s[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag, inner) => inner.trim());
-    if (t === before) break;
+    const before = t
+    t = t.replace(/<(span|div)\s[^>]*>([\s\S]*?)<\/\1>/gi, (_, _tag, inner) => inner.trim())
+    if (t === before) break
   }
-  return t;
+  return t
 }
 
 // '<tr><td>a</td><td>b</td></tr>' → '| a | b |\n'   <li> items joined with " / "
 function convertTableRows(text) {
   return text.replace(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi, (m, inner) => {
-    const cells = [];
+    const cells = []
     inner.replace(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi, (_, cell) => {
       // extract <li> items first; join with " / " to keep items distinct
-      const liItems = [];
+      const liItems = []
       cell.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (__, liContent) => {
-        const item = liContent.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
-        if (item) liItems.push(item);
-      });
+        const item = liContent.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim()
+        if (item) liItems.push(item)
+      })
       if (liItems.length) {
-        cells.push(liItems.join(' / '));
+        cells.push(liItems.join(' / '))
       } else {
-        const flat = cell.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim();
-        if (flat) cells.push(flat);
+        const flat = cell.replace(STRIP_TAGS, ' ').replace(/\s+/g, ' ').trim()
+        if (flat) cells.push(flat)
       }
-    });
-    if (!cells.length) return '';
+    })
+    if (!cells.length) return ''
     // drop rows where all cells are empty after stripping
-    if (cells.every(c => !c)) return '';
-    return '| ' + cells.join(' | ') + ' |\n';
-  });
+    if (cells.every((c) => !c)) return ''
+    return '| ' + cells.join(' | ') + ' |\n'
+  })
 }
 
 // '<a href="/x">label</a>' → '[label](/x)'   '<tr><td>a</td><td>b</td></tr>' → '| a | b |'
 function convertHtmlToMarkdown(text) {
-  let t = text;
+  let t = text
   for (let k = 0; k < 8; k++) {
-    const before = t;
+    const before = t
     t = t.replace(/<a\b([^>]*)>([\s\S]*?)<\/a>/gi, (m, attrs, inner) => {
-      const hm = attrs.match(HREF_ATTR);
-      const url = hm ? (hm[1] || hm[2]) : '';
-      const label = inner.replace(STRIP_TAGS, '').trim();
-      if (url && label) return `[${label}](${url})`;
+      const hm = attrs.match(HREF_ATTR)
+      const url = hm ? hm[1] || hm[2] : ''
+      const label = inner.replace(STRIP_TAGS, '').trim()
+      if (url && label) return `[${label}](${url})`
       // Icon-only link (label stripped to empty but real URL present): preserve URL as bare path.
       // Skip Vue/template binding expressions like ":href" values that start with quotes or JS.
-      if (url && /^(https?:|\/|#)/.test(url)) return url;
-      return label || inner;
-    });
-    if (t === before) break;
+      if (url && /^(https?:|\/|#)/.test(url)) return url
+      return label || inner
+    })
+    if (t === before) break
   }
   // convert <iframe>/<video> with src → video (url)
-  t = convertMediaEmbeds(t);
+  t = convertMediaEmbeds(t)
   // convert <tr> rows: wrap cells with | separators to preserve column meaning
-  t = convertTableRows(t);
+  t = convertTableRows(t)
   // strip remaining wrapper/void tags, decode entities, drop blank lines
-  return stripRemainingHtmlTags(t);
+  return stripRemainingHtmlTags(t)
 }
 
 // strips wrapper/void tags keeping inner content; decodes entities; collapses blank lines
 function stripRemainingHtmlTags(text) {
-  let t = text;
+  let t = text
   for (let k = 0; k < 8; k++) {
-    const before = t;
+    const before = t
     t = t.replace(/<([A-Za-z][A-Za-z0-9-]*)\b[^>]*>([\s\S]*?)<\/\1>/g, (m, tag, inner) => {
-      const key = tag.toLowerCase();
-      if (WRAPPER_TAGS.has(key) || VOID_TAGS.has(key)) return inner;
-      return m;
-    });
+      const key = tag.toLowerCase()
+      if (WRAPPER_TAGS.has(key) || VOID_TAGS.has(key)) return inner
+      return m
+    })
     t = t.replace(/<([A-Za-z][A-Za-z0-9-]*)\b[^>]*\/>/g, (m, tag) =>
-      VOID_TAGS.has(tag.toLowerCase()) ? '' : m);
-    if (t === before) break;
+      VOID_TAGS.has(tag.toLowerCase()) ? '' : m
+    )
+    if (t === before) break
   }
-  t = decodeEntities(t);
-  t = t.split('\n').map(line => line.trim()).filter(line => line !== '').join('\n');
-  return collapseBlankLines(t).trim();
+  t = decodeEntities(t)
+  t = t
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '')
+    .join('\n')
+  return collapseBlankLines(t).trim()
 }
 
-const INLINE_HTML_TAGS = new Set(['em', 'i', 'strong', 'b', 's', 'del', 'ins', 'sup', 'sub', 'small', 'mark', 'code', 'kbd', 'abbr', 'cite', 'q', 'u', 'samp', 'var', 'details', 'summary']);
+const INLINE_HTML_TAGS = new Set([
+  'em',
+  'i',
+  'strong',
+  'b',
+  's',
+  'del',
+  'ins',
+  'sup',
+  'sub',
+  'small',
+  'mark',
+  'code',
+  'kbd',
+  'abbr',
+  'cite',
+  'q',
+  'u',
+  'samp',
+  'var',
+  'details',
+  'summary'
+])
 
 // 'text <em>bold</em> end' → 'text bold end'   '<br/>' → ' '   block tags untouched
 function stripInlineHtml(text) {
-  if (!text.includes('<')) return text;
-  let t = text;
+  if (!text.includes('<')) return text
+  let t = text
   // <br> / <br/> → space
-  t = t.replace(/<br\s*\/?>/gi, ' ');
+  t = t.replace(/<br\s*\/?>/gi, ' ')
   // Strip inline tags only — loop until stable (handles nesting).
   // Deliberately excludes block-level tags like <pre>, <div> so we don't swallow
   // content inside containers that are not in our set.
   for (let k = 0; k < 8; k++) {
-    const before = t;
+    const before = t
     t = t.replace(/<([a-z][a-z0-9]*)\b[^>]*>([^<]*?)<\/\1>/gi, (m, tag, inner) =>
-      INLINE_HTML_TAGS.has(tag.toLowerCase()) ? inner : m);
+      INLINE_HTML_TAGS.has(tag.toLowerCase()) ? inner : m
+    )
     t = t.replace(/<([a-z][a-z0-9]*)\b[^>]*\/>/gi, (m, tag) =>
-      INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m);
-    if (t === before) break;
+      INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m
+    )
+    if (t === before) break
   }
   // Strip orphan opening/closing tags (no matching pair in this text) for inline set members
   t = t.replace(/<([a-z][a-z0-9]*)\b[^>]*>/gi, (m, tag) =>
-    INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m);
+    INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m
+  )
   t = t.replace(/<\/([a-z][a-z0-9]*)>/gi, (m, tag) =>
-    INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m);
-  return t;
+    INLINE_HTML_TAGS.has(tag.toLowerCase()) ? '' : m
+  )
+  return t
 }
-
 
 // '| a  b |  c |' → '| a b | c |'   '| --- | ---- |' → '| - | - |'
 function compactTableCells(text) {
-  return text.split('\n').map((line) => {
-    const m = line.match(/^(\s*)\|/);
-    if (!m) return line;
-    const indent = m[1];
-    const rest = line.slice(indent.length);
-    const isSep = /^\|[\s\-:|]+\|?\s*$/.test(rest);
-    const s = isSep
-      ? rest.replace(/-{2,}/g, '-')          // separator row: collapse dash runs only
-      : collapseSpacesOutsideBackticks(rest); // cell content: collapse spaces only
-    return indent + s;
-  }).join('\n');
+  return text
+    .split('\n')
+    .map((line) => {
+      const m = line.match(/^(\s*)\|/)
+      if (!m) return line
+      const indent = m[1]
+      const rest = line.slice(indent.length)
+      const isSep = /^\|[\s\-:|]+\|?\s*$/.test(rest)
+      const s = isSep
+        ? rest.replace(/-{2,}/g, '-') // separator row: collapse dash runs only
+        : collapseSpacesOutsideBackticks(rest) // cell content: collapse spaces only
+      return indent + s
+    })
+    .join('\n')
 }
 
-const LOG_FENCE_OPENER = /^\s*(`{3,}|~{3,})log\s*$/i;
-const PATH_LINE = /^\s+([\S]+\/[^\s]+)\s*$/;
+const LOG_FENCE_OPENER = /^\s*(`{3,}|~{3,})log\s*$/i
+const PATH_LINE = /^\s+([\S]+\/[^\s]+)\s*$/
 
 function dirOf(path) {
-  const slash = path.lastIndexOf('/');
-  return slash === -1 ? '' : path.slice(0, slash);
+  const slash = path.lastIndexOf('/')
+  return slash === -1 ? '' : path.slice(0, slash)
 }
 
 // 6 lines all in src/foo/ → [first, '   ...', last];  ≤3 lines → kept as-is
 function collapsePathRuns(lines) {
-  const out = [];
-  let run = [];
-  let runDir = null;
+  const out = []
+  let run = []
+  let runDir = null
 
   const flushRun = () => {
-    if (!run.length) return;
+    if (!run.length) return
     if (run.length <= 3) {
-      out.push(...run);
+      out.push(...run)
     } else {
-      out.push(run[0]);
-      out.push(`   ...`);
-      out.push(run[run.length - 1]);
+      out.push(run[0])
+      out.push(`   ...`)
+      out.push(run[run.length - 1])
     }
-    run = [];
-    runDir = null;
-  };
+    run = []
+    runDir = null
+  }
 
   for (const line of lines) {
-    const m = PATH_LINE.exec(line);
+    const m = PATH_LINE.exec(line)
     if (m) {
-      const dir = dirOf(m[1]);
+      const dir = dirOf(m[1])
       if (dir === runDir) {
-        run.push(line);
+        run.push(line)
       } else {
-        flushRun();
-        run = [line];
-        runDir = dir;
+        flushRun()
+        run = [line]
+        runDir = dir
       }
     } else {
-      flushRun();
-      out.push(line);
+      flushRun()
+      out.push(line)
     }
   }
-  flushRun();
-  return out;
+  flushRun()
+  return out
 }
 
 // strips [!code focus] annotation from lines and returns only those lines
 function keepFocusLines(lines) {
-  return lines.map(l =>
-    l.replace(/\s*\/\/\s*\[!code focus\]/g, '').replace(/\s*#\s*\[!code focus\]/g, '').trimEnd()
-  );
+  return lines.map((l) =>
+    l
+      .replace(/\s*\/\/\s*\[!code focus\]/g, '')
+      .replace(/\s*#\s*\[!code focus\]/g, '')
+      .trimEnd()
+  )
 }
 
 // collapses same-dir path runs in inner fence lines to first/…/last
 function collapsePathsInFence(lines) {
-  return collapsePathRuns(lines);
+  return collapsePathRuns(lines)
 }
 
 // [!code focus] lines → keep only those (stripped); else collapse path runs
 function collapseLogDump(text) {
-  const lines = text.split('\n');
-  const inner = lines.slice(1, -1);
-  const focusLines = inner.filter(l => l.includes('[!code focus]'));
-  const collapsed = focusLines.length ? keepFocusLines(focusLines) : collapsePathsInFence(inner);
-  return [lines[0], ...collapsed, lines[lines.length - 1]].join('\n');
+  const lines = text.split('\n')
+  const inner = lines.slice(1, -1)
+  const focusLines = inner.filter((l) => l.includes('[!code focus]'))
+  const collapsed = focusLines.length ? keepFocusLines(focusLines) : collapsePathsInFence(inner)
+  return [lines[0], ...collapsed, lines[lines.length - 1]].join('\n')
 }
 
 const RUNTIME_LABEL = {
   java: 'Java:',
-  node: 'Node.js:',
-};
+  node: 'Node.js:'
+}
 
 function normalizeMdTable(text, source) {
-  const normalized = normalizeStructural(text);
-  const compacted = compactTableCells(normalized);
-  const noMarkers = stripClassMarkers(compacted);
-  const noJsx = stripJsxComponents(noMarkers);
-  const noInline = stripInlineHtml(noJsx);
-  const decoded = decodeEntities(noInline);
-  return flattenLinks(resolveRelativeLinks(decoded, source));
+  const normalized = normalizeStructural(text)
+  const compacted = compactTableCells(normalized)
+  const noMarkers = stripClassMarkers(compacted)
+  const noJsx = stripJsxComponents(noMarkers)
+  const noInline = stripInlineHtml(noJsx)
+  const decoded = decodeEntities(noInline)
+  return flattenLinks(resolveRelativeLinks(decoded, source))
 }
 
 function normalizeContainerOpener(text, source) {
-  const noMarkers = stripClassMarkers(text.trim());
-  const noInline = stripInlineHtml(noMarkers);
-  return flattenLinks(resolveRelativeLinks(noInline, source));
+  const noMarkers = stripClassMarkers(text.trim())
+  const noInline = stripInlineHtml(noMarkers)
+  return flattenLinks(resolveRelativeLinks(noInline, source))
 }
 
 function normalizeAdmonitionOpener(text) {
-  const noMarkers = stripClassMarkers(text);
-  const noJsx = stripJsxComponents(noMarkers);
-  const noSpans = unwrapAttributedSpans(noJsx);
-  return stripInlineHtml(noSpans);
+  const noMarkers = stripClassMarkers(text)
+  const noJsx = stripJsxComponents(noMarkers)
+  const noSpans = unwrapAttributedSpans(noJsx)
+  return stripInlineHtml(noSpans)
 }
 
 function normalizeListItem(text, source) {
-  const noMarkers = stripClassMarkers(text);
-  const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers));
-  const stripped = stripImageMarkup(noComponents).trim();
-  const noInline = stripInlineHtml(stripped);
-  const decoded = decodeEntities(noInline);
-  const spaced = decoded.split('\n').map(collapseSpacesOutsideBackticks).join('\n');
-  return flattenLinks(resolveRelativeLinks(spaced, source));
+  const noMarkers = stripClassMarkers(text)
+  const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers))
+  const stripped = stripImageMarkup(noComponents).trim()
+  const noInline = stripInlineHtml(stripped)
+  const decoded = decodeEntities(noInline)
+  const spaced = decoded.split('\n').map(collapseSpacesOutsideBackticks).join('\n')
+  return flattenLinks(resolveRelativeLinks(spaced, source))
 }
 
 function normalizeProse(text, source) {
-  const normalized = normalizeShared(text);
-  const noMarkers = stripClassMarkers(normalized);
-  const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers));
-  const stripped = stripImageMarkup(noComponents).trim();
-  const decoded = decodeEntities(stripped);
-  const spaced = decoded.split('\n').map(collapseSpacesOutsideBackticks).join('\n');
-  return flattenLinks(resolveRelativeLinks(spaced, source));
+  const normalized = normalizeShared(text)
+  const noMarkers = stripClassMarkers(normalized)
+  const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers))
+  const stripped = stripImageMarkup(noComponents).trim()
+  const decoded = decodeEntities(stripped)
+  const spaced = decoded.split('\n').map(collapseSpacesOutsideBackticks).join('\n')
+  return flattenLinks(resolveRelativeLinks(spaced, source))
 }
 
 function fallbackParts(block) {
   // Only reached when block was built without parseBlocks (e.g. hand-crafted in tests).
   // block.text holds the full raw text in that case.
-  const lines = block.text.split('\n');
-  const isDiv = block.type !== 'container';
-  const closerRe = isDiv ? HTML_DIV_CLOSE : CONTAINER_CLOSER;
-  const hasCloser = closerRe.test(lines[lines.length - 1].trim());
-  return parseBlocks(lines.slice(1, hasCloser ? -1 : undefined).join('\n'));
+  const lines = block.text.split('\n')
+  const isDiv = block.type !== 'container'
+  const closerRe = isDiv ? HTML_DIV_CLOSE : CONTAINER_CLOSER
+  const hasCloser = closerRe.test(lines[lines.length - 1].trim())
+  return parseBlocks(lines.slice(1, hasCloser ? -1 : undefined).join('\n'))
 }
 
 function transformParts(block, source) {
-  const parts = block.parts ?? fallbackParts(block);
+  const parts = block.parts ?? fallbackParts(block)
   const transformedParts = parts
-    .map(b => { b.text = transformBlock(b, source); return b; })
-    .filter(b => !b.isEmpty)
-    .map(b => b.text);
+    .map((b) => {
+      b.text = transformBlock(b, source)
+      return b
+    })
+    .filter((b) => !b.isEmpty)
+    .map((b) => b.text)
   const lists = ['list', 'list-item', 'bullet-item']
   const join = lists.includes(block.type) ? '\n' : '\n\n'
-  return transformedParts.join(join);
+  return transformedParts.join(join)
 }
 
 export function transformBlock(block, source) {
-  let text = '';
-  const inner = block.parts?.length > 0 ? transformParts(block, source) : null;
+  let text = ''
+  const inner = block.parts?.length > 0 ? transformParts(block, source) : null
 
   switch (block.type) {
     case 'list': {
-      text = inner ?? '';
-      break;
+      text = inner ?? ''
+      break
     }
     case 'container':
     case 'cols-div': {
-      const opener = block.opener ? normalizeContainerOpener(block.opener, source) : null;
+      const opener = block.opener ? normalizeContainerOpener(block.opener, source) : null
       if (opener) {
-        block.opener = opener;
+        block.opener = opener
         text = block.closer
           ? `${opener}\n${inner ?? ''}\n${block.closer.trim()}`
-          : `${opener}\n${inner ?? ''}`;
+          : `${opener}\n${inner ?? ''}`
       } else {
-        text = inner ?? '';
+        text = inner ?? ''
       }
-      break;
+      break
     }
     case 'fence': {
-      const normalized = normalizeFence(block.text);
+      const normalized = normalizeFence(block.text)
       text = LOG_FENCE_OPENER.test(normalized.split('\n')[0])
         ? collapseLogDump(normalized)
-        : normalized;
-      break;
+        : normalized
+      break
     }
     case 'heading':
     case 'redirect':
     case 'paragraph': {
-      text = normalizeProse(block.text, source);
-      break;
+      text = normalizeProse(block.text, source)
+      break
     }
     case 'bullet-item':
     case 'list-item': {
-      const resolved = normalizeListItem(block.parts?.length > 0 ? block.opener : block.text, source);
-      text = inner ? `${resolved}\n${inner}` : resolved;
-      break;
+      const resolved = normalizeListItem(
+        block.parts?.length > 0 ? block.opener : block.text,
+        source
+      )
+      text = inner ? `${resolved}\n${inner}` : resolved
+      break
     }
     case 'admonition': {
       if (inner) {
-        const opener = normalizeAdmonitionOpener(block.opener ?? block.text);
-        const innerLines = inner.split('\n').map(i => '> ' + i);
-        text = `${opener}\n${innerLines.join('\n')}`;
+        const opener = normalizeAdmonitionOpener(block.opener ?? block.text)
+        const innerLines = inner.split('\n').map((i) => '> ' + i)
+        text = `${opener}\n${innerLines.join('\n')}`
       } else {
-        const normalized = normalizeStructural(block.text);
-        const noMarkers = stripClassMarkers(normalized);
-        const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers));
-        const noInline = stripInlineHtml(noComponents);
-        text = flattenLinks(resolveRelativeLinks(noInline, source));
+        const normalized = normalizeStructural(block.text)
+        const noMarkers = stripClassMarkers(normalized)
+        const noComponents = unwrapAttributedSpans(stripJsxComponents(noMarkers))
+        const noInline = stripInlineHtml(noComponents)
+        text = flattenLinks(resolveRelativeLinks(noInline, source))
       }
-      break;
+      break
     }
     case 'md-table': {
-      text = normalizeMdTable(block.text, source);
-      break;
+      text = normalizeMdTable(block.text, source)
+      break
     }
     case 'html-table': {
-      const normalized = normalizeStructural(block.text);
-      const unwrapped = convertHtmlToMarkdown(normalized);
-      text = flattenLinks(resolveRelativeLinks(unwrapped, source));
-      break;
+      const normalized = normalizeStructural(block.text)
+      const unwrapped = convertHtmlToMarkdown(normalized)
+      text = flattenLinks(resolveRelativeLinks(unwrapped, source))
+      break
     }
     case 'java-div':
     case 'node-div': {
       if (inner) {
-        const label = RUNTIME_LABEL[block.runtime] ?? null;
-        text = label ? `${label}\n${inner}` : inner;
+        const label = RUNTIME_LABEL[block.runtime] ?? null
+        text = label ? `${label}\n${inner}` : inner
       }
-      break;
+      break
     }
     default: {
-      throw new Error(`[transformBlock] no type for ${block.text}`);
+      throw new Error(`[transformBlock] no type for ${block.text}`)
     }
   }
 
   if (text.trim() === '') {
-    block.isEmpty = true;
+    block.isEmpty = true
   }
 
-  return text;
+  return text
 }
 
 // Transforms a section's raw blocks in place and returns the non-empty ones.
 // Also returns the dropped blocks and whether the section became empty, so the
 // pipeline can keep its "dropped …" bookkeeping.
 export function transformSection(section, rawBlocks) {
-  const emptyBlocks = [];
+  const emptyBlocks = []
   for (const block of rawBlocks) {
-    block.nonTransformedText = block.text;
-    block.text = transformBlock(block, section.source);
-    if (block.isEmpty) emptyBlocks.push({ section, block });
+    block.nonTransformedText = block.text
+    block.text = transformBlock(block, section.source)
+    if (block.isEmpty) emptyBlocks.push({ section, block })
   }
 
-  const nonEmpty = rawBlocks.filter(b => !b.isEmpty);
+  const nonEmpty = rawBlocks.filter((b) => !b.isEmpty)
   if (nonEmpty.length === 0) {
-    return { nonEmpty, emptyBlocks, isEmptySection: true };
+    return { nonEmpty, emptyBlocks, isEmptySection: true }
   }
 
   // if last block is a heading w/o body --> drop
-  const last = nonEmpty[nonEmpty.length - 1];
+  const last = nonEmpty[nonEmpty.length - 1]
   if (last.type === 'heading') {
-    emptyBlocks.push({ section, block: last });
-    nonEmpty.pop();
+    emptyBlocks.push({ section, block: last })
+    nonEmpty.pop()
   }
 
-  return { nonEmpty, emptyBlocks, isEmptySection: false };
+  return { nonEmpty, emptyBlocks, isEmptySection: false }
 }
