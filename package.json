@@ -23,6 +23,7 @@
   "type": "module",
   "scripts": {
     "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
+    "test:package": "node scripts/check-package.mjs",
     "lint": "npx eslint .",
     "format": "oxfmt",
     "format:check": "oxfmt --check",
