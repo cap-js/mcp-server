@@ -24,15 +24,16 @@ export async function createSourceDb() {
       headingPath: chunk.breadcrumb,
       source: chunk.source,
       title: chunk.heading,
-      chunk: chunk.body,
+      chunk: chunk.embeddingBody,
       ID: randomUUID()
     }
     return meta
   }
   const { sections } = runPipeline(text, {
     maxHeadingDepth: Infinity,
-    maxChunkSize: Infinity,
-    minChunkSize: 0
+    minTokens: 0,
+    maxTokens: Infinity,
+    measure: () => 1
   })
   const entries = sections.map(toDb)
   const model = await cds.load(fileURLToPath(new URL('./source-docs.cds', import.meta.url)))

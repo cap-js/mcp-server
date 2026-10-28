@@ -1,6 +1,6 @@
 entity SourceDocs {
   key ID          : UUID;
-      chunk       : LargeString not null;
+      chunk       : LargeString;
       headingPath : LargeString not null;
       title       : String not null;
       source      : String not null;

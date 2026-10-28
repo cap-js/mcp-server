@@ -99,7 +99,7 @@ export async function evaluateAndCompare() {
   const stale = await preflight(golden.questions, sourceDb)
   if (stale.length > 0) {
     throw new Error(
-      `${stale.length} golden doc id(s) not in the source db: ${JSON.stringify(stale)}`
+      `${stale.length} golden doc id(s) not in source db:\n${[...new Set(stale.map(p => p.doc_id))].map(id => `  - ${id}`).join('\n')}`
     )
   }
 
@@ -108,7 +108,7 @@ export async function evaluateAndCompare() {
   if (!dirs.length) throw new Error(`No embedding dirs found under ${cfg.embeddingsDir}`)
   console.error(`Sweep: found ${dirs.length} embedding dir(s) under ${cfg.embeddingsDir}`)
   let worstCode = 0
-  const prevEmbeddingsDir = process.env.CDS_MCP_EMBEDDINGS_DIR
+  const prevEmbeddingsDir = process.env.CDS_MCP_OFFLINE_DIR
 
   try {
     for (const dir of dirs) {
@@ -116,7 +116,7 @@ export async function evaluateAndCompare() {
         .filter(Boolean)
         .join('/')
       console.error(`\n→ ${label}`)
-      process.env.CDS_MCP_EMBEDDINGS_DIR = dir
+      process.env.CDS_MCP_OFFLINE_DIR = dir
       const capire_version = await readCapireVersion(dir)
       const { code: c } = await evaluate({
         sourceDb,
@@ -127,8 +127,8 @@ export async function evaluateAndCompare() {
       if (c > worstCode) worstCode = c
     }
   } finally {
-    if (prevEmbeddingsDir === undefined) delete process.env.CDS_MCP_EMBEDDINGS_DIR
-    else process.env.CDS_MCP_EMBEDDINGS_DIR = prevEmbeddingsDir
+    if (prevEmbeddingsDir === undefined) delete process.env.CDS_MCP_OFFLINE_DIR
+    else process.env.CDS_MCP_OFFLINE_DIR = prevEmbeddingsDir
   }
   code = worstCode
 
