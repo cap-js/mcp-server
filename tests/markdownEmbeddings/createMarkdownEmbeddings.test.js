@@ -24,65 +24,73 @@ mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
 const { embedText, toMeta, parseArgs, readInput, createMarkdownEmbeddings } =
   await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
 
-async function generateMarkdown(text, options = {}, argv = []) {
+async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
   const input = join(root, 'guide.md')
   try {
     await writeFile(input, text)
-    return await createMarkdownEmbeddings([input, ...argv], options)
+    return await createMarkdownEmbeddings(
+      { text: await readInput(input), ...chunkingConfig },
+      embeddingConfig
+    )
   } finally {
     await rm(root, { recursive: true, force: true })
   }
 }
 
-afterEach(() => writeEmbeddings.mock.resetCalls())
+const originalArgv = process.argv
+const originalCwd = process.cwd()
+afterEach(() => {
+  process.argv = originalArgv
+  process.chdir(originalCwd)
+  writeEmbeddings.mock.resetCalls()
+})
 
 describe('Markdown embedding generation', () => {
   it('should generate from supplied Markdown without an input file', async () => {
-    const text = '# Guide\n\nGeneral documentation supplied directly in memory.'
+    const text =
+      '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation supplied directly in memory.'
 
-    const result = await createMarkdownEmbeddings([], { text })
+    const result = await createMarkdownEmbeddings({ text })
 
     assert.equal(result.count, 1)
     const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(chunks.length, 1)
     assert.match(chunks[0], /General documentation supplied directly in memory/)
     assert.equal(canonical[0], 'General documentation supplied directly in memory.')
-    assert.equal(options.metadata[0].source, 'markdown')
+    assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/guide')
   })
 
-  it('should prefer supplied Markdown over reading the input file', async () => {
-    const text = '# Guide\n\nSupplied documentation takes precedence over file input.'
+  it('should ignore command-line input when a chunking configuration is supplied', async () => {
+    const text =
+      '# Guide\n\n> Source: /docs/provided\n\nSupplied documentation takes precedence over file input.'
+    process.argv = ['node', 'createMarkdownEmbeddings.js', 'missing-input.md']
 
-    await createMarkdownEmbeddings(['missing-input.md'], { text, source: 'provided.md' })
+    await createMarkdownEmbeddings({ text })
 
     const [, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(canonical.length, 1)
     assert.equal(canonical[0], 'Supplied documentation takes precedence over file input.')
-    assert.equal(options.metadata[0].source, 'provided.md')
+    assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/provided')
   })
 
-  it('should reject empty supplied Markdown rather than falling back to file input', async () => {
-    await assert.rejects(
-      generateMarkdown('# Guide\n\nValid file documentation.', { text: '' }),
-      /Markdown text is required/
-    )
+  it('should reject empty supplied Markdown before invoking the writer', async () => {
+    await assert.rejects(createMarkdownEmbeddings({ text: '' }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
-  it('should reject non-string supplied Markdown before invoking the writer', async () => {
-    await assert.rejects(createMarkdownEmbeddings([], { text: null }), /Markdown text is required/)
+  it('should reject null supplied Markdown before invoking the writer', async () => {
+    await assert.rejects(createMarkdownEmbeddings({ text: null }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
-  it('should embed ordinary Markdown headings without source annotations or CDS metadata', async () => {
+  it('should embed source-annotated Markdown headings with section metadata', async () => {
     const text =
-      '# Introduction\n\nGeneral documentation content.\n\n## Configuration\n\nConfigure the documented option.'
+      '# Introduction\n\n> Source: /docs/guide\n\nGeneral documentation content.\n\n## Configuration\n\n> Source: /docs/guide#configuration\n\nConfigure the documented option.'
 
     const result = await generateMarkdown(text, {
-      source: 'guide.md',
       chunking: { minTokens: 0 }
     })
 
@@ -94,61 +102,63 @@ describe('Markdown embedding generation', () => {
     assert.equal(canonical[1], 'Configure the documented option.')
     assert.equal(options.model, 'fixture/default-model')
     assert.equal(options.metadata[1].headingPath, 'Introduction')
-    assert.equal(options.metadata[1].source, 'guide.md')
+    assert.equal(options.metadata[1].source, 'https://cap.cloud.sap/docs/guide#configuration')
     assert.equal('capire' in options, false)
   })
 
-  it('should retain Markdown without any headings', async () => {
-    await generateMarkdown('Plain documentation content without a heading.')
+  it('should emit no chunks for Markdown without any headings', async () => {
+    const result = await generateMarkdown('Plain documentation content without a heading.')
 
     const [, chunks, canonical] = writeEmbeddings.mock.calls[0].arguments
-    assert.equal(chunks.length, 1)
-    assert.match(chunks[0], /^# Document\n\nPlain documentation/)
-    assert.equal(canonical[0], 'Plain documentation content without a heading.')
+    assert.equal(result.count, 0)
+    assert.equal(chunks.length, 0)
+    assert.equal(canonical.length, 0)
   })
 
-  it('should retain preamble content before the first heading', async () => {
+  it('should drop preamble content and retain the first source-annotated section', async () => {
     await generateMarkdown(
-      'Introductory documentation content.\n\n# Configuration\n\nConfiguration documentation content.'
+      'Introductory documentation content.\n\n# Configuration\n\n> Source: /docs/configuration\n\nConfiguration documentation content.'
     )
 
     const [, , canonical] = writeEmbeddings.mock.calls[0].arguments
-    assert.equal(canonical.length, 2)
-    assert.equal(canonical[0], 'Introductory documentation content.')
+    assert.equal(canonical.length, 1)
+    assert.equal(canonical[0], 'Configuration documentation content.')
   })
 
-  it('should preserve ordinary relative links without CAP URL rewriting', async () => {
+  it('should resolve relative links against the annotated documentation source', async () => {
     await generateMarkdown(
-      '# References\n\nRead the [related guide](../related.md) for configuration details.',
-      { source: '/work/docs/guide.md' }
+      '# References\n\n> Source: /docs/guides/reference\n\nRead the [related guide](../related.md) for configuration details.'
     )
 
     const [, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
-    assert.match(canonical[0], /\.\.\/related\.md/)
-    assert.equal(options.metadata[0].source, '/work/docs/guide.md')
+    assert.equal(canonical.length, 1)
+    assert.equal(canonical[0], 'Read the related guide (/docs/related) for configuration details.')
+    assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/guides/reference')
   })
 
-  it('should retain release documentation instead of applying the CAP release exclusion', async () => {
-    await generateMarkdown('# Release\n\nRelease documentation content is useful to readers.', {
-      source: '/docs/releases/guide.md'
-    })
+  it('should exclude release sections while retaining guide documentation', async () => {
+    await generateMarkdown(
+      '# Release\n\n> Source: /docs/releases/guide\n\nRelease documentation content is useful to readers.\n\n# Guide\n\n> Source: /docs/guides/guide\n\nGuide documentation content is useful to readers.'
+    )
 
     const [, chunks] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(chunks.length, 1)
+    assert.match(chunks[0], /^# Guide\n\nGuide documentation/)
   })
 
-  it('should preserve explicit external source annotations without adding a CAP host', async () => {
+  it('should map documentation source annotations to the CAP host', async () => {
     await generateMarkdown(
-      '# Guide\n\n> Source: https://example.test/guide\n\nGeneral documentation for the selected guide.'
+      '# Guide\n\n> Source: /docs/guide#selected\n\nGeneral documentation for the selected guide.'
     )
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
-    assert.equal(options.metadata[0].source, 'https://example.test/guide')
+    assert.equal(options.metadata.length, 1)
+    assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/guide#selected')
   })
 
   it('should keep headings inside fenced examples as code rather than section boundaries', async () => {
     await generateMarkdown(
-      '# Examples\n\n```md\n# Not a section\n```\n\nThis example illustrates a Markdown heading.'
+      '# Examples\n\n> Source: /docs/examples\n\n```md\n# Not a section\n```\n\nThis example illustrates a Markdown heading.'
     )
 
     const [, chunks, canonical] = writeEmbeddings.mock.calls[0].arguments
@@ -159,12 +169,16 @@ describe('Markdown embedding generation', () => {
   it('should forward optional caller metadata and the selected model to the existing writer', async () => {
     const capire = { commitId: 'caller-provenance' }
 
-    await generateMarkdown('# Guide\n\nGeneral documentation content.', {
-      id: 'guide',
-      dir: '/output',
-      model: 'fixture/selected-model',
-      capire
-    })
+    await generateMarkdown(
+      '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.',
+      {},
+      {
+        id: 'guide',
+        dir: '/output',
+        model: 'fixture/selected-model',
+        capire
+      }
+    )
 
     const [id, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(id, 'guide')
@@ -173,13 +187,22 @@ describe('Markdown embedding generation', () => {
     assert.deepEqual(options.capire, capire)
   })
 
-  it('should use command-line model and output selections in the inlined orchestration', async () => {
-    await generateMarkdown('# Guide\n\nGeneral documentation content.', {}, [
+  it('should use command-line model and output selections in the inlined orchestration', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-cli-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const input = join(root, 'guide.md')
+    await writeFile(input, '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.')
+    process.argv = [
+      'node',
+      'createMarkdownEmbeddings.js',
+      input,
       '--model',
       'fixture/selected-model',
       '--output',
       '/output/code-chunks.json'
-    ])
+    ]
+
+    await createMarkdownEmbeddings()
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.model, 'fixture/selected-model')
@@ -208,7 +231,7 @@ describe('migrated script helpers', () => {
     assert.equal(result.input, 'guide.md')
     assert.equal(result.model, 'fixture/model')
     assert.equal(result.overrides.output, 'chunks.json')
-    assert.equal(result.overrides.minTokens, '32')
+    assert.equal(result.overrides.minTokens, 32)
   })
 
   it('should retain embedding-text and source-metadata mapping', () => {
@@ -231,21 +254,20 @@ describe('migrated script helpers', () => {
   })
 
   it('should reject missing input before invoking the writer', async () => {
-    await assert.rejects(createMarkdownEmbeddings([]), /Markdown input file is required/)
+    process.argv = ['node', 'createMarkdownEmbeddings.js']
+
+    await assert.rejects(createMarkdownEmbeddings(), /Markdown input file is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
   it('should generate from caller-relative paths without reading markers or rotating a manifest', async (t) => {
     const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-'))
-    const originalCwd = process.cwd()
-    const originalArgv = process.argv
-    t.after(async () => {
-      process.chdir(originalCwd)
-      process.argv = originalArgv
-      await rm(root, { recursive: true, force: true })
-    })
-    await writeFile(join(root, 'guide.md'), '# Guide\n\nGeneral Markdown documentation content.')
+    t.after(() => rm(root, { recursive: true, force: true }))
+    await writeFile(
+      join(root, 'guide.md'),
+      '# Guide\n\n> Source: /docs/guide\n\nGeneral Markdown documentation content.'
+    )
     await writeFile(join(root, 'manifest.json'), 'caller-owned manifest')
     process.chdir(root)
     process.argv = [
@@ -261,7 +283,8 @@ describe('migrated script helpers', () => {
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     const resolvedRoot = await realpath(root)
     assert.equal(options.dir, resolvedRoot)
-    assert.equal(options.metadata[0].source, join(resolvedRoot, 'guide.md'))
+    assert.equal(options.metadata.length, 1)
+    assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/guide')
     assert.equal('capire' in options, false)
     assert.equal(await readFile(join(root, 'manifest.json'), 'utf8'), 'caller-owned manifest')
   })
