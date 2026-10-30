@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { sectionize } from '../../../lib/markdownEmbeddings/chunker/stages/02-buildSections.js'
+import { sectionize } from '../../../lib/markdownEmbeddings/chunker/stages/02-sectionize.js'
 
 function node(title, source, body, depth, children = []) {
   return {
