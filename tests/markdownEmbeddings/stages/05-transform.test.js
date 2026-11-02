@@ -1932,43 +1932,34 @@ describe('transformSection', () => {
   // A paragraph that holds only a filename image transforms to empty text.
   const emptyText = '![x.svg](a.svg)'
 
-  it('should remove empty blocks, keep non-empty blocks, and set nonTransformedText', () => {
+  it('should remove empty blocks and keep non-empty blocks', () => {
     const rawBlocks = [block('paragraph', 'Hello world.'), block('paragraph', emptyText)]
-    const { nonEmpty, emptyBlocks, isEmptySection } = transformSection(SECTION, rawBlocks)
+    const nonEmpty = transformSection(SECTION, rawBlocks)
     assert.strictEqual(nonEmpty.length, 1)
     assert.strictEqual(nonEmpty[0].text, 'Hello world.')
-    assert.strictEqual(nonEmpty[0].nonTransformedText, 'Hello world.')
-    assert.strictEqual(emptyBlocks.length, 1)
-    assert.strictEqual(isEmptySection, false)
   })
 
-  it('should drop a trailing heading with no body and return it in emptyBlocks', () => {
+  it('should drop a trailing heading with no body', () => {
     const rawBlocks = [block('paragraph', 'Body text.'), block('heading', '## Trailing')]
-    const { nonEmpty, emptyBlocks } = transformSection(SECTION, rawBlocks)
+    const nonEmpty = transformSection(SECTION, rawBlocks)
     assert.strictEqual(nonEmpty.length, 1)
     assert.strictEqual(nonEmpty[0].type, 'paragraph')
-    assert.strictEqual(emptyBlocks.length, 1)
-    assert.strictEqual(emptyBlocks[0].block.type, 'heading')
-    assert.strictEqual(emptyBlocks[0].section, SECTION)
   })
 
-  it('should set isEmptySection true when all blocks in the section are empty', () => {
+  it('should return no blocks when all blocks in the section are empty', () => {
     const rawBlocks = [block('paragraph', emptyText)]
-    const { nonEmpty, emptyBlocks, isEmptySection } = transformSection(SECTION, rawBlocks)
+    const nonEmpty = transformSection(SECTION, rawBlocks)
     assert.strictEqual(nonEmpty.length, 0)
-    assert.strictEqual(isEmptySection, true)
-    assert.strictEqual(emptyBlocks.length, 1)
   })
 
-  it('should collect every dropped block in emptyBlocks for the stderr counts', () => {
+  it('should retain prose when removing both empty blocks and a trailing heading', () => {
     const rawBlocks = [
       block('paragraph', emptyText),
       block('paragraph', 'Real text.'),
       block('heading', '## End')
     ]
-    const { nonEmpty, emptyBlocks } = transformSection(SECTION, rawBlocks)
+    const nonEmpty = transformSection(SECTION, rawBlocks)
     assert.strictEqual(nonEmpty.length, 1)
     assert.strictEqual(nonEmpty[0].text, 'Real text.')
-    assert.strictEqual(emptyBlocks.length, 2)
   })
 })

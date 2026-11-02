@@ -1,7 +1,7 @@
-import { it, describe, before } from 'node:test'
+import { it, describe, before, mock } from 'node:test'
 import assert from 'node:assert'
 import { readInput } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
-import { runPipeline } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
+import { runPipeline, stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
 import { transformBlock as transformFn } from '../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
 
 const INPUT = new URL('../fixtures/embeddings-generation.txt', import.meta.url)
@@ -45,20 +45,35 @@ function runE2ESuite(label, configOverrides) {
       outputTransformBlocks,
       outputPackBlocks,
       outputFilter,
-      dropped
+      stageCalls,
+      sections
 
     before(() => {
       config = { maxHeadingDepth: 5, minTokens: 10, ...configOverrides }
-      ;({
-        outputParse,
-        outputSectionize,
-        outputMergeSections,
-        outputParseBlocks,
-        outputTransformBlocks,
-        outputPackBlocks,
-        outputFilter,
-        dropped
-      } = runPipeline(RAW_TEXT, config))
+      const outputs = {}
+      stageCalls = []
+      const spies = Object.keys(stages).map((name) => {
+        const stage = stages[name]
+        return mock.method(stages, name, (...args) => {
+          const result = stage(...args)
+          // Transformation mutates blocks: snapshot each output before the next stage runs.
+          outputs[name] = structuredClone(result)
+          stageCalls.push({ name, args, result })
+          return result
+        })
+      })
+      try {
+        sections = runPipeline(RAW_TEXT, config)
+      } finally {
+        for (const spy of spies) spy.mock.restore()
+      }
+      outputParse = outputs.parse
+      outputSectionize = outputs.sectionize
+      outputMergeSections = outputs.mergeSections
+      outputParseBlocks = outputs.parseBlocks
+      outputTransformBlocks = outputs.transform
+      outputPackBlocks = outputs.packBlocks
+      outputFilter = outputs.filter
     })
 
     function walkNodes(ns, fn) {
@@ -69,6 +84,28 @@ function runE2ESuite(label, configOverrides) {
     }
 
     describe('when running all pipeline stages', () => {
+      it('should pass stage results in order and return the validated sections directly', () => {
+        assert.deepStrictEqual(
+          stageCalls.map(({ name }) => name),
+          [
+            'parse',
+            'sectionize',
+            'mergeSections',
+            'parseBlocks',
+            'transform',
+            'splitByRuntime',
+            'packBlocks',
+            'filter',
+            'validate'
+          ]
+        )
+        for (let i = 1; i < stageCalls.length; i++)
+          assert.strictEqual(stageCalls[i].args[0], stageCalls[i - 1].result)
+        assert.strictEqual(stageCalls[3].args[1], stageCalls[0].result)
+        assert.ok(Array.isArray(sections))
+        assert.strictEqual(sections, stageCalls.at(-1).result)
+      })
+
       describe('given stage 01-parse', () => {
         it('should give every parsed node a non-empty source', () => {
           walkNodes(outputParse, (n) =>
@@ -1037,41 +1074,43 @@ function runE2ESuite(label, configOverrides) {
 
       describe('given stage 07-packBlocks', () => {
         it('should produce at least one bodyPart for every section', () => {
-          for (const { section, bodyParts } of outputPackBlocks)
-            assert.ok(bodyParts.length > 0, `no bodyParts for: ${section.heading}`)
+          for (const { section } of outputTransformBlocks)
+            assert.ok(
+              outputPackBlocks.some(
+                (chunk) => chunk.source === `https://cap.cloud.sap${section.source}`
+              ),
+              `no bodyParts for: ${section.heading}`
+            )
         })
 
         it('should leave no bodyPart with an unclosed code fence', () => {
-          for (const { bodyParts } of outputPackBlocks)
-            for (const p of bodyParts) {
-              const count = (p.match(/```/g) || []).length
-              assert.strictEqual(count % 2, 0, 'odd fence count in bodyPart')
-            }
+          for (const { embeddingBody: p } of outputPackBlocks) {
+            const count = (p.match(/```/g) || []).length
+            assert.strictEqual(count % 2, 0, 'odd fence count in bodyPart')
+          }
         })
 
         it('should leave no bodyPart empty after trim', () => {
-          for (const { bodyParts } of outputPackBlocks)
-            for (const p of bodyParts) assert.ok(p.trim().length > 0, 'empty bodyPart emitted')
+          for (const { embeddingBody: p } of outputPackBlocks)
+            assert.ok(p.trim().length > 0, 'empty bodyPart emitted')
         })
 
         it('should leave every bodyPart equal to its own trim (no leading/trailing whitespace)', () => {
-          for (const { bodyParts } of outputPackBlocks)
-            for (const p of bodyParts)
-              assert.strictEqual(
-                p,
-                p.trim(),
-                `bodyPart not trimmed: ${JSON.stringify(p.slice(0, 60))}`
-              )
+          for (const { embeddingBody: p } of outputPackBlocks)
+            assert.strictEqual(
+              p,
+              p.trim(),
+              `bodyPart not trimmed: ${JSON.stringify(p.slice(0, 60))}`
+            )
         })
 
         it('should produce no embeddingBody that exceeds maxTokens', () => {
           assert.ok(outputPackBlocks.length > 0)
-          for (const { section, bodyParts } of outputPackBlocks)
-            for (const p of bodyParts)
-              assert.ok(
-                config.measure(p) <= config.maxTokens,
-                `embeddingBody exceeds maxTokens (${config.measure(p)} > ${config.maxTokens}) in section "${section.heading}": ${JSON.stringify(p.slice(0, 120))}`
-              )
+          for (const { heading, embeddingBody: p } of outputPackBlocks)
+            assert.ok(
+              config.measure(p) <= config.maxTokens,
+              `embeddingBody exceeds maxTokens (${config.measure(p)} > ${config.maxTokens}) in section "${heading}": ${JSON.stringify(p.slice(0, 120))}`
+            )
         })
       })
 
@@ -1091,7 +1130,7 @@ function runE2ESuite(label, configOverrides) {
         })
 
         it('should only remove chunks during filter, never add', () => {
-          const beforeCount = outputPackBlocks.reduce((s, { bodyParts }) => s + bodyParts.length, 0)
+          const beforeCount = outputPackBlocks.length
           assert.ok(outputFilter.length <= beforeCount)
         })
 
@@ -1231,127 +1270,26 @@ function runE2ESuite(label, configOverrides) {
         })
       })
 
-      describe('given stage 08-dropped sections', () => {
-        // pipeline-level drops (before filter)
-        it('should give every emptyBodySections entry an empty body after merge', () => {
-          for (const s of dropped.emptyBodySections)
-            assert.strictEqual(
-              s.body.trim(),
-              '',
-              `emptyBodySections entry has non-empty body: ${s.heading}`
-            )
+      describe('given discarded sections and chunks', () => {
+        it('should only discard empty bodies before parsing blocks', () => {
+          const { args, result } = stageCalls.find(({ name }) => name === 'parseBlocks')
+          const removed = args[0].filter(
+            (section) => !result.some((entry) => entry.section === section)
+          )
+          for (const section of removed) assert.strictEqual(section.body.trim(), '')
         })
 
-        it('should strip every emptyBodySectionsAfterTransformed entry body to empty (images/HTML/Vue only)', () => {
-          for (const s of dropped.emptyBodySectionsAfterTransformed) {
-            const stripped = (s.body ?? '')
-              .replace(/!\[[^\]]*\]\([^)]*\)(\{[^}]*\})?/g, '')
-              .replace(/<[^>]+>/g, '')
-              .replace(/\{[^}\n]*\}/g, '')
-              .trim()
-            assert.strictEqual(
-              stripped,
-              '',
-              `emptyBodySectionsAfterTransformed entry has non-strippable content: ${JSON.stringify(s.body?.slice(0, 80))}`
-            )
-          }
-        })
-
-        // filter-level drops
-        it('should source every filterDropped.releases entry from /docs/releases/', () => {
-          for (const c of dropped.filterDropped.releases)
-            assert.ok(
-              /\/docs\/releases\//.test(c.source ?? ''),
-              `releases drop has wrong source: ${c.source}`
-            )
-        })
-
-        it('should give every filterDropped.emptyBody entry an empty body', () => {
-          for (const c of dropped.filterDropped.emptyBody)
-            assert.strictEqual(
-              (c.displayBody ?? '').trim(),
-              '',
-              `emptyBody drop has non-empty body: ${JSON.stringify(c.displayBody?.slice(0, 60))}`
-            )
-        })
-
-        it('should limit every filterDropped.anchorOnlyBody entry body to h4-h6 lines', () => {
-          for (const c of dropped.filterDropped.anchorOnlyBody) {
-            const lines = (c.displayBody ?? '').split('\n').filter((l) => l.trim())
-            assert.ok(lines.length > 0, 'anchorOnlyBody entry has no lines')
-            for (const l of lines)
-              assert.ok(
-                /^#{4,6}\s+\S/.test(l.trim()),
-                `anchorOnlyBody line is not h4-h6 slug: ${JSON.stringify(l)} in: ${c.displayBody?.slice(0, 80)}`
-              )
-          }
-        })
-
-        it('should exclude code fences from filterDropped.valueless entries', () => {
-          for (const c of dropped.filterDropped.valueless)
-            assert.ok(
-              !/```/.test(c.displayBody ?? ''),
-              `valueless drop contains code fence: ${c.displayBody?.slice(0, 80)}`
-            )
-        })
-
-        it('should exclude non-image links from filterDropped.valueless entries', () => {
-          for (const c of dropped.filterDropped.valueless)
-            assert.ok(
-              !/(^|[^!])\[[^\]]*\]\([^)]*\)/.test(c.displayBody ?? ''),
-              `valueless drop contains a link: ${c.displayBody?.slice(0, 80)}`
-            )
-        })
-
-        it('should give every filterDropped.redirectStub entry exactly one link and no surrounding prose', () => {
-          for (const c of dropped.filterDropped.redirectStub) {
-            const b = c.displayBody ?? ''
-            const links = b.match(/\[[^\]]*\]\([^)]*\)/g)
-            assert.ok(
-              links && links.length === 1,
-              `redirectStub drop has ${links?.length ?? 0} links: ${b.slice(0, 80)}`
-            )
-            const stripped = b
-              .replace(/!?\[[^\]]*\]\([^)]*\)(\{[^}]*\})?/g, '')
-              .replace(/[\s#>*_|.-]/g, '')
-              .trim()
-            assert.strictEqual(
-              stripped,
-              '',
-              `redirectStub drop has residual prose: ${JSON.stringify(stripped)} in: ${b.slice(0, 80)}`
-            )
-          }
-        })
-
-        it('should give every filterDropped.toSmallBody entry fewer than minTokens tokens', () => {
-          assert.ok(dropped.filterDropped.toSmallBody.length > 0)
-          for (const c of dropped.filterDropped.toSmallBody) {
-            const b = (c.displayBody ?? '').trim()
-            assert.ok(
-              config.measure(b) < config.minTokens,
-              `toSmallBody drop is not below minTokens (tokens=${config.measure(b)}): ${b.slice(0, 80)}`
-            )
-          }
-        })
-
-        it('should keep every filterDropped.duplicates body also present in outputFilter', () => {
-          const kept = new Set(outputFilter.map((c) => (c.displayBody ?? '').trim()))
-          for (const c of dropped.filterDropped.duplicates)
-            assert.ok(
-              kept.has((c.displayBody ?? '').trim()),
-              `duplicate drop body not found in kept output: ${c.displayBody?.slice(0, 80)}`
-            )
+        it('should remove undersized chunks from the corpus', () => {
+          const { args, result } = stageCalls.find(({ name }) => name === 'filter')
+          const undersized = args[0].filter(
+            (chunk) => config.measure(chunk.displayBody.trim()) < config.minTokens
+          )
+          assert.ok(undersized.length > 0)
+          for (const chunk of undersized) assert.ok(!result.includes(chunk))
         })
 
         it('should drop at least some chunks via filter (corpus is non-trivial)', () => {
-          const totalDropped = Object.values(dropped.filterDropped).reduce(
-            (s, a) => s + a.length,
-            0
-          )
-          assert.ok(
-            totalDropped > 0,
-            'filter dropped nothing — corpus may be empty or filter broken'
-          )
+          assert.ok(outputFilter.length < outputPackBlocks.length)
         })
       })
     })
@@ -1387,7 +1325,7 @@ describe('pipeline — focused fixture tests', () => {
         maxTokens: 70,
         measure: (value) => value.length
       }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
 
       assert.ok(sections.length > 1)
       assert.ok(sections.every((chunk) => chunk.embeddingBody.startsWith('Java:\n')))
@@ -1417,7 +1355,7 @@ describe('pipeline — focused fixture tests', () => {
         '</div>'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       for (const c of sections) {
         assert.ok(
           c.displayBody && c.displayBody.trim() !== '',
@@ -1442,7 +1380,7 @@ describe('pipeline — focused fixture tests', () => {
         'child body here large enough to survive the min chunk size filter comfortably.'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const child = sections.find((c) => c.heading?.includes('Child'))
       assert.ok(child, 'child chunk expected')
       assert.ok(
@@ -1453,7 +1391,45 @@ describe('pipeline — focused fixture tests', () => {
   })
 
   describe('when tracking dropped sections', () => {
-    it('should place a heading with empty body followed by a deeper section in emptyBodySections', () => {
+    it('should discard transformed-empty sections and report counts only for the current run', (t) => {
+      const text = [
+        '# Empty',
+        '',
+        '> Source: /docs/empty',
+        '',
+        '![empty.svg](empty.svg)',
+        '',
+        '# Retained',
+        '',
+        '> Source: /docs/retained',
+        '',
+        'Retained content.',
+        '',
+        '![empty.svg](empty.svg)'
+      ].join('\n')
+      const log = t.mock.method(console, 'log', () => {})
+
+      const sections = runPipeline(text, configP)
+
+      assert.strictEqual(sections.length, 1)
+      assert.strictEqual(sections[0].heading, '# Retained')
+      assert.strictEqual(sections[0].displayBody, 'Retained content.')
+      assert.strictEqual(log.mock.callCount(), 2)
+      assert.match(log.mock.calls[0].arguments[0], /\[transform\] dropped 2 empty blocks/)
+      assert.match(log.mock.calls[1].arguments[0], /\[transform\] dropped 1 empty sections/)
+      log.mock.resetCalls()
+
+      const next = runPipeline(
+        '# Retained\n\n> Source: /docs/retained\n\nRetained content.',
+        configP
+      )
+
+      assert.strictEqual(next.length, 1)
+      assert.strictEqual(next[0].displayBody, 'Retained content.')
+      assert.strictEqual(log.mock.callCount(), 0)
+    })
+
+    it('should drop an empty parent while retaining its deeper section and report the count', (t) => {
       const text = [
         '# Empty',
         '',
@@ -1468,12 +1444,14 @@ describe('pipeline — focused fixture tests', () => {
         'real content that clears filters and is long enough to survive the size gate.'
       ].join('\n')
       const config = { ...configP }
-      const { dropped } = runPipeline(text, config)
-      assert.strictEqual(
-        dropped.emptyBodySections.length,
-        1,
-        `expected exactly one empty body section; got: ${dropped.emptyBodySections.length}`
-      )
+      const log = t.mock.method(console, 'log', () => {})
+
+      const sections = runPipeline(text, config)
+
+      assert.strictEqual(sections.length, 1)
+      assert.strictEqual(sections[0].heading, '## Real')
+      assert.strictEqual(log.mock.callCount(), 1)
+      assert.match(log.mock.calls[0].arguments[0], /\[parse-blocks\] dropped 1 empty body sections/)
     })
   })
 
@@ -1487,7 +1465,7 @@ describe('pipeline — focused fixture tests', () => {
         'plain prose body long enough to survive filters, no code or divs here.'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       assert.ok(sections.length > 0)
       for (const c of sections)
         assert.strictEqual(c.label, undefined, `expected no label; got ${c.label} for ${c.heading}`)
@@ -1506,7 +1484,7 @@ describe('pipeline — focused fixture tests', () => {
         '</div>'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const javaChunk = sections.find((c) => c.displayBody.includes('Java-only instructions'))
       assert.ok(javaChunk, 'java-div chunk expected')
       assert.strictEqual(javaChunk.label, 'java')
@@ -1525,7 +1503,7 @@ describe('pipeline — focused fixture tests', () => {
         '</div>'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const nodeChunk = sections.find((c) => c.displayBody.includes('Node-only instructions'))
       assert.ok(nodeChunk, 'node-div chunk expected')
       assert.strictEqual(nodeChunk.label, 'node')
@@ -1550,7 +1528,7 @@ describe('pipeline — focused fixture tests', () => {
         '</div>'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const javaChunk = sections.find((c) => c.displayBody.includes('Java specific instructions'))
       const nodeChunk = sections.find((c) => c.displayBody.includes('Node specific instructions'))
       assert.ok(javaChunk, 'java-labeled chunk expected')
@@ -1584,7 +1562,7 @@ describe('pipeline — focused fixture tests', () => {
         maxTokens: 90,
         measure: (value) => value.length
       }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const bodies = (runtime) =>
         new Set(sections.filter((c) => c.label === runtime).map((c) => c.displayBody))
       const javaBodies = bodies('java')
@@ -1615,7 +1593,7 @@ describe('pipeline — focused fixture tests', () => {
         '</div>'
       ].join('\n')
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       const javaChunk = sections.find(
         (c) => c.label === 'java' && c.displayBody.includes(sharedBody)
       )
@@ -1641,7 +1619,7 @@ describe('pipeline — focused fixture tests', () => {
       ].join('\n')
       const KNOWN = new Set(['java', 'node'])
       const config = { ...configP }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       for (const c of sections) {
         if (c.label === undefined) continue
         assert.ok(KNOWN.has(c.label), `unknown label ${JSON.stringify(c.label)} for ${c.heading}`)
@@ -1655,7 +1633,7 @@ describe('pipeline — focused fixture tests', () => {
       const text = ['# H', '', '> Source: /docs/h', '', paragraph].join('\n')
       // paragraph is 200 chars → mockMeasure = 50 tokens, exactly the budget
       const config = { ...configP, maxTokens: 50 }
-      const { sections } = runPipeline(text, config)
+      const sections = runPipeline(text, config)
       assert.strictEqual(sections.length, 1)
       assert.strictEqual(sections[0].displayBody.length, 200)
     })
@@ -1674,7 +1652,7 @@ describe('pipeline — focused fixture tests', () => {
         'body of B that is meaningful and lengthy enough to survive filters easily even after re-parsing runs again.'
       ].join('\n')
       const config = { ...configP }
-      const first = runPipeline(text, config).sections
+      const first = runPipeline(text, config)
       assert.ok(first.length > 0, 'first run must yield sections')
       const roundtrip = first
         .map((c) =>
@@ -1683,7 +1661,7 @@ describe('pipeline — focused fixture tests', () => {
             .join('\n\n')
         )
         .join('\n\n')
-      const second = runPipeline(roundtrip, config).sections
+      const second = runPipeline(roundtrip, config)
       assert.ok(
         second.length > 0,
         `second run must yield sections; roundtrip len=${roundtrip.length}`

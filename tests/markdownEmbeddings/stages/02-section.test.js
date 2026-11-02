@@ -152,6 +152,31 @@ describe('sectionize', () => {
   })
 
   describe('when maxHeadingDepth is applied', () => {
+    it('should reset dropped-section counts between calls', (t) => {
+      const empty = node('Empty', '/docs/parent#empty', '', 2)
+      const parent = node('Parent', '/docs/parent', 'Retained content.', 1, [empty])
+      const log = t.mock.method(console, 'log', () => {})
+
+      const first = sectionize([parent], { maxHeadingDepth: 1 })
+      const second = sectionize([parent], { maxHeadingDepth: 1 })
+
+      assert.strictEqual(first.length, 1)
+      assert.strictEqual(first[0].body, 'Retained content.')
+      assert.deepStrictEqual(second, first)
+      assert.strictEqual(log.mock.callCount(), 2)
+      for (const call of log.mock.calls)
+        assert.match(call.arguments[0], /\[section\] dropped 1 empty sections/)
+      log.mock.resetCalls()
+
+      const retained = sectionize([node('Retained', '/docs/retained', 'Retained content.', 1)], {
+        maxHeadingDepth: 1
+      })
+
+      assert.strictEqual(retained.length, 1)
+      assert.strictEqual(retained[0].body, 'Retained content.')
+      assert.strictEqual(log.mock.callCount(), 0)
+    })
+
     it('should fold a node deeper than maxHeadingDepth into its nearest in-scope ancestor', () => {
       const deep = node('Deep', '> Source: /a#deep', 'Deep body.', 3)
       const parent = node('Parent', '> Source: /a', 'Parent body.', 2, [deep])

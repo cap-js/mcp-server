@@ -1,16 +1,12 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { filter as filterRaw } from '../../../lib/markdownEmbeddings/chunker/stages/08-filter.js'
+import { filter } from '../../../lib/markdownEmbeddings/chunker/stages/08-filter.js'
 
 // A deterministic one-character-per-token measure for these unit fixtures.
 const measure = (text) => text.length
 const config = { minTokens: 100, measure }
 const cfg0 = { minTokens: 0, measure }
 const cfg100 = { minTokens: 100, measure }
-
-function filter(chunks, cfg) {
-  return filterRaw(chunks, cfg).outputFilter
-}
 
 function chunk(body, source) {
   return {
@@ -28,6 +24,45 @@ function ids(chunks) {
 }
 
 describe('filter', () => {
+  describe('when reporting discarded chunks', () => {
+    for (const [reason, body, source] of [
+      ['releases', 'Release content.', '/docs/releases/current'],
+      ['emptyBody', '   ', '/docs/empty'],
+      ['anchorOnlyBody', '###### anchor', '/docs/anchor'],
+      ['valueless', 'Coming soon.', '/docs/placeholder'],
+      ['redirectStub', '[Target](/docs/target)', '/docs/redirect'],
+      ['toSmallBody', 'Short.', '/docs/short']
+    ]) {
+      it(`should count ${reason} drops and retain meaningful chunks in order`, (t) => {
+        const first = chunk('First retained content.', '/docs/first')
+        const last = chunk('Last retained content.', '/docs/last')
+        const log = t.mock.method(console, 'log', () => {})
+
+        const result = filter([first, chunk(body, source), last], { minTokens: 10, measure })
+
+        assert.strictEqual(result.length, 2)
+        assert.strictEqual(result[0], first)
+        assert.strictEqual(result[1], last)
+        assert.strictEqual(log.mock.callCount(), 1)
+        assert.match(
+          log.mock.calls[0].arguments[0],
+          new RegExp(`\\[filter\\] dropped 1 ${reason} chunks`)
+        )
+      })
+    }
+
+    it('should not report drops when all chunks are retained', (t) => {
+      const retained = chunk('Retained content.', '/docs/retained')
+      const log = t.mock.method(console, 'log', () => {})
+
+      const result = filter([retained], cfg0)
+
+      assert.strictEqual(result.length, 1)
+      assert.strictEqual(result[0], retained)
+      assert.strictEqual(log.mock.callCount(), 0)
+    })
+  })
+
   describe('when checking size and content', () => {
     it('should filter out a chunk with an empty body', () => {
       const result = filter([chunk('')], config)
@@ -340,25 +375,30 @@ describe('filter', () => {
   })
 
   describe('when filling flowchart gaps', () => {
-    it('should classify a /docs/releases/ chunk with empty body as releases, not emptyBody', () => {
+    it('should classify a /docs/releases/ chunk with empty body as releases, not emptyBody', (t) => {
       const c = chunk('', '> Source: /docs/releases/2025-01')
-      const { dropped } = filterRaw([c], cfg0)
-      assert.strictEqual(dropped.releases.length, 1, 'must be classified as releases')
-      assert.strictEqual(dropped.emptyBody.length, 0, 'must NOT reach emptyBody bucket')
+      const log = t.mock.method(console, 'log', () => {})
+
+      const result = filter([c], cfg0)
+
+      assert.strictEqual(result.length, 0)
+      assert.strictEqual(log.mock.callCount(), 1)
+      assert.match(log.mock.calls[0].arguments[0], /\[filter\] dropped 1 releases chunks/)
     })
 
     it('should not crash when a chunk has undefined source and pass it past the releases check', () => {
       const c = chunk('real prose content that easily exceeds the configured minimum token count.')
       delete c.source
-      const { outputFilter, dropped } = filterRaw([c], cfg0)
-      assert.strictEqual(dropped.releases.length, 0)
+      const outputFilter = filter([c], cfg0)
       assert.strictEqual(outputFilter.length, 1)
+      assert.strictEqual(outputFilter[0], c)
     })
 
     it('should not classify a source without /docs/ prefix as a release', () => {
       const c = chunk('some real prose content in the body', '> Source: ./relative.md')
-      const { dropped } = filterRaw([c], cfg0)
-      assert.strictEqual(dropped.releases.length, 0)
+      const result = filter([c], cfg0)
+      assert.strictEqual(result.length, 1)
+      assert.strictEqual(result[0], c)
     })
 
     it('should keep a body with placeholder text when a code fence is present (fence bailout)', () => {
@@ -370,27 +410,32 @@ describe('filter', () => {
     it('should not classify a body mixing # (depth 1) with #### slug as anchor-only', () => {
       const body =
         '# Real Heading\n#### slug-1\n\nSome real prose that easily crosses the min size threshold in this test.'
-      const { outputFilter, dropped } = filterRaw([chunk(body)], cfg0)
-      assert.strictEqual(dropped.anchorOnlyBody.length, 0)
+      const outputFilter = filter([chunk(body)], cfg0)
       assert.strictEqual(outputFilter.length, 1)
+      assert.strictEqual(outputFilter[0].displayBody, body)
     })
 
-    it('should keep one chunk and drop the other two when three chunks have identical bodies', () => {
+    it('should keep one chunk and drop the other two when three chunks have identical bodies', (t) => {
       const c1 = chunk('same body content large enough to survive size checks in this test file')
       const c2 = chunk('same body content large enough to survive size checks in this test file')
       const c3 = chunk('same body content large enough to survive size checks in this test file')
-      const { outputFilter, dropped } = filterRaw([c1, c2, c3], cfg0)
+      const log = t.mock.method(console, 'log', () => {})
+
+      const outputFilter = filter([c1, c2, c3], cfg0)
+
       assert.strictEqual(outputFilter.length, 1, 'exactly one kept')
-      assert.strictEqual(dropped.duplicates.length, 2, 'other two go to duplicates bucket')
+      assert.strictEqual(outputFilter[0], c1)
+      assert.strictEqual(log.mock.callCount(), 1)
+      assert.match(log.mock.calls[0].arguments[0], /\[filter\] dropped 2 duplicates chunks/)
     })
 
     it('should treat bodies as identical when they differ only by trailing whitespace', () => {
       const long = 'some real prose that easily crosses the min size threshold in the filter test'
       const c1 = chunk(long)
       const c2 = chunk(long + '\n\n  ')
-      const { outputFilter, dropped } = filterRaw([c1, c2], cfg0)
+      const outputFilter = filter([c1, c2], cfg0)
       assert.strictEqual(outputFilter.length, 1)
-      assert.strictEqual(dropped.duplicates.length, 1)
+      assert.strictEqual(outputFilter[0], c1)
     })
   })
 })
