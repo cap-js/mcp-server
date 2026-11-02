@@ -15,6 +15,7 @@ const writeEmbeddings = mock.fn(async (_id, chunks, _canonical, options) => ({
 const tokenMeasure = mock.fn(async () => ({ measure: (text) => text.length, maxTokens: 1024 }))
 mock.module('../../lib/calculateEmbeddings.js', {
   namedExports: {
+    MODEL: 'fixture/default-model',
     createEmbeddings: writeEmbeddings,
     getActiveModel: () => 'fixture/default-model'
   }
@@ -25,8 +26,9 @@ mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
   }
 })
 
-const { embedText, toMeta, parseArgs, readInput, config, createMarkdownEmbeddings } =
+const { embedText, toMeta, parseArgs, readInput, config } =
   await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
+const { createMarkdownEmbeddings } = await import('@cap-js/mcp-server')
 
 const exec = promisify(execFile)
 function runCLI(args) {

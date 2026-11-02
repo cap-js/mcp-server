@@ -30,6 +30,7 @@ The server helps AI models answer questions such as:
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
+- [JavaScript API](#javascript-api)
 - [Support, Feedback, Contributing](#support-feedback-contributing)
 - [Security / Disclosure](#security--disclosure)
 - [Code of Conduct](#code-of-conduct)
@@ -237,6 +238,87 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 - HTTP endpoints
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
+
+## JavaScript API
+
+Import the supported named exports from the package root:
+
+```js
+import {
+  createMarkdownEmbeddings,
+  DEFAULT_MODEL,
+  runPipeline
+} from '@cap-js/mcp-server'
+```
+
+Importing the package does not start the MCP server, parse command-line arguments,
+download models, or generate files. The `cds-mcp` executable remains the CLI entry point.
+Internal `lib/...` package imports are not exported; migrate existing deep imports to
+the named exports above.
+
+### Generate embeddings
+
+```js
+import { readFile } from 'node:fs/promises'
+import { createMarkdownEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
+
+const text = await readFile('documentation.md', 'utf8')
+const result = await createMarkdownEmbeddings(
+  { text, minTokens: 10, maxHeadingDepth: 5 },
+  {
+    id: 'code-chunks',
+    dir: './embeddings',
+    model: DEFAULT_MODEL,
+    capire: { commitId: 'documentation-revision', version: '1.0.0' }
+  }
+)
+console.log(result.modelFolderName, result.outDir)
+```
+
+Markdown headings should carry source annotations such as `> Source: /docs/guide`.
+`createMarkdownEmbeddings(chunkingConfig, embeddingConfig, overrides?)` returns a promise:
+
+- `chunkingConfig` accepts `text`, numeric `minTokens` (default `10`), and numeric
+  `maxHeadingDepth` (default `5`). Options in a nested `chunking` object are also accepted;
+  top-level options take precedence.
+- `embeddingConfig` accepts `id` (default `code-chunks`), `dir` (default `./embeddings`),
+  `model`, and optional `capire` metadata. The latter is preserved in the generated JSON
+  and can include `version`, `commitId`, and `cdsDependency: { node, java }`.
+- Explicit `overrides` can supply `input` (a file replacing `text`), `minTokens`,
+  `maxHeadingDepth`, `model`, and `output` (whose parent directory replaces `dir`).
+  Model-derived token measurement and maximum content size are resolved automatically.
+- The result contains `{ dim, count, outDir, modelFolderName }`. Generation writes
+  `<id>.json` and `<id>.bin` beneath `<dir>/<modelFolderName>/<capire.commitId>/`, or
+  `<dir>/<modelFolderName>/` when no commit ID is supplied. JSON includes `dim`, `count`,
+  `model`, `createdAt`, `chunks`, and chunk `metadata`, plus `capire` when supplied.
+  The binary file contains the corresponding Float32 embedding vectors in chunk order.
+
+`DEFAULT_MODEL` is the fixed default model ID, `BAAI/bge-small-en-v1.5`. When `model` is
+omitted, generation uses the active model, initially selected by `CDS_MCP_MODEL` or this
+default. Model/tokenizer loading and any necessary downloads happen when generating
+embeddings, not when importing the API.
+
+### Inspect chunks without generating embeddings
+
+```js
+const sections = runPipeline(text, {
+  minTokens: 10,
+  maxHeadingDepth: 5,
+  maxTokens: 1152,
+  measure: text => Math.ceil(text.length / 4) // deterministic approximation for tests
+})
+```
+
+`runPipeline(text, config)` runs synchronously and returns the validated chunk array.
+Supply the token-counting `measure` function, `maxTokens`, `minTokens`, and
+`maxHeadingDepth` explicitly. Use model-specific token measurement for actual token limits;
+the approximation above is intended for corpus tests.
+
+Each chunk contains `heading`, `breadcrumb`, `source`, `depth`, `displayBody`, and
+`embeddingBody`, with an optional runtime `label` (`java` or `node`). Stage diagnostics
+are logged during execution. Validation failures throw; generation failures reject the
+promise. Publication workflows such as fetching Markdown, choosing a list of models,
+retrieving revision metadata, and rotating manifests are handled by the caller.
 
 ## Support, Feedback, Contributing
 
