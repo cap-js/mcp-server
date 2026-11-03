@@ -71,9 +71,9 @@ function runE2ESuite(label, configOverrides) {
       outputParse = outputs.parse
       outputSectionize = outputs.sectionize
       outputMergeSections = outputs.mergeSections
-      outputParseBlocks = outputs.parseBlocks
-      outputTransformBlocks = outputs.transform
-      outputPackBlocks = outputs.packBlocks
+      outputParseBlocks = outputs.parseSectionBlocks
+      outputTransformBlocks = outputs.transformSections
+      outputPackBlocks = outputs.packSections
       outputFilter = outputs.filter
     })
 
@@ -92,10 +92,10 @@ function runE2ESuite(label, configOverrides) {
             'parse',
             'sectionize',
             'mergeSections',
-            'parseBlocks',
-            'transform',
-            'splitByRuntime',
-            'packBlocks',
+            'parseSectionBlocks',
+            'transformSections',
+            'splitSectionsByRuntime',
+            'packSections',
             'filter',
             'validate'
           ]
@@ -1273,7 +1273,7 @@ function runE2ESuite(label, configOverrides) {
 
       describe('given discarded sections and chunks', () => {
         it('should only discard empty bodies before parsing blocks', () => {
-          const { args, result } = stageCalls.find(({ name }) => name === 'parseBlocks')
+          const { args, result } = stageCalls.find(({ name }) => name === 'parseSectionBlocks')
           const removed = args[0].filter(
             (section) => !result.some((entry) => entry.section === section)
           )

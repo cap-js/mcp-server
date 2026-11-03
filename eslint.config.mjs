@@ -8,5 +8,11 @@ export default [
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
+  },
+  {
+    files: ['lib/markdownEmbeddings/chunker/stages/**'],
+    rules: {
+      'no-console': 'off'
+    }
   }
 ]
