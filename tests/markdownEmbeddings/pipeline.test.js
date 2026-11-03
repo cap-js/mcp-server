@@ -1,8 +1,7 @@
 import { it, describe, before, mock } from 'node:test'
 import assert from 'node:assert'
 import { readInput } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
-import { runPipeline } from '@cap-js/mcp-server'
-import { stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
+import { runPipeline, stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
 import { transformBlock as transformFn } from '../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
 
 const INPUT = new URL('../fixtures/embeddings-generation.txt', import.meta.url)

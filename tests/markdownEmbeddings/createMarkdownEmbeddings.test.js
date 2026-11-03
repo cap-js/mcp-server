@@ -15,7 +15,6 @@ const writeEmbeddings = mock.fn(async (_id, chunks, _canonical, options) => ({
 const tokenMeasure = mock.fn(async () => ({ measure: (text) => text.length, maxTokens: 1024 }))
 mock.module('../../lib/calculateEmbeddings.js', {
   namedExports: {
-    MODEL: 'fixture/default-model',
     createEmbeddings: writeEmbeddings,
     getActiveModel: () => 'fixture/default-model'
   }
@@ -84,6 +83,36 @@ afterEach(() => {
 })
 
 describe('Markdown embedding generation', () => {
+  it('should apply implementation defaults when the public API receives only Markdown', async () => {
+    const text = '# Defaults\n\n> Source: /docs/defaults\n\nDocumentation using default settings.'
+
+    const result = await createMarkdownEmbeddings({ text })
+
+    assert.equal(result.count, 1)
+    const [id, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
+    assert.equal(id, 'code-chunks')
+    assert.equal(canonical[0], 'Documentation using default settings.')
+    assert.equal(options.dir, join(originalCwd, 'embeddings'))
+    assert.equal(options.model, 'fixture/default-model')
+  })
+
+  it('should forward explicit overrides while leaving the embedding configuration undefined', async () => {
+    const text = '# Overrides\n\n> Source: /docs/overrides\n\nUseful.'
+
+    const result = await createMarkdownEmbeddings({ text }, undefined, {
+      minTokens: 0,
+      model: 'fixture/override'
+    })
+
+    assert.equal(result.count, 1)
+    const [id, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
+    assert.equal(id, 'code-chunks')
+    assert.equal(canonical[0], 'Useful.')
+    assert.equal(options.dir, join(originalCwd, 'embeddings'))
+    assert.equal(options.model, 'fixture/override')
+    assert.equal(tokenMeasure.mock.calls[0].arguments[0], 'fixture/override')
+  })
+
   it('should override both supplied configurations while preserving caller metadata', async () => {
     const text = '# Short\n\n> Source: /docs/short\n\nUseful.'
     const chunkingConfig = Object.freeze({
