@@ -266,6 +266,65 @@ describe('Markdown embedding generation', () => {
     assert.equal('capire' in options, false)
   })
 
+  it('should send complete rendered inputs within the model budget for different headings', async () => {
+    tokenMeasure.mock.mockImplementationOnce(async () => ({
+      measure: (text) => text.length,
+      maxTokens: 30
+    }))
+    const fixtures = [
+      { heading: '# Root', body: 'r'.repeat(25) },
+      { heading: '## Child', body: 'c'.repeat(25) },
+      { heading: '## Longer Child', body: 'l'.repeat(25) }
+    ]
+    const text = fixtures
+      .map(({ heading, body }, index) => `${heading}\n\n> Source: /docs/root#${index}\n\n${body}`)
+      .join('\n\n')
+
+    const result = await createMarkdownEmbeddings({ text, minTokens: 0 })
+
+    assert.equal(result.count, 6)
+    assert.equal(writeEmbeddings.mock.callCount(), 1)
+    const [, inputs, canonical, options] = writeEmbeddings.mock.calls[0].arguments
+    assert.equal(inputs.length, 6)
+    assert.equal(canonical.length, 6)
+    assert.equal(options.metadata.length, 6)
+    for (const [index, { heading, body }] of fixtures.entries()) {
+      const rendered = inputs.slice(index * 2, index * 2 + 2)
+      for (const input of rendered) {
+        assert.ok(input.startsWith(`${heading}\n\n`))
+        assert.ok(input.length <= 30, `oversized inference input: ${input.length} characters`)
+      }
+      assert.equal(rendered.map((input) => input.slice(heading.length + 2)).join(''), body)
+      assert.deepEqual(canonical.slice(index * 2, index * 2 + 2), [body, body])
+      assert.ok(
+        options.metadata
+          .slice(index * 2, index * 2 + 2)
+          .every((meta) => meta.source === `https://cap.cloud.sap/docs/root#${index}`)
+      )
+    }
+  })
+
+  it('should reject impossible heading overhead in validation before sending input to the writer', async (t) => {
+    const stderr = t.mock.method(process.stderr, 'write', () => true)
+    tokenMeasure.mock.mockImplementationOnce(async () => ({
+      measure: (text) => text.length,
+      maxTokens: 10
+    }))
+    const text = '## Child\n\n> Source: /docs/root#child\n\nx'
+
+    await assert.rejects(
+      createMarkdownEmbeddings({ text, minTokens: 0 }),
+      /\[validate\] 1 chunk\(s\) failed validation/
+    )
+
+    assert.equal(stderr.mock.callCount(), 1)
+    assert.match(
+      stderr.mock.calls[0].arguments[0],
+      /oversized embedding text \(11 > 10 tokens\): ## Child/
+    )
+    assert.equal(writeEmbeddings.mock.callCount(), 0)
+  })
+
   it('should emit no chunks for Markdown without any headings', async () => {
     const result = await generateMarkdown('Plain documentation content without a heading.')
 

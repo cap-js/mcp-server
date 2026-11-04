@@ -1,6 +1,7 @@
 import { it, describe, before, mock } from 'node:test'
 import assert from 'node:assert'
-import { readInput } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
+import { execFileSync } from 'node:child_process'
+import { readInput, embedText } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
 import { runPipeline, stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
 import { transformBlock as transformFn } from '../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
 
@@ -1104,13 +1105,15 @@ function runE2ESuite(label, configOverrides) {
             )
         })
 
-        it('should produce no embeddingBody that exceeds maxTokens', () => {
+        it('should produce no rendered embedding text that exceeds maxTokens', () => {
           assert.ok(outputPackBlocks.length > 0)
-          for (const { heading, embeddingBody: p } of outputPackBlocks)
+          for (const chunk of outputPackBlocks) {
+            const text = embedText(chunk)
             assert.ok(
-              config.measure(p) <= config.maxTokens,
-              `embeddingBody exceeds maxTokens (${config.measure(p)} > ${config.maxTokens}) in section "${heading}": ${JSON.stringify(p.slice(0, 120))}`
+              config.measure(text) <= config.maxTokens,
+              `embedding text exceeds maxTokens (${config.measure(text)} > ${config.maxTokens}) in section "${chunk.heading}": ${JSON.stringify(text.slice(0, 120))}`
             )
+          }
         })
       })
 
@@ -1628,15 +1631,205 @@ describe('pipeline — focused fixture tests', () => {
   })
 
   describe('when checking chunk boundary and idempotency', () => {
-    it('should emit a transformed body at exactly maxTokens as one chunk (not split)', () => {
-      const paragraph = 'x'.repeat(200)
+    const validationChunk = (body) => ({
+      breadcrumb: 'Root',
+      heading: '## Child',
+      source: 'https://cap.cloud.sap/docs/root#child',
+      displayBody: body,
+      embeddingBody: body
+    })
+
+    it('should produce identical split Beta chunks alone and after unrelated Alpha', () => {
+      const alpha = '# Alpha\n\n> Source: /docs/alpha\n\nUnrelated content.'
+      const beta = [
+        '# Beta',
+        '',
+        '> Source: /docs/beta',
+        '',
+        'Intro.',
+        '',
+        '## Beta Child',
+        '',
+        '> Source: /docs/beta#child',
+        '',
+        'First child sentence. Second child sentence.'
+      ].join('\n')
+      const config = { ...configP, maxHeadingDepth: 1, maxTokens: 50, measure: (t) => t.length }
+      const pipelineUrl = new URL(
+        '../../lib/markdownEmbeddings/chunker/pipeline.js',
+        import.meta.url
+      )
+      // Fresh processes make the alone baseline independent of this suite's earlier invocations.
+      const runIsolated = (inputs) =>
+        JSON.parse(
+          execFileSync(
+            process.execPath,
+            [
+              '--input-type=module',
+              '--eval',
+              `import { runPipeline } from ${JSON.stringify(pipelineUrl.href)};
+               const config = { ...${JSON.stringify(config)}, measure: (t) => t.length };
+               const results = ${JSON.stringify(inputs)}.map((text) => runPipeline(text, config));
+               process.stdout.write(JSON.stringify(results.at(-1)));`
+            ],
+            { encoding: 'utf8' }
+          )
+        )
+
+      const alone = runIsolated([beta])
+      const afterAlpha = runIsolated([alpha, beta])
+
+      assert.strictEqual(alone.length, 3)
+      assert.deepStrictEqual(afterAlpha, alone)
+      assert.deepStrictEqual(
+        alone.map((chunk) => chunk.embeddingBody),
+        [
+          'Intro.',
+          '## Beta Child\n\nFirst child sentence.',
+          '## Beta Child\n\nSecond child sentence.'
+        ]
+      )
+      assert.deepStrictEqual(
+        alone.map((chunk) => chunk.displayBody),
+        [
+          'Intro.',
+          '## Beta Child\n\nFirst child sentence. Second child sentence.',
+          '## Beta Child\n\nFirst child sentence. Second child sentence.'
+        ]
+      )
+      for (const chunk of alone) {
+        assert.strictEqual(chunk.heading, '# Beta')
+        assert.strictEqual(chunk.source, 'https://cap.cloud.sap/docs/beta')
+        assert.ok(config.measure(embedText(chunk)) <= config.maxTokens)
+      }
+    })
+
+    it('should emit rendered embedding text at exactly maxTokens as one chunk (not split)', () => {
+      const paragraph = 'x'.repeat(195)
       const text = ['# H', '', '> Source: /docs/h', '', paragraph].join('\n')
-      // paragraph is 200 chars → mockMeasure = 50 tokens, exactly the budget
+      // Heading and separator add 5 chars: 200 chars → mockMeasure = 50 tokens.
       const config = { ...configP, maxTokens: 50 }
       const sections = runPipeline(text, config)
       assert.strictEqual(sections.length, 1)
-      assert.strictEqual(sections[0].displayBody.length, 200)
+      assert.strictEqual(sections[0].embeddingBody, paragraph)
+      assert.strictEqual(sections[0].displayBody, paragraph)
+      assert.strictEqual(config.measure(embedText(sections[0])), config.maxTokens)
     })
+
+    it('should split body-only fits using each heading and retain all embedding content', () => {
+      const fixtures = [
+        { heading: '# Root', body: 'r'.repeat(25), fragments: [22, 3] },
+        { heading: '## Child', body: 'c'.repeat(25), fragments: [20, 5] },
+        { heading: '## Longer Child', body: 'l'.repeat(25), fragments: [13, 12] }
+      ]
+      const text = fixtures
+        .map(({ heading, body }, index) => `${heading}\n\n> Source: /docs/root#${index}\n\n${body}`)
+        .join('\n\n')
+      const config = { ...configP, maxTokens: 30, measure: (value) => value.length }
+
+      const sections = runPipeline(text, config)
+
+      assert.strictEqual(sections.length, 6)
+      for (const { heading, body, fragments } of fixtures) {
+        const chunks = sections.filter((chunk) => chunk.heading === heading)
+        assert.strictEqual(chunks.length, 2)
+        assert.deepStrictEqual(
+          chunks.map((chunk) => chunk.embeddingBody.length),
+          fragments
+        )
+        assert.strictEqual(chunks.map((chunk) => chunk.embeddingBody).join(''), body)
+        for (const chunk of chunks) {
+          assert.strictEqual(chunk.displayBody, body)
+          assert.strictEqual(embedText(chunk), `${heading}\n\n${chunk.embeddingBody}`)
+          assert.ok(config.measure(embedText(chunk)) <= config.maxTokens)
+        }
+      }
+    })
+
+    it('should measure the complete rendered candidate instead of subtracting heading tokens', () => {
+      const text = '## Child\n\n> Source: /docs/root#child\n\n' + 'c'.repeat(25)
+      // Model a tokenizer whose heading/body boundary is not additive.
+      const measure = (value) => value.length + (value.includes('\n\n') ? 4 : 0)
+      const config = { ...configP, maxTokens: 30, measure }
+
+      const sections = runPipeline(text, config)
+
+      assert.strictEqual(sections.length, 2)
+      assert.deepStrictEqual(
+        sections.map((chunk) => chunk.embeddingBody.length),
+        [16, 9]
+      )
+      assert.strictEqual(sections.map((chunk) => chunk.embeddingBody).join(''), 'c'.repeat(25))
+      for (const chunk of sections) assert.ok(measure(embedText(chunk)) <= config.maxTokens)
+    })
+
+    it('should keep minTokens based on the body rather than heading overhead', (t) => {
+      const text = '# Root\n\n> Source: /docs/root\n\nShort.'
+      const log = t.mock.method(console, 'log', () => {})
+      const config = { ...configP, maxTokens: 30, minTokens: 10, measure: (value) => value.length }
+
+      const sections = runPipeline(text, config)
+
+      assert.strictEqual(sections.length, 0)
+      assert.match(log.mock.calls[0].arguments[0], /dropped 1 toSmallBody chunks/)
+    })
+
+    it('should reject a body-only fit whose heading and separator exceed maxTokens', (t) => {
+      const stderr = t.mock.method(process.stderr, 'write', () => true)
+      const chunks = [validationChunk('c'.repeat(25))]
+      const config = { ...configP, maxTokens: 30, measure: (value) => value.length }
+
+      assert.throws(() => stages.validate(chunks, config), /1 chunk\(s\) failed validation/)
+
+      assert.strictEqual(stderr.mock.callCount(), 1)
+      assert.match(
+        stderr.mock.calls[0].arguments[0],
+        /oversized embedding text \(35 > 30 tokens\): ## Child/
+      )
+    })
+
+    it('should accept complete rendered text at exactly maxTokens without changing chunks', (t) => {
+      const stderr = t.mock.method(process.stderr, 'write', () => true)
+      const chunks = [validationChunk('c'.repeat(20))]
+      const original = structuredClone(chunks)
+      const config = { ...configP, maxTokens: 30, measure: (value) => value.length }
+
+      const result = stages.validate(chunks, config)
+
+      assert.strictEqual(result, chunks)
+      assert.deepStrictEqual(chunks, original)
+      assert.strictEqual(stderr.mock.callCount(), 0)
+    })
+
+    it('should warn on a short body even when heading overhead reaches minTokens', (t) => {
+      const stderr = t.mock.method(process.stderr, 'write', () => true)
+      const chunks = [validationChunk('Short.')]
+      const config = { ...configP, maxTokens: 30, minTokens: 10, measure: (value) => value.length }
+
+      assert.strictEqual(stages.validate(chunks, config), chunks)
+
+      assert.strictEqual(stderr.mock.callCount(), 1)
+      assert.match(stderr.mock.calls[0].arguments[0], /short embedding body \(6 tokens\): ## Child/)
+    })
+
+    for (const maxTokens of [7, 8, 10]) {
+      it(`should reject in validation when heading overhead leaves no content budget (${maxTokens} tokens)`, (t) => {
+        const stderr = t.mock.method(process.stderr, 'write', () => true)
+        const text = '## Child\n\n> Source: /docs/root#child\n\nx'
+        const config = { ...configP, maxTokens, measure: (value) => value.length }
+
+        assert.throws(
+          () => runPipeline(text, config),
+          /\[validate\] 1 chunk\(s\) failed validation/
+        )
+
+        assert.strictEqual(stderr.mock.callCount(), 1)
+        assert.match(
+          stderr.mock.calls[0].arguments[0],
+          new RegExp(`oversized embedding text \\(11 > ${maxTokens} tokens\\): ## Child`)
+        )
+      })
+    }
 
     it('should yield a stable non-empty chunk set when running the pipeline on its own serialized output', () => {
       const text = [
