@@ -7,6 +7,85 @@ import {
 } from '../../../lib/markdownEmbeddings/chunker/stages/04-parse-blocks.js'
 
 describe('parseBlocks', () => {
+  describe('when isolating invocation heading maps', () => {
+    it('should preserve standalone headings without a Source line as paragraphs', () => {
+      for (const body of ['## Standalone', '## Standalone\n\nBody.']) {
+        const blocks = parseBlocks(body)
+        assert.deepStrictEqual(
+          blocks.map((block) => block.type),
+          body.includes('\n') ? ['paragraph', 'paragraph'] : ['paragraph']
+        )
+        assert.strictEqual(blocks[0].text, '## Standalone')
+      }
+    })
+
+    it('should classify only the headings in each invocation map', () => {
+      const body = '## First\n\nFirst body.\n\n## Second\n\nSecond body.'
+      const first = parseBlocks(body, new Map([['## First', true]]))
+      const second = parseBlocks(body, new Map([['## Second', true]]))
+
+      assert.deepStrictEqual(
+        first.map((block) => block.type),
+        ['heading', 'paragraph', 'paragraph', 'paragraph']
+      )
+      assert.deepStrictEqual(
+        second.map((block) => block.type),
+        ['paragraph', 'paragraph', 'heading', 'paragraph']
+      )
+      assert.strictEqual(first[0].isLeadIn, true)
+      assert.strictEqual(second[2].isLeadIn, true)
+    })
+
+    it('should not inherit a supplied heading map in a subsequent standalone call', () => {
+      const body = '## Known\n\nBody.'
+      const known = parseBlocks(body, new Map([['## Known', true]]))
+      const standalone = parseBlocks(body)
+
+      assert.deepStrictEqual(
+        known.map((block) => block.type),
+        ['heading', 'paragraph']
+      )
+      assert.deepStrictEqual(
+        standalone.map((block) => block.type),
+        ['paragraph', 'paragraph']
+      )
+      assert.strictEqual(standalone[0].text, '## Known')
+    })
+
+    const wrappers = [
+      { label: 'container', opener: '::: tip', closer: ':::' },
+      { label: 'java-div', opener: '<div class="impl java">', closer: '</div>' },
+      { label: 'node-div', opener: '<div class="impl node">', closer: '</div>' },
+      { label: 'cols-div', opener: '<div class="cols-2">', closer: '</div>' },
+      { label: 'numbered list', opener: '1. Item', indent: '  ', list: true },
+      { label: 'bullet list', opener: '- Item', indent: '  ', list: true },
+      { label: 'admonition', opener: '> [!NOTE]', indent: '> ' }
+    ]
+    for (const { label, opener, closer, indent = '', list } of wrappers) {
+      it(`should pass the invocation heading map through ${label} parts`, () => {
+        const heading = `${list ? indent : ''}## Nested`
+        const body = [opener, `${indent}## Nested`, indent, `${indent}Body.`, closer]
+          .filter((line) => line !== undefined)
+          .join('\n')
+        const known = parseBlocks(body, new Map([[heading, true]]))
+        const unknown = parseBlocks(body, new Map())
+        const knownParts = list ? known[0].parts[0].parts : known[0].parts
+        const unknownParts = list ? unknown[0].parts[0].parts : unknown[0].parts
+
+        assert.deepStrictEqual(
+          knownParts.map((block) => block.type),
+          ['heading', 'paragraph']
+        )
+        assert.deepStrictEqual(
+          unknownParts.map((block) => block.type),
+          list ? ['paragraph'] : ['paragraph', 'paragraph']
+        )
+        assert.strictEqual(knownParts[0].text, heading)
+        assert.strictEqual(knownParts[0].isLeadIn, true)
+      })
+    }
+  })
+
   describe('when parsing flat blocks', () => {
     it('should parse a plain text paragraph block', () => {
       const blocks = parseBlocks('hello world')
