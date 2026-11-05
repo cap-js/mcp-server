@@ -30,12 +30,26 @@ const { embedText, toMeta, parseArgs, readInput, config } =
 const { createMarkdownEmbeddings } = await import('@cap-js/mcp-server')
 
 const exec = promisify(execFile)
-function runCLI(args) {
+function runCLI(args, { status = 200 } = {}) {
   const entry = new URL('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js', import.meta.url)
   const writer = new URL('../../lib/calculateEmbeddings.js', import.meta.url)
   const tokenizer = new URL('../../lib/markdownEmbeddings/chunker/tokenizer.js', import.meta.url)
   const preload = `
+    import assert from 'node:assert/strict'
     import { mock } from 'node:test'
+    globalThis.fetch = async url => {
+      assert.equal(process.argv.some(arg => arg === '--input' || arg.startsWith('--input=')), false,
+        'Explicit input must not fetch CAP documentation')
+      assert.equal(url, 'https://cap.cloud.sap/docs/llms-full.txt')
+      return {
+        ok: ${status >= 200 && status < 300},
+        status: ${status},
+        text: async () => {
+          assert.equal(${status >= 200 && status < 300}, true, 'Must not read a failed response')
+          return ${JSON.stringify('# Getting Started\n\n> Source: /docs/get-started/\n\nCAP documentation content.')}
+        }
+      }
+    }
     mock.module(${JSON.stringify(writer.href)}, {
       namedExports: {
         getActiveModel: () => 'fixture/default-model',
@@ -124,7 +138,7 @@ describe('Markdown embedding generation', () => {
       id: 'custom',
       dir: '/caller',
       model: 'fixture/caller',
-      capire: { commitId: 'caller' }
+      provenance: { commitId: 'caller' }
     })
     const { overrides } = parseArgs([
       '--min-tokens',
@@ -144,7 +158,7 @@ describe('Markdown embedding generation', () => {
     assert.equal(id, 'custom')
     assert.equal(options.dir, '/overridden')
     assert.equal(options.model, 'fixture/override')
-    assert.equal(options.capire, embeddingConfig.capire)
+    assert.equal(options.capire, embeddingConfig.provenance)
     assert.equal(tokenMeasure.mock.callCount(), 1)
     assert.equal(tokenMeasure.mock.calls[0].arguments[0], options.model)
   })
@@ -385,8 +399,8 @@ describe('Markdown embedding generation', () => {
     assert.match(canonical[0], /# Not a section/)
   })
 
-  it('should forward optional caller metadata and the selected model to the existing writer', async () => {
-    const capire = { commitId: 'caller-provenance' }
+  it('should forward optional provenance and the selected model using the existing bundle format', async () => {
+    const provenance = { commitId: 'caller-provenance', version: '1.0.0', source: 'custom-docs' }
 
     await generateMarkdown(
       '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.',
@@ -395,7 +409,7 @@ describe('Markdown embedding generation', () => {
         id: 'guide',
         dir: '/output',
         model: 'fixture/selected-model',
-        capire
+        provenance
       }
     )
 
@@ -403,7 +417,8 @@ describe('Markdown embedding generation', () => {
     assert.equal(id, 'guide')
     assert.equal(options.dir, '/output')
     assert.equal(options.model, 'fixture/selected-model')
-    assert.deepEqual(options.capire, capire)
+    assert.deepEqual(options.capire, provenance)
+    assert.equal('provenance' in options, false)
   })
 
   it('should apply parsed model and output overrides during generation', async (t) => {
@@ -553,6 +568,27 @@ describe('migrated script helpers', () => {
   })
 
   describe('when invoked through the CLI entry point', () => {
+    it('should fetch the CAP documentation by default', async () => {
+      const { stdout } = await runCLI([])
+      const result = JSON.parse(stdout)
+
+      assert.equal(result.id, 'code-chunks')
+      assert.equal(result.chunks.length, 1)
+      assert.equal(result.canonical[0], 'CAP documentation content.')
+      assert.equal(result.options.model, 'fixture/default-model')
+      assert.equal(result.options.dir, join(originalCwd, 'embeddings'))
+      assert.equal(result.options.metadata[0].source, 'https://cap.cloud.sap/docs/get-started/')
+    })
+
+    it('should report an unsuccessful HTTP response without generating embeddings', async () => {
+      await assert.rejects(runCLI([], { status: 503 }), (err) => {
+        assert.equal(err.code, 1)
+        assert.match(err.stderr, /Failed to fetch CAP documentation: HTTP 503/)
+        assert.equal(err.stdout, '')
+        return true
+      })
+    })
+
     it('should parse named arguments and generate with the selected output and model', async (t) => {
       const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-entry-'))
       t.after(() => rm(root, { recursive: true, force: true }))
@@ -580,7 +616,7 @@ describe('migrated script helpers', () => {
     })
 
     for (const [args, message] of [
-      [[], /Markdown input file is required/],
+      [['--input', 'missing-cap-documentation.md'], /ENOENT/],
       [['input.md'], /Unexpected argument.*input\.md/],
       [['--min-tokens=invalid'], /--min-tokens must be an integer/]
     ]) {
