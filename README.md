@@ -30,6 +30,7 @@ The server helps AI models answer questions such as:
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
+- [JavaScript API](#javascript-api)
 - [Support, Feedback, Contributing](#support-feedback-contributing)
 - [Security / Disclosure](#security--disclosure)
 - [Code of Conduct](#code-of-conduct)
@@ -237,6 +238,91 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 - HTTP endpoints
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
+
+## JavaScript API
+
+Import the supported named exports from the package root:
+
+```js
+import { createMarkdownEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
+```
+
+### Generate embeddings from the command line
+
+From the repository root, generate CAP documentation embeddings with a custom model.
+The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
+
+```sh
+npm run generate-cap-embeddings -- --model nomic-ai/nomic-embed-text-v1.5
+```
+
+See [Configuration](#configuration) for supported flags. Pass them after
+`npm run generate-cap-embeddings --`.
+
+### Generate embeddings programmatically
+
+Use the CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` as input.
+It contains document and section headings followed by `> Source: ...` annotations.
+These annotations identify CAP documentation paths and section anchors. For example,
+the source starts with:
+
+```markdown
+# Getting Started
+
+> Source: /docs/get-started/
+```
+
+Fetch it and pass the response text, custom model, and output settings to the API:
+
+```js
+import { createMarkdownEmbeddings } from '@cap-js/mcp-server'
+
+const response = await fetch('https://cap.cloud.sap/docs/llms-full.txt')
+const text = await response.text()
+const result = await createMarkdownEmbeddings(
+  { text, minTokens: 10, maxHeadingDepth: 5 },
+  {
+    id: 'code-chunks',
+    dir: './embeddings',
+    model: 'nomic-ai/nomic-embed-text-v1.5',
+    provenance: { commitId: 'documentation-revision', version: '1.0.0' }
+  }
+)
+```
+
+### Configuration
+
+The CLI and JavaScript API use these settings:
+
+| CLI flag | API option | Description |
+| --- | --- | --- |
+| `--input <file>` | `chunkingConfig.text` | CAP documentation input. The CLI fetches `llms-full.txt` by default; this flag selects a local file with the same heading and source annotation structure instead. The API requires text or a file supplied through `overrides.input`. |
+| `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag and `overrides.output` use the file's parent directory, not its name. |
+| `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
+| `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
+| `--min-chunk-size <number>` | — | Alias for `--min-tokens`. If both are supplied, `--min-tokens` takes precedence. |
+| `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
+| — | `embeddingConfig.id` | Output file ID; default `code-chunks`. |
+| — | `embeddingConfig.provenance` | Optional input metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. Stored under the existing JSON field `capire` for bundle compatibility. |
+
+`createMarkdownEmbeddings(chunkingConfig, embeddingConfig, overrides?)` returns a promise:
+
+- Chunking options can also be supplied in `chunkingConfig.chunking`; top-level options
+  take precedence. Explicit `overrides` take precedence over both configurations and accept
+  `input`, `output`, `model`, `minTokens`, and `maxHeadingDepth`.
+- Model-derived token measurement and maximum content size are resolved automatically.
+- The result contains `{ dim, count, outDir, modelFolderName }`. Generation writes
+  `<id>.json` and `<id>.bin` beneath `<dir>/<modelFolderName>/<provenance.commitId>/`, or
+  `<dir>/<modelFolderName>/` when no commit ID is supplied. JSON includes `dim`, `count`,
+  `model`, `createdAt`, `chunks`, and chunk `metadata`, plus `capire` when `provenance` is supplied.
+  The binary file contains the corresponding Float32 embedding vectors in chunk order.
+
+Model/tokenizer loading and any necessary downloads happen when generating embeddings,
+not when importing the API.
+
+Stage diagnostics are logged during generation. Validation and generation failures
+reject the promise. Publication workflows such as fetching Markdown, choosing a list of models,
+retrieving revision metadata, and rotating manifests are handled by the caller.
 
 ## Support, Feedback, Contributing
 

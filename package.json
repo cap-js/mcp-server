@@ -21,7 +21,11 @@
     "manifest.json"
   ],
   "type": "module",
+  "exports": {
+    ".": "./lib/api.js"
+  },
   "scripts": {
+    "generate-cap-embeddings": "node lib/markdownEmbeddings/createMarkdownEmbeddings.js",
     "test": "node --experimental-test-module-mocks --test --test-concurrency=1",
     "lint": "npx eslint .",
     "format": "oxfmt",
