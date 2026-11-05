@@ -247,13 +247,6 @@ Import the supported named exports from the package root:
 import { createMarkdownEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
 ```
 
-Importing the package does not start the MCP server, parse command-line arguments,
-download models, or generate files. The `cds-mcp` executable remains the CLI entry point.
-The embedding implementation and its `@sap/cds` dependency load on demand when
-`createMarkdownEmbeddings` is called. Reading `DEFAULT_MODEL` does not load that runtime.
-Internal `lib/...` package imports are not exported; migrate existing deep imports to
-the named exports above.
-
 ### Generate embeddings from the command line
 
 From the repository root, generate CAP documentation embeddings with a custom model.
