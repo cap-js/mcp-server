@@ -244,7 +244,7 @@ The fuzzy search algorithm matches definition names and allows for partial match
 Import the supported named exports from the package root:
 
 ```js
-import { generate, DEFAULT_MODEL } from '@cap-js/mcp-server'
+import { createCapireEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
 ```
 
 ### Generate embeddings from the command line
@@ -261,7 +261,7 @@ See [Configuration](#configuration) for supported flags. Pass them after
 
 ### Generate embeddings programmatically
 
-Use the CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` as input.
+The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
 It contains document and section headings followed by `> Source: ...` annotations.
 These annotations identify CAP documentation paths and section anchors. For example,
 the source starts with:
@@ -272,15 +272,13 @@ the source starts with:
 > Source: /docs/get-started/
 ```
 
-Fetch it and pass the response text, custom model, and output settings to the API:
+Pass the chunking settings, custom model, and output settings to the API:
 
 ```js
-import { generate } from '@cap-js/mcp-server'
+import { createCapireEmbeddings } from '@cap-js/mcp-server'
 
-const response = await fetch('https://cap.cloud.sap/docs/llms-full.txt')
-const text = await response.text()
-const result = await generate(
-  { text, minTokens: 10, maxHeadingDepth: 5 },
+const result = await createCapireEmbeddings(
+  { minTokens: 10, maxHeadingDepth: 5 },
   {
     id: 'code-chunks',
     dir: './embeddings',
@@ -296,8 +294,8 @@ The CLI and JavaScript API use these settings:
 
 | CLI flag | API option | Description |
 | --- | --- | --- |
-| `--input <file>` | `chunkingConfig.text` | CAP documentation input. The CLI fetches `llms-full.txt` by default; this flag selects a local file with the same heading and source annotation structure instead. The API requires text or a file supplied through `overrides.input`. |
-| `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag and `overrides.output` use the file's parent directory, not its name. |
+| `--input <file>` | `chunkingConfig.text` | CAP documentation input. The CLI and API fetch `llms-full.txt` by default. This flag selects a local file with the same heading and source annotation structure instead. The API accepts supplied text. |
+| `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag uses the file's parent directory, not its name. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--min-chunk-size <number>` | — | Alias for `--min-tokens`. If both are supplied, `--min-tokens` takes precedence. |
@@ -305,11 +303,10 @@ The CLI and JavaScript API use these settings:
 | — | `embeddingConfig.id` | Output file ID; default `code-chunks`. |
 | — | `embeddingConfig.provenance` | Optional input metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. Stored under the existing JSON field `capire` for bundle compatibility. |
 
-`generate(chunkingConfig, embeddingConfig, overrides?)` returns a promise:
+`createCapireEmbeddings(chunkingConfig, embeddingConfig = {})` returns a promise:
 
 - Chunking options can also be supplied in `chunkingConfig.chunking`; top-level options
-  take precedence. Explicit `overrides` take precedence over both configurations and accept
-  `input`, `output`, `model`, `minTokens`, and `maxHeadingDepth`.
+  take precedence. The API accepts only these two configuration parameters.
 - Model-derived token measurement and maximum content size are resolved automatically.
 - The result contains `{ dim, count, outDir, modelFolderName }`. Generation writes
   `<id>.json` and `<id>.bin` beneath `<dir>/<modelFolderName>/<provenance.commitId>/`, or

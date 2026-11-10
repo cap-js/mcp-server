@@ -22,9 +22,20 @@ mock.module('../../lib/capireEmbeddings/chunker/tokenizer.js', {
   }
 })
 
-const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, runCli } =
-  await import('../../lib/capireEmbeddings/createCapireEmbeddings.js')
-const { generate } = await import('@cap-js/mcp-server')
+const {
+  formatEmbeddingText,
+  toMeta,
+  parseArgs,
+  resolveConfig,
+  runCli,
+  generate: generateResolved
+} = await import('../../lib/capireEmbeddings/createCapireEmbeddings.js')
+const { createCapireEmbeddings: generate } = await import('@cap-js/mcp-server')
+
+async function generateWithOverrides(chunkingConfig, embeddingConfig, overrides) {
+  const config = await resolveConfig(chunkingConfig, embeddingConfig, overrides)
+  return generateResolved(config.chunkingConfig, config.embeddingConfig)
+}
 
 async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
@@ -63,13 +74,10 @@ describe('Markdown embedding generation', () => {
     assert.equal(options.model, 'fixture/default-model')
   })
 
-  it('should forward explicit overrides while leaving the embedding configuration undefined', async () => {
+  it('should use supplied settings through the two-parameter public API', async () => {
     const text = '# Overrides\n\n> Source: /docs/overrides\n\nUseful.'
 
-    const result = await generate({ text }, undefined, {
-      minTokens: 0,
-      model: 'fixture/override'
-    })
+    const result = await generate({ text, minTokens: 0 }, { model: 'fixture/override' })
 
     assert.equal(result.count, 1)
     const [id, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -102,7 +110,7 @@ describe('Markdown embedding generation', () => {
       '/overridden/chunks.json'
     ])
 
-    await generate(chunkingConfig, embeddingConfig, overrides)
+    await generateWithOverrides(chunkingConfig, embeddingConfig, overrides)
 
     assert.equal(writeEmbeddings.mock.callCount(), 1)
     const [id, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -125,14 +133,14 @@ describe('Markdown embedding generation', () => {
       parseArgs([])
     )
 
-    assert.equal(resolved.text, text)
-    assert.equal(resolved.id, 'retained')
-    assert.equal(resolved.dir, '/retained')
-    assert.equal(resolved.model, 'fixture/retained')
-    assert.equal(resolved.pipelineConfig.minTokens, 0)
-    assert.equal(resolved.pipelineConfig.maxHeadingDepth, 2)
-    assert.equal(resolved.pipelineConfig.maxTokens, 1024)
-    assert.equal(resolved.pipelineConfig.measure('measured'), 8)
+    assert.equal(resolved.chunkingConfig.text, text)
+    assert.equal(resolved.embeddingConfig.id, 'retained')
+    assert.equal(resolved.embeddingConfig.dir, '/retained')
+    assert.equal(resolved.embeddingConfig.model, 'fixture/retained')
+    assert.equal(resolved.chunkingConfig.minTokens, 0)
+    assert.equal(resolved.chunkingConfig.maxHeadingDepth, 2)
+    assert.equal(resolved.chunkingConfig.maxTokens, 1024)
+    assert.equal(resolved.chunkingConfig.measure('measured'), 8)
   })
 
   it('should fold deeper headings using an override even when chunking settings are supplied', async () => {
@@ -140,7 +148,11 @@ describe('Markdown embedding generation', () => {
       '# Parent\n\n> Source: /docs/parent\n\nParent content.\n\n## Child\n\n> Source: /docs/parent#child\n\nChild content.'
     const overrides = parseArgs(['--max-heading-depth', '1'])
 
-    await generate({ text, maxHeadingDepth: 4, chunking: { maxHeadingDepth: 3 } }, {}, overrides)
+    await generateWithOverrides(
+      { text, maxHeadingDepth: 4, chunking: { maxHeadingDepth: 3 } },
+      {},
+      overrides
+    )
 
     const [, chunks, canonical] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(chunks.length, 1)
@@ -157,7 +169,7 @@ describe('Markdown embedding generation', () => {
       '# Override\n\n> Source: /docs/override\n\nContent from the override file.'
     )
 
-    await generate(
+    await generateWithOverrides(
       { text: '# Supplied\n\n> Source: /docs/supplied\n\nSupplied content.' },
       { id: 'retained' },
       parseArgs(['--input', input])
@@ -384,7 +396,7 @@ describe('Markdown embedding generation', () => {
       '/output/code-chunks.json'
     ])
 
-    await generate({}, {}, overrides)
+    await generateWithOverrides({}, {}, overrides)
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.model, 'fixture/selected-model')
@@ -483,16 +495,46 @@ describe('migrated script helpers', () => {
     assert.equal(toMeta(chunk).label, 'node')
   })
 
-  it('should require a local input instead of fetching CAP documentation implicitly', async () => {
-    await assert.rejects(resolveConfig(), /Markdown input file is required/)
+  it('should fetch CAP documentation when no text or input is supplied', async (t) => {
+    const text = '# Guide\n\n> Source: /docs/guide\n\nDocumentation content.'
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
+
+    const resolved = await resolveConfig()
+
+    assert.equal(resolved.chunkingConfig.text, text)
+    assert.equal(fetchMock.mock.callCount(), 1)
+    assert.equal(fetchMock.mock.calls[0].arguments[0], 'https://cap.cloud.sap/docs/llms-full.txt')
+    assert.equal(tokenMeasure.mock.callCount(), 1)
+  })
+
+  it('should use supplied text without fetching CAP documentation', async (t) => {
+    const text = '# Supplied\n\nContent.'
+    const fetchMock = t.mock.method(globalThis, 'fetch', () =>
+      assert.fail('Must not fetch with supplied text')
+    )
+
+    const resolved = await resolveConfig({ text })
+
+    assert.equal(resolved.chunkingConfig.text, text)
+    assert.equal(fetchMock.mock.callCount(), 0)
+  })
+
+  it('should propagate fetch errors before initializing the tokenizer', async (t) => {
+    const error = new Error('Network failure')
+    t.mock.method(globalThis, 'fetch', async () => {
+      throw error
+    })
+
+    await assert.rejects(resolveConfig(), error)
 
     assert.equal(tokenMeasure.mock.callCount(), 0)
+    assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
   it('should reject an empty input override even when Markdown is supplied', async () => {
     await assert.rejects(
       resolveConfig({ text: '# Supplied\n\nContent.' }, {}, parseArgs(['--input', ''])),
-      /Markdown input file is required/
+      { code: 'ENOENT' }
     )
 
     assert.equal(tokenMeasure.mock.callCount(), 0)
@@ -509,12 +551,15 @@ describe('migrated script helpers', () => {
     assert.equal(tokenMeasure.mock.callCount(), 0)
   })
 
-  it('should reject missing input before invoking the writer', async () => {
-    process.argv = ['node', 'createCapireEmbeddings.js']
+  it('should generate from default CAP documentation through the public API', async (t) => {
+    const text = '# Guide\n\n> Source: /docs/guide\n\nDocumentation content.'
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
 
-    await assert.rejects(generate(), /Markdown input file is required/)
+    const result = await generate()
 
-    assert.equal(writeEmbeddings.mock.callCount(), 0)
+    assert.equal(result.count, 1)
+    assert.equal(fetchMock.mock.callCount(), 1)
+    assert.equal(writeEmbeddings.mock.calls[0].arguments[2][0], 'Documentation content.')
   })
 
   it('should generate from caller-relative paths without reading markers or rotating a manifest', async (t) => {
@@ -528,7 +573,7 @@ describe('migrated script helpers', () => {
     process.chdir(root)
     const overrides = parseArgs(['--input', 'guide.md', '--output', 'code-chunks.json'])
 
-    await generate({}, {}, overrides)
+    await generateWithOverrides({}, {}, overrides)
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     const resolvedRoot = await realpath(root)
@@ -638,7 +683,7 @@ describe('migrated script helpers', () => {
     })
 
     for (const [args, message] of [
-      [['--input', ''], /Markdown input file is required/],
+      [['--input', ''], /ENOENT/],
       [['input.md'], /Unexpected argument.*input\.md/],
       [['--min-tokens=invalid'], /--min-tokens must be an integer/]
     ]) {
