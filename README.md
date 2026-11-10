@@ -283,7 +283,7 @@ const result = await createCapireEmbeddings(
   {
     dir: './embeddings',
     model: 'nomic-ai/nomic-embed-text-v1.5',
-    provenance: { commitId: 'documentation-revision', version: '1.0.0' }
+    capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
   }
 )
 ```
@@ -308,9 +308,8 @@ The CLI and JavaScript API use these settings:
 | `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag uses the file's parent directory, not its name. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
-| `--min-chunk-size <number>` | — | Alias for `--min-tokens`. If both are supplied, `--min-tokens` takes precedence. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
-| — | `embeddingConfig.provenance` | Optional input metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. Stored under the existing JSON field `capire` for bundle compatibility. |
+| — | `embeddingConfig.capireMetadata` | Optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. |
 
 ## Support, Feedback, Contributing
 

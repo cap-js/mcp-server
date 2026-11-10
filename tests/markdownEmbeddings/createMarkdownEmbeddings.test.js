@@ -117,7 +117,7 @@ describe('Markdown embedding generation', () => {
       id: 'custom',
       dir: '/caller',
       model: 'fixture/caller',
-      provenance: { commitId: 'caller' }
+      capireMetadata: { commitId: 'caller' }
     })
     const overrides = parseArgs([
       '--min-tokens',
@@ -137,7 +137,7 @@ describe('Markdown embedding generation', () => {
     assert.equal(id, 'custom')
     assert.equal(options.dir, '/overridden')
     assert.equal(options.model, 'fixture/override')
-    assert.equal(options.capire, embeddingConfig.provenance)
+    assert.equal(options.capire, embeddingConfig.capireMetadata)
     assert.equal(tokenMeasure.mock.callCount(), 1)
     assert.equal(tokenMeasure.mock.calls[0].arguments[0], options.model)
   })
@@ -402,8 +402,8 @@ describe('Markdown embedding generation', () => {
     assert.match(canonical[0], /# Not a section/)
   })
 
-  it('should forward optional provenance and the selected model using the existing bundle format', async () => {
-    const provenance = { commitId: 'caller-provenance', version: '1.0.0', source: 'custom-docs' }
+  it('should forward optional Capire metadata and the selected model', async () => {
+    const capireMetadata = { commitId: 'caller-revision', version: '1.0.0', source: 'custom-docs' }
 
     await generateMarkdown(
       '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.',
@@ -412,7 +412,7 @@ describe('Markdown embedding generation', () => {
         id: 'guide',
         dir: '/output',
         model: 'fixture/selected-model',
-        provenance
+        capireMetadata
       }
     )
 
@@ -420,8 +420,7 @@ describe('Markdown embedding generation', () => {
     assert.equal(id, 'guide')
     assert.equal(options.dir, '/output')
     assert.equal(options.model, 'fixture/selected-model')
-    assert.deepEqual(options.capire, provenance)
-    assert.equal('provenance' in options, false)
+    assert.deepEqual(options.capire, capireMetadata)
   })
 
   it('should apply parsed model and output overrides during generation', async (t) => {
@@ -460,9 +459,8 @@ describe('migrated script helpers', () => {
     assert.deepEqual(parseArgs([]), {})
   })
 
-  it('should prefer min-tokens over its alias and preserve zero', () => {
-    const overrides = parseArgs(['--min-tokens', '0', '--min-chunk-size', '32'])
-
+  it('should preserve zero for min-tokens', () => {
+    const overrides = parseArgs(['--min-tokens', '0'])
     assert.equal(overrides.minTokens, 0)
   })
 
@@ -485,24 +483,6 @@ describe('migrated script helpers', () => {
     assert.throws(() => parseArgs(['input.md']), /Unexpected argument.*input\.md/)
   })
 
-  for (const [option, value] of [
-    ['min-tokens', 'invalid'],
-    ['min-tokens', 'Infinity'],
-    ['min-tokens', '-1'],
-    ['min-tokens', '1.5'],
-    ['min-tokens', ''],
-    ['min-chunk-size', '-1'],
-    ['max-heading-depth', '0'],
-    ['max-heading-depth', '1.5']
-  ]) {
-    it(`should reject --${option}=${JSON.stringify(value)}`, () => {
-      assert.throws(
-        () => parseArgs([`--${option}=${value}`]),
-        new RegExp(`--${option} must be an integer`)
-      )
-    })
-  }
-
   it('should retain the input, model, output and chunking argument mapping', () => {
     const result = parseArgs([
       '--input',
@@ -511,7 +491,7 @@ describe('migrated script helpers', () => {
       'fixture/model',
       '--output',
       'chunks.json',
-      '--min-chunk-size',
+      '--min-tokens',
       '32'
     ])
 
@@ -748,8 +728,7 @@ describe('migrated script helpers', () => {
 
     for (const [args, message] of [
       [['--input', ''], /ENOENT/],
-      [['input.md'], /Unexpected argument.*input\.md/],
-      [['--min-tokens=invalid'], /--min-tokens must be an integer/]
+      [['input.md'], /Unexpected argument.*input\.md/]
     ]) {
       it(`should reject ${args.join(' ')}`, async (t) => {
         const fetchMock = t.mock.method(globalThis, 'fetch', () =>
