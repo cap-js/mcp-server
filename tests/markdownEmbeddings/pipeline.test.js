@@ -1656,7 +1656,10 @@ describe('pipeline — focused fixture tests', () => {
         'First child sentence. Second child sentence.'
       ].join('\n')
       const config = { ...configP, maxHeadingDepth: 1, maxTokens: 50, measure: (t) => t.length }
-      const pipelineUrl = new URL('../../lib/capireEmbeddings/chunker/pipeline.js', import.meta.url)
+      const pipelineUrl = new URL(
+        '../../lib/capireEmbeddings/chunker/pipeline.js',
+        import.meta.url
+      )
       // Fresh processes make the alone baseline independent of this suite's earlier invocations.
       const runIsolated = (inputs) =>
         JSON.parse(
