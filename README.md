@@ -167,6 +167,7 @@ opencode mcp add --global cds-mcp \
 | Variable | Description |
 | --- | --- |
 | `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. Accepts `true` or `false`. |
+| `CDS_MCP_OFFLINE_DIR` | In offline mode, use this folder instead of the local cache. |
 | `CDS_MCP_MODEL` | Non-empty embedding model name. |
 | `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
@@ -247,7 +248,7 @@ Import the supported named exports from the package root:
 import { createCapireEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
 ```
 
-### Generate embeddings from the command line
+### Generate capire embeddings from the command line
 
 From the repository root, generate CAP documentation embeddings with a custom model.
 The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
@@ -259,7 +260,7 @@ npm run generate-cap-embeddings -- --model nomic-ai/nomic-embed-text-v1.5
 See [Configuration](#configuration) for supported flags. Pass them after
 `npm run generate-cap-embeddings --`.
 
-### Generate embeddings programmatically
+### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
 It contains document and section headings followed by `> Source: ...` annotations.
@@ -280,13 +281,22 @@ import { createCapireEmbeddings } from '@cap-js/mcp-server'
 const result = await createCapireEmbeddings(
   { minTokens: 10, maxHeadingDepth: 5 },
   {
-    id: 'code-chunks',
     dir: './embeddings',
     model: 'nomic-ai/nomic-embed-text-v1.5',
     provenance: { commitId: 'documentation-revision', version: '1.0.0' }
   }
 )
 ```
+
+### Use generated embeddings in the MCP server
+
+Set `CDS_MCP_OFFLINE_DIR` to the folder that contains your generated embeddings, then start the server in offline mode:
+
+```sh
+CDS_MCP_OFFLINE_DIR="/absolute/path/to/generated/output" node index.js --offline
+```
+
+Use the same environment variable and `--offline` argument in your MCP client configuration.
 
 ### Configuration
 
@@ -300,26 +310,7 @@ The CLI and JavaScript API use these settings:
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--min-chunk-size <number>` | — | Alias for `--min-tokens`. If both are supplied, `--min-tokens` takes precedence. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
-| — | `embeddingConfig.id` | Output file ID; default `code-chunks`. |
 | — | `embeddingConfig.provenance` | Optional input metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. Stored under the existing JSON field `capire` for bundle compatibility. |
-
-`createCapireEmbeddings(chunkingConfig, embeddingConfig = {})` returns a promise:
-
-- Chunking options can also be supplied in `chunkingConfig.chunking`; top-level options
-  take precedence. The API accepts only these two configuration parameters.
-- Model-derived token measurement and maximum content size are resolved automatically.
-- The result contains `{ dim, count, outDir, modelFolderName }`. Generation writes
-  `<id>.json` and `<id>.bin` beneath `<dir>/<modelFolderName>/<provenance.commitId>/`, or
-  `<dir>/<modelFolderName>/` when no commit ID is supplied. JSON includes `dim`, `count`,
-  `model`, `createdAt`, `chunks`, and chunk `metadata`, plus `capire` when `provenance` is supplied.
-  The binary file contains the corresponding Float32 embedding vectors in chunk order.
-
-Model/tokenizer loading and any necessary downloads happen when generating embeddings,
-not when importing the API.
-
-Stage diagnostics are logged during generation. Validation and generation failures
-reject the promise. Publication workflows such as fetching Markdown, choosing a list of models,
-retrieving revision metadata, and rotating manifests are handled by the caller.
 
 ## Support, Feedback, Contributing
 

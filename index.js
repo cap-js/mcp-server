@@ -10,6 +10,7 @@ import { parseArgs } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
+import { configuredBoolean } from './lib/utils.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -25,6 +26,7 @@ Options:
 
 Environment variables:
   CDS_MCP_OFFLINE=true           Same as --offline
+  CDS_MCP_OFFLINE_DIR=<path>     Folder containing code-chunks.json and code-chunks.bin; requires offline mode
   CDS_MCP_MODEL=<name>           Same as --model
   CDS_MCP_MANIFEST_TIMEOUT       Manifest request timeout in milliseconds (default: 15000)
   CDS_MCP_DOWNLOAD_TIMEOUT       Bundle response-header timeout in milliseconds (default: 30000)
@@ -61,6 +63,13 @@ try {
 
 // Set model BEFORE any import that triggers embeddings download side-effects.
 if (values.model !== undefined) process.env.CDS_MCP_MODEL = values.model
+
+// CDS interprets these names as mcp.offline and mcp.offline.dir, which conflict.
+// Keep the offline setting as a CLI flag before CDS reads the environment.
+if (process.env.CDS_MCP_OFFLINE_DIR !== undefined && configuredBoolean('CDS_MCP_OFFLINE')) {
+  if (!process.argv.includes('--offline')) process.argv.push('--offline')
+  delete process.env.CDS_MCP_OFFLINE
+}
 
 const { default: run, runTool } = await import('./lib/run.js')
 const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')

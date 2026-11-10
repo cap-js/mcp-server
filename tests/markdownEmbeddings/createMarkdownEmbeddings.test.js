@@ -4,11 +4,14 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
-const writeEmbeddings = mock.fn(async (_id, chunks, _canonical, options) => ({
-  count: chunks.length,
-  model: options.model,
-  outDir: options.dir
-}))
+const writeEmbeddings = mock.fn(async (_id, chunks, canonical, options) => {
+  if (!chunks.length) throw new Error('No chunks to save')
+  if (options.metadata !== undefined && options.metadata.length !== chunks.length)
+    throw new Error('metadata length must match chunks length')
+  if (canonical.length !== chunks.length)
+    throw new Error('canonicalChunks length must match chunks length')
+  return { count: chunks.length, model: options.model, outDir: options.dir }
+})
 const tokenMeasure = mock.fn(async () => ({ measure: (text) => text.length, maxTokens: 1024 }))
 mock.module('../../lib/calculateEmbeddings.js', {
   namedExports: {
@@ -88,6 +91,21 @@ describe('Markdown embedding generation', () => {
     assert.equal(tokenMeasure.mock.calls[0].arguments[0], 'fixture/override')
   })
 
+  it('should apply top-level settings over nested configuration', async () => {
+    const text = '# Guide\n\n> Source: /docs/guide\n\nUseful.'
+    const config = Object.freeze({
+      text,
+      chunking: Object.freeze({ minTokens: -1, maxHeadingDepth: 'invalid' }),
+      minTokens: 0,
+      maxHeadingDepth: 1
+    })
+
+    const result = await generate(config)
+
+    assert.equal(result.count, 1)
+    assert.equal(tokenMeasure.mock.callCount(), 1)
+  })
+
   it('should override both supplied configurations while preserving caller metadata', async () => {
     const text = '# Short\n\n> Source: /docs/short\n\nUseful.'
     const chunkingConfig = Object.freeze({
@@ -124,11 +142,11 @@ describe('Markdown embedding generation', () => {
     assert.equal(tokenMeasure.mock.calls[0].arguments[0], options.model)
   })
 
-  it('should retain supplied settings when no override is given and respect chunking precedence', async () => {
+  it('should retain top-level settings when no override is given', async () => {
     const text = '# Retained\n\n> Source: /docs/retained\n\nRetained content.'
 
     const resolved = await resolveConfig(
-      { text, chunking: { minTokens: 200, maxHeadingDepth: 2 }, minTokens: 0, maxTokens: 9999 },
+      { text, minTokens: 0, maxHeadingDepth: 2, maxTokens: 9999 },
       { id: 'retained', dir: '/retained', model: 'fixture/retained' },
       parseArgs([])
     )
@@ -213,13 +231,24 @@ describe('Markdown embedding generation', () => {
     await assert.rejects(generate({ text: '' }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
+    assert.equal(tokenMeasure.mock.callCount(), 0)
   })
 
   it('should reject null supplied Markdown before invoking the writer', async () => {
     await assert.rejects(generate({ text: null }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
+    assert.equal(tokenMeasure.mock.callCount(), 0)
   })
+
+  for (const text of [123, {}, []]) {
+    it(`should reject non-string Markdown (${JSON.stringify(text)}) before initializing the tokenizer`, async () => {
+      await assert.rejects(generate({ text }), /Markdown text is required/)
+
+      assert.equal(tokenMeasure.mock.callCount(), 0)
+      assert.equal(writeEmbeddings.mock.callCount(), 0)
+    })
+  }
 
   it('should embed source-annotated Markdown headings with section metadata', async () => {
     const text =
@@ -300,13 +329,26 @@ describe('Markdown embedding generation', () => {
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
-  it('should emit no chunks for Markdown without any headings', async () => {
-    const result = await generateMarkdown('Plain documentation content without a heading.')
+  it('should reject generation when Markdown has no headings', async () => {
+    await assert.rejects(
+      generateMarkdown('Plain documentation content without a heading.'),
+      /No chunks to save/
+    )
 
     const [, chunks, canonical] = writeEmbeddings.mock.calls[0].arguments
-    assert.equal(result.count, 0)
+    assert.equal(writeEmbeddings.mock.callCount(), 1)
     assert.equal(chunks.length, 0)
     assert.equal(canonical.length, 0)
+  })
+
+  it('should reject generation when filtering removes all chunks', async () => {
+    await assert.rejects(
+      generate({ text: '# Guide\n\n> Source: /docs/guide\n\nTiny.' }),
+      /No chunks to save/
+    )
+
+    assert.equal(writeEmbeddings.mock.callCount(), 1)
+    assert.deepEqual(writeEmbeddings.mock.calls[0].arguments[1], [])
   })
 
   it('should drop preamble content and retain the first source-annotated section', async () => {
@@ -409,6 +451,7 @@ describe('Markdown embedding generation', () => {
     await assert.rejects(generateMarkdown('  '), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
+    assert.equal(tokenMeasure.mock.callCount(), 0)
   })
 })
 
@@ -517,6 +560,27 @@ describe('migrated script helpers', () => {
 
     assert.equal(resolved.chunkingConfig.text, text)
     assert.equal(fetchMock.mock.callCount(), 0)
+  })
+
+  it('should reject empty fetched Markdown before initializing the tokenizer', async (t) => {
+    t.mock.method(globalThis, 'fetch', async () => new Response('   '))
+
+    await assert.rejects(generate(), /Markdown text is required/)
+
+    assert.equal(tokenMeasure.mock.callCount(), 0)
+    assert.equal(writeEmbeddings.mock.callCount(), 0)
+  })
+
+  it('should reject empty file input before initializing the tokenizer', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-empty-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const input = join(root, 'input.md')
+    await writeFile(input, '')
+
+    await assert.rejects(runCli(['--input', input]), /Markdown text is required/)
+
+    assert.equal(tokenMeasure.mock.callCount(), 0)
+    assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
   it('should propagate fetch errors before initializing the tokenizer', async (t) => {

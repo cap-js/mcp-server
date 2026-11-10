@@ -6,7 +6,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_DIR, getActiveEmbeddingsDir } from '../lib/calculateEmbeddings.js'
+import { DEFAULT_DIR, getActiveEmbeddingsDir, getActiveModel } from '../lib/calculateEmbeddings.js'
 import { buildTestBundle, TEST_CHUNKS } from './helpers/test-bundle.js'
 import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
 
@@ -293,6 +293,72 @@ describe('CLI usage', () => {
     assert.equal(result.code, 0, 'Command should exit with code 0')
     assert(result.stdout.length > 0, 'Should produce output')
     assert(result.stdout.includes('---'), 'Output should contain document separators')
+  })
+
+  for (const args of [
+    ['--offline', 'search_docs', 'select statement'],
+    ['search_docs', 'select statement']
+  ]) {
+    test(`CDS_MCP_OFFLINE_DIR selects an external bundle with ${args.includes('--offline') ? '--offline' : 'CDS_MCP_OFFLINE=true'}`, async (t) => {
+      const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-dir-'))
+      t.after(() => fs.rm(dir, { recursive: true, force: true }))
+      const meta = JSON.parse(await readFile(join(ctx.versionDir, 'code-chunks.json'), 'utf8'))
+      meta.model = getActiveModel()
+      meta.chunks = meta.chunks.map((chunk) => `External generated bundle: ${chunk}`)
+      await writeFile(join(dir, 'code-chunks.json'), JSON.stringify(meta))
+      await fs.copyFile(join(ctx.versionDir, 'code-chunks.bin'), join(dir, 'code-chunks.bin'))
+
+      const result = await runCliCommand(args, {
+        env: {
+          ...noFetchEnv,
+          CDS_MCP_OFFLINE: args.includes('--offline') ? 'false' : 'true',
+          CDS_MCP_OFFLINE_DIR: '.',
+          CDS_MCP_MODEL: 'unavailable/active-model'
+        },
+        cwd: dir
+      })
+
+      assert.equal(result.code, 0, result.stderr)
+      assert(result.stdout.includes('External generated bundle:'), result.stdout)
+      assert(!result.stderr.includes('Using:'), 'Must not use cache discovery')
+    })
+  }
+
+  test('CDS_MCP_OFFLINE_DIR rejects a missing bundle without falling back to the cache', async (t) => {
+    const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-missing-'))
+    t.after(() => fs.rm(dir, { recursive: true, force: true }))
+
+    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
+      env: { ...noFetchEnv, CDS_MCP_OFFLINE_DIR: dir }
+    })
+
+    assert.equal(result.code, 1, result.stderr)
+    assert(result.stderr.includes('ENOENT'), result.stderr)
+    assert(result.stderr.includes(join(dir, 'code-chunks.json')), result.stderr)
+  })
+
+  test('CDS_MCP_OFFLINE_DIR rejects an empty directory setting', async () => {
+    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
+      env: { ...noFetchEnv, CDS_MCP_OFFLINE_DIR: '   ' }
+    })
+
+    assert.equal(result.code, 1, result.stderr)
+    assert(result.stderr.includes('CDS_MCP_OFFLINE_DIR must not be empty'), result.stderr)
+  })
+
+  test('CDS_MCP_OFFLINE_DIR is ignored outside offline mode', async () => {
+    const result = await runCliCommand(['search_docs', 'select statement'], {
+      env: {
+        ...process.env,
+        CDS_MCP_OFFLINE: 'false',
+        CDS_MCP_OFFLINE_DIR: '/nonexistent/generated/embeddings',
+        CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
+        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+      }
+    })
+
+    assert.equal(result.code, 0, result.stderr)
+    assert(result.stdout.length > 0)
   })
 
   test('no arguments starts MCP server mode', async () => {
