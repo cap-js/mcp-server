@@ -3,9 +3,6 @@ import { afterEach, describe, it, mock } from 'node:test'
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { fileURLToPath } from 'node:url'
 
 const writeEmbeddings = mock.fn(async (_id, chunks, _canonical, options) => ({
   count: chunks.length,
@@ -25,22 +22,9 @@ mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
   }
 })
 
-const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, createMarkdownEmbeddings } =
+const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, runCli } =
   await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
 const { createMarkdownEmbeddings } = await import('@cap-js/mcp-server')
-
-const exec = promisify(execFile)
-function runCLI(args, { status = 200 } = {}) {
-  const entry = new URL('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js', import.meta.url)
-  const preload = new URL('../fixtures/markdown-embeddings-cli-preload.js', import.meta.url)
-  return exec(process.execPath, [
-    '--experimental-test-module-mocks',
-    '--import',
-    preload.href,
-    fileURLToPath(entry),
-    ...args
-  ])
-}
 
 async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
@@ -559,26 +543,76 @@ describe('migrated script helpers', () => {
     assert.equal(await readFile(join(root, 'manifest.json'), 'utf8'), 'caller-owned manifest')
   })
 
-  describe('when invoked through the CLI entry point', () => {
-    it('should fetch the CAP documentation by default', async () => {
-      const { stdout } = await runCLI([])
-      const result = JSON.parse(stdout)
+  describe('CLI generation', () => {
+    it('should fetch the CAP documentation by default', async (t) => {
+      const fetchMock = t.mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(
+            '# Getting Started\n\n> Source: /docs/get-started/\n\nCAP documentation content.'
+          )
+      )
 
-      assert.equal(result.id, 'code-chunks')
-      assert.equal(result.chunks.length, 1)
-      assert.equal(result.canonical[0], 'CAP documentation content.')
-      assert.equal(result.options.model, 'fixture/default-model')
-      assert.equal(result.options.dir, join(originalCwd, 'embeddings'))
-      assert.equal(result.options.metadata[0].source, 'https://cap.cloud.sap/docs/get-started/')
+      await runCli([])
+
+      assert.equal(fetchMock.mock.callCount(), 1)
+      assert.equal(fetchMock.mock.calls[0].arguments[0], 'https://cap.cloud.sap/docs/llms-full.txt')
+      const [id, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
+      assert.equal(id, 'code-chunks')
+      assert.equal(chunks.length, 1)
+      assert.equal(canonical[0], 'CAP documentation content.')
+      assert.equal(options.model, 'fixture/default-model')
+      assert.equal(options.dir, join(originalCwd, 'embeddings'))
+      assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/get-started/')
     })
 
-    it('should report an unsuccessful HTTP response without generating embeddings', async () => {
-      await assert.rejects(runCLI([], { status: 503 }), (err) => {
-        assert.equal(err.code, 1)
-        assert.match(err.stderr, /Failed to fetch CAP documentation: HTTP 503/)
-        assert.equal(err.stdout, '')
-        return true
+    it('should use a custom model when fetching the default documentation', async (t) => {
+      t.mock.method(
+        globalThis,
+        'fetch',
+        async () =>
+          new Response(
+            '# Getting Started\n\n> Source: /docs/get-started/\n\nCAP documentation content.'
+          )
+      )
+
+      await runCli(['--model', 'fixture/custom-model'])
+
+      const [, chunks, , options] = writeEmbeddings.mock.calls[0].arguments
+      assert.equal(chunks.length, 1)
+      assert.equal(options.model, 'fixture/custom-model')
+      assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/get-started/')
+    })
+
+    it('should reject an unsuccessful HTTP response without reading or embedding it', async (t) => {
+      const response = new Response(null, { status: 503 })
+      const readText = t.mock.method(response, 'text', () =>
+        assert.fail('Must not read failed response')
+      )
+      t.mock.method(globalThis, 'fetch', async () => response)
+
+      await assert.rejects(runCli([]), {
+        message: 'Failed to fetch CAP documentation: HTTP 503'
       })
+      assert.equal(readText.mock.callCount(), 0)
+      assert.equal(writeEmbeddings.mock.callCount(), 0)
+      assert.equal(tokenMeasure.mock.callCount(), 0)
+    })
+
+    it('should use explicit input without fetching the CAP documentation', async (t) => {
+      const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-cli-input-'))
+      t.after(() => rm(root, { recursive: true, force: true }))
+      const input = join(root, 'input.md')
+      await writeFile(input, '# Input\n\n> Source: /docs/input\n\nUseful documentation content.')
+      const fetchMock = t.mock.method(globalThis, 'fetch', () =>
+        assert.fail('Must not fetch with explicit input')
+      )
+
+      await runCli(['--input', input])
+
+      assert.equal(fetchMock.mock.callCount(), 0)
+      assert.equal(writeEmbeddings.mock.callCount(), 1)
     })
 
     it('should parse named arguments and generate with the selected output and model', async (t) => {
@@ -588,7 +622,7 @@ describe('migrated script helpers', () => {
       const output = join(root, 'chunks.json')
       await writeFile(input, '# Input\n\n> Source: /docs/input\n\nUseful.')
 
-      const { stdout } = await runCLI([
+      await runCli([
         '--model',
         'fixture/cli',
         '--input',
@@ -599,26 +633,29 @@ describe('migrated script helpers', () => {
         '0'
       ])
 
-      const result = JSON.parse(stdout)
-      assert.equal(result.chunks.length, 1)
-      assert.equal(result.canonical[0], 'Useful.')
-      assert.equal(result.options.model, 'fixture/cli')
-      assert.equal(result.options.dir, root)
-      assert.equal(result.options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
+      const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
+      assert.equal(chunks.length, 1)
+      assert.equal(canonical[0], 'Useful.')
+      assert.equal(options.model, 'fixture/cli')
+      assert.equal(options.dir, root)
+      assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
     })
 
     for (const [args, message] of [
-      [[], /Markdown input file is required/],
       [['--input', ''], /Markdown input file is required/],
       [['input.md'], /Unexpected argument.*input\.md/],
       [['--min-tokens=invalid'], /--min-tokens must be an integer/]
     ]) {
-      it(`should report ${args.length ? args.join(' ') : 'missing input'} with a failing exit code`, async () => {
-        await assert.rejects(runCLI(args), (err) => {
-          assert.match(err.stderr, message)
-          assert.equal(err.code, 1)
-          return true
-        })
+      it(`should reject ${args.join(' ')}`, async (t) => {
+        const fetchMock = t.mock.method(globalThis, 'fetch', () =>
+          assert.fail('Must not fetch with invalid arguments')
+        )
+
+        await assert.rejects(runCli(args), message)
+
+        assert.equal(fetchMock.mock.callCount(), 0)
+        assert.equal(writeEmbeddings.mock.callCount(), 0)
+        assert.equal(tokenMeasure.mock.callCount(), 0)
       })
     }
   })
