@@ -263,15 +263,6 @@ See [Configuration](#configuration) for supported flags. Pass them after
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
-It contains document and section headings followed by `> Source: ...` annotations.
-These annotations identify CAP documentation paths and section anchors. For example,
-the source starts with:
-
-```markdown
-# Getting Started
-
-> Source: /docs/get-started/
-```
 
 Pass the chunking settings, custom model, and output settings to the API:
 
