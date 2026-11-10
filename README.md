@@ -244,7 +244,7 @@ The fuzzy search algorithm matches definition names and allows for partial match
 Import the supported named exports from the package root:
 
 ```js
-import { createMarkdownEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
+import { generate, DEFAULT_MODEL } from '@cap-js/mcp-server'
 ```
 
 ### Generate embeddings from the command line
@@ -275,11 +275,11 @@ the source starts with:
 Fetch it and pass the response text, custom model, and output settings to the API:
 
 ```js
-import { createMarkdownEmbeddings } from '@cap-js/mcp-server'
+import { generate } from '@cap-js/mcp-server'
 
 const response = await fetch('https://cap.cloud.sap/docs/llms-full.txt')
 const text = await response.text()
-const result = await createMarkdownEmbeddings(
+const result = await generate(
   { text, minTokens: 10, maxHeadingDepth: 5 },
   {
     id: 'code-chunks',
@@ -305,7 +305,7 @@ The CLI and JavaScript API use these settings:
 | — | `embeddingConfig.id` | Output file ID; default `code-chunks`. |
 | — | `embeddingConfig.provenance` | Optional input metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. Stored under the existing JSON field `capire` for bundle compatibility. |
 
-`createMarkdownEmbeddings(chunkingConfig, embeddingConfig, overrides?)` returns a promise:
+`generate(chunkingConfig, embeddingConfig, overrides?)` returns a promise:
 
 - Chunking options can also be supplied in `chunkingConfig.chunking`; top-level options
   take precedence. Explicit `overrides` take precedence over both configurations and accept

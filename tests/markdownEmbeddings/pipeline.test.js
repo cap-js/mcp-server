@@ -2,9 +2,9 @@ import { it, describe, before, mock } from 'node:test'
 import assert from 'node:assert'
 import { execFileSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { formatEmbeddingText } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
-import { runPipeline, stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
-import { transformBlock as transformFn } from '../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
+import { formatEmbeddingText } from '../../lib/capireEmbeddings/createCapireEmbeddings.js'
+import { runPipeline, stages } from '../../lib/capireEmbeddings/chunker/pipeline.js'
+import { transformBlock as transformFn } from '../../lib/capireEmbeddings/chunker/stages/05-transform.js'
 
 const INPUT = new URL('../fixtures/embeddings-generation.txt', import.meta.url)
 const RAW_TEXT = await readFile(INPUT, 'utf8')
@@ -1656,10 +1656,7 @@ describe('pipeline — focused fixture tests', () => {
         'First child sentence. Second child sentence.'
       ].join('\n')
       const config = { ...configP, maxHeadingDepth: 1, maxTokens: 50, measure: (t) => t.length }
-      const pipelineUrl = new URL(
-        '../../lib/markdownEmbeddings/chunker/pipeline.js',
-        import.meta.url
-      )
+      const pipelineUrl = new URL('../../lib/capireEmbeddings/chunker/pipeline.js', import.meta.url)
       // Fresh processes make the alone baseline independent of this suite's earlier invocations.
       const runIsolated = (inputs) =>
         JSON.parse(

@@ -1,8 +1,8 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { packBlocks } from '../../../lib/markdownEmbeddings/chunker/stages/07-packBlocks.js'
-import { parseBlocks } from '../../../lib/markdownEmbeddings/chunker/stages/04-parse-blocks.js'
-import { transformBlock as transform } from '../../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
+import { packBlocks } from '../../../lib/capireEmbeddings/chunker/stages/07-packBlocks.js'
+import { parseBlocks } from '../../../lib/capireEmbeddings/chunker/stages/04-parse-blocks.js'
+import { transformBlock as transform } from '../../../lib/capireEmbeddings/chunker/stages/05-transform.js'
 
 // These tests exercise the packing algorithm with a deterministic char measure.
 // The helper returns each chunk's embedded text (embeddingBody); tests that need

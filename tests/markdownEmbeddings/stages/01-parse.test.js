@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { parse } from '../../../lib/markdownEmbeddings/chunker/stages/01-parse.js'
+import { parse } from '../../../lib/capireEmbeddings/chunker/stages/01-parse.js'
 
 const config = { maxHeadingDepth: 6 }
 

@@ -16,22 +16,22 @@ mock.module('../../lib/calculateEmbeddings.js', {
     getActiveModel: () => 'fixture/default-model'
   }
 })
-mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
+mock.module('../../lib/capireEmbeddings/chunker/tokenizer.js', {
   namedExports: {
     createTokenMeasure: tokenMeasure
   }
 })
 
 const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, runCli } =
-  await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
-const { createMarkdownEmbeddings } = await import('@cap-js/mcp-server')
+  await import('../../lib/capireEmbeddings/createCapireEmbeddings.js')
+const { generate } = await import('@cap-js/mcp-server')
 
 async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
   const input = join(root, 'guide.md')
   try {
     await writeFile(input, text)
-    return await createMarkdownEmbeddings(
+    return await generate(
       { text: await readFile(input, 'utf8'), ...chunkingConfig },
       embeddingConfig
     )
@@ -53,7 +53,7 @@ describe('Markdown embedding generation', () => {
   it('should apply implementation defaults when the public API receives only Markdown', async () => {
     const text = '# Defaults\n\n> Source: /docs/defaults\n\nDocumentation using default settings.'
 
-    const result = await createMarkdownEmbeddings({ text })
+    const result = await generate({ text })
 
     assert.equal(result.count, 1)
     const [id, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -66,7 +66,7 @@ describe('Markdown embedding generation', () => {
   it('should forward explicit overrides while leaving the embedding configuration undefined', async () => {
     const text = '# Overrides\n\n> Source: /docs/overrides\n\nUseful.'
 
-    const result = await createMarkdownEmbeddings({ text }, undefined, {
+    const result = await generate({ text }, undefined, {
       minTokens: 0,
       model: 'fixture/override'
     })
@@ -102,7 +102,7 @@ describe('Markdown embedding generation', () => {
       '/overridden/chunks.json'
     ])
 
-    await createMarkdownEmbeddings(chunkingConfig, embeddingConfig, overrides)
+    await generate(chunkingConfig, embeddingConfig, overrides)
 
     assert.equal(writeEmbeddings.mock.callCount(), 1)
     const [id, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -140,11 +140,7 @@ describe('Markdown embedding generation', () => {
       '# Parent\n\n> Source: /docs/parent\n\nParent content.\n\n## Child\n\n> Source: /docs/parent#child\n\nChild content.'
     const overrides = parseArgs(['--max-heading-depth', '1'])
 
-    await createMarkdownEmbeddings(
-      { text, maxHeadingDepth: 4, chunking: { maxHeadingDepth: 3 } },
-      {},
-      overrides
-    )
+    await generate({ text, maxHeadingDepth: 4, chunking: { maxHeadingDepth: 3 } }, {}, overrides)
 
     const [, chunks, canonical] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(chunks.length, 1)
@@ -161,7 +157,7 @@ describe('Markdown embedding generation', () => {
       '# Override\n\n> Source: /docs/override\n\nContent from the override file.'
     )
 
-    await createMarkdownEmbeddings(
+    await generate(
       { text: '# Supplied\n\n> Source: /docs/supplied\n\nSupplied content.' },
       { id: 'retained' },
       parseArgs(['--input', input])
@@ -178,7 +174,7 @@ describe('Markdown embedding generation', () => {
     const text =
       '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation supplied directly in memory.'
 
-    const result = await createMarkdownEmbeddings({ text })
+    const result = await generate({ text })
 
     assert.equal(result.count, 1)
     const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -193,7 +189,7 @@ describe('Markdown embedding generation', () => {
       '# Guide\n\n> Source: /docs/provided\n\nSupplied documentation takes precedence over file input.'
     process.argv = ['node', 'host.js', '--input', 'missing-input.md', '--unrelated-host-option']
 
-    await createMarkdownEmbeddings({ text })
+    await generate({ text })
 
     const [, , canonical, options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(canonical.length, 1)
@@ -202,13 +198,13 @@ describe('Markdown embedding generation', () => {
   })
 
   it('should reject empty supplied Markdown before invoking the writer', async () => {
-    await assert.rejects(createMarkdownEmbeddings({ text: '' }), /Markdown text is required/)
+    await assert.rejects(generate({ text: '' }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
 
   it('should reject null supplied Markdown before invoking the writer', async () => {
-    await assert.rejects(createMarkdownEmbeddings({ text: null }), /Markdown text is required/)
+    await assert.rejects(generate({ text: null }), /Markdown text is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
@@ -247,7 +243,7 @@ describe('Markdown embedding generation', () => {
       .map(({ heading, body }, index) => `${heading}\n\n> Source: /docs/root#${index}\n\n${body}`)
       .join('\n\n')
 
-    const result = await createMarkdownEmbeddings({ text, minTokens: 0 })
+    const result = await generate({ text, minTokens: 0 })
 
     assert.equal(result.count, 6)
     assert.equal(writeEmbeddings.mock.callCount(), 1)
@@ -280,7 +276,7 @@ describe('Markdown embedding generation', () => {
     const text = '## Child\n\n> Source: /docs/root#child\n\nx'
 
     await assert.rejects(
-      createMarkdownEmbeddings({ text, minTokens: 0 }),
+      generate({ text, minTokens: 0 }),
       /\[validate\] 1 chunk\(s\) failed validation/
     )
 
@@ -388,7 +384,7 @@ describe('Markdown embedding generation', () => {
       '/output/code-chunks.json'
     ])
 
-    await createMarkdownEmbeddings({}, {}, overrides)
+    await generate({}, {}, overrides)
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.model, 'fixture/selected-model')
@@ -514,9 +510,9 @@ describe('migrated script helpers', () => {
   })
 
   it('should reject missing input before invoking the writer', async () => {
-    process.argv = ['node', 'createMarkdownEmbeddings.js']
+    process.argv = ['node', 'createCapireEmbeddings.js']
 
-    await assert.rejects(createMarkdownEmbeddings(), /Markdown input file is required/)
+    await assert.rejects(generate(), /Markdown input file is required/)
 
     assert.equal(writeEmbeddings.mock.callCount(), 0)
   })
@@ -532,7 +528,7 @@ describe('migrated script helpers', () => {
     process.chdir(root)
     const overrides = parseArgs(['--input', 'guide.md', '--output', 'code-chunks.json'])
 
-    await createMarkdownEmbeddings({}, {}, overrides)
+    await generate({}, {}, overrides)
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     const resolvedRoot = await realpath(root)

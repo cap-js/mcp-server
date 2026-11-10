@@ -44,7 +44,7 @@ mock.module('@cap-js/ai/lib/vector_embedding/embedding.js', {
   }
 })
 
-const { createTokenMeasure } = await import('../../lib/markdownEmbeddings/chunker/tokenizer.js')
+const { createTokenMeasure } = await import('../../lib/capireEmbeddings/chunker/tokenizer.js')
 
 before(async () => {
   modelDir = await mkdtemp(join(tmpdir(), 'mcp-tokenizer-'))

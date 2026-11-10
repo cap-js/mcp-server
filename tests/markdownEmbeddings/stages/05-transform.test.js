@@ -3,8 +3,8 @@ import assert from 'node:assert'
 import {
   transformBlock as transform,
   transformSection
-} from '../../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
-import { parseBlocks } from '../../../lib/markdownEmbeddings/chunker/stages/04-parse-blocks.js'
+} from '../../../lib/capireEmbeddings/chunker/stages/05-transform.js'
+import { parseBlocks } from '../../../lib/capireEmbeddings/chunker/stages/04-parse-blocks.js'
 
 function block(type, text) {
   return { type, text, supressCut: false }

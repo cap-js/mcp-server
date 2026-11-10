@@ -8,9 +8,9 @@ const exec = promisify(execFile)
 
 describe('public JavaScript API', () => {
   it('should expose only the generator and default model at the package root', () => {
-    assert.deepEqual(Object.keys(api).sort(), ['DEFAULT_MODEL', 'createMarkdownEmbeddings'])
+    assert.deepEqual(Object.keys(api).sort(), ['DEFAULT_MODEL', 'generate'])
     assert.equal(api.DEFAULT_MODEL, 'BAAI/bge-small-en-v1.5')
-    assert.equal(typeof api.createMarkdownEmbeddings, 'function')
+    assert.equal(typeof api.generate, 'function')
   })
 
   it('should dynamically import from CommonJS without loading CDS or starting the CLI', async () => {
@@ -20,7 +20,7 @@ describe('public JavaScript API', () => {
         try {
           const api = await import('@cap-js/mcp-server')
           assert.equal(api.DEFAULT_MODEL, 'BAAI/bge-small-en-v1.5')
-          assert.equal(typeof api.createMarkdownEmbeddings, 'function')
+          assert.equal(typeof api.generate, 'function')
           assert.equal(Object.keys(require.cache).some(path => path.includes('/@sap/cds/')), false)
           console.log('API imported without CDS')
         } catch (error) {
