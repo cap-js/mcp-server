@@ -55,6 +55,43 @@ describe('splitByRuntime', () => {
       assert.strictEqual(groups[1].label, 'java')
       assert.deepStrictEqual(groups[1].blocks, [javaBlock])
     })
+
+    for (const [heading, primary, opposite] of [
+      ['Java Events', 'java', 'node'],
+      ['Node.js Events', 'node', 'java']
+    ]) {
+      it(`should project nested mixed blocks into separate runtimes under ${heading}`, () => {
+        const shared = para('Shared content.')
+        const java = para('Java specific text.', 'java')
+        const node = para('Node.js specific text.', 'node')
+        const mixed = {
+          type: 'cols-div',
+          text: `${java.text}\n\n${node.text}`,
+          parts: [java, node]
+        }
+        const block = { type: 'cols-div', text: mixed.text, parts: [mixed] }
+        const original = structuredClone(block)
+
+        const groups = splitByRuntime([shared, block], heading)
+
+        assert.deepStrictEqual(
+          groups.map(({ label }) => label),
+          [primary, opposite]
+        )
+        assert.ok(groups[0].blocks.includes(shared))
+        assert.ok(!groups[1].blocks.includes(shared))
+        for (const variant of [java, node]) {
+          const group = groups.find(({ label }) => label === variant.runtime)
+          const projected = group.blocks.find(({ type }) => type === 'cols-div')
+          assert.deepStrictEqual(projected, {
+            ...block,
+            text: variant.text,
+            parts: [{ ...mixed, text: variant.text, parts: [variant] }]
+          })
+        }
+        assert.deepStrictEqual(block, original)
+      })
+    }
   })
 
   describe('when no heading runtime is set but both runtimes are present', () => {
@@ -90,6 +127,36 @@ describe('splitByRuntime', () => {
       assert.strictEqual(groups[0].blocks[0].text, jText)
       assert.strictEqual(groups[1].label, 'node')
       assert.strictEqual(groups[1].blocks[0].text, nText)
+    })
+
+    it('should retain runtime content and update parts when splitting nested mixed columns', () => {
+      const shared = para('Shared instructions.')
+      const java = { type: 'java-div', runtime: 'java', text: 'Java:\nJava instructions.' }
+      const node = { type: 'node-div', runtime: 'node', text: 'Node.js:\nNode instructions.' }
+      const mixed = {
+        type: 'cols-div',
+        text: `${java.text}\n\n${node.text}`,
+        parts: [java, node]
+      }
+      const block = {
+        type: 'cols-div',
+        text: `${shared.text}\n\n${mixed.text}`,
+        parts: [shared, mixed]
+      }
+
+      const groups = splitByRuntime([block], 'Events')
+
+      assert.strictEqual(groups.length, 2)
+      for (const variant of [java, node]) {
+        const group = groups.find(({ label }) => label === variant.runtime)
+        assert.deepStrictEqual(group.blocks, [
+          {
+            ...block,
+            text: `${shared.text}\n\n${variant.text}`,
+            parts: [shared, { ...mixed, text: variant.text, parts: [variant] }]
+          }
+        ])
+      }
     })
   })
 

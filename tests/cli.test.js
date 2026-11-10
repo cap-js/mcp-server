@@ -346,6 +346,25 @@ describe('CLI usage', () => {
     assert(result.stderr.includes('CDS_MCP_OFFLINE_DIR must not be empty'), result.stderr)
   })
 
+  test('CDS_MCP_OFFLINE_DIR preserves corrupted generated files without downloading', async (t) => {
+    const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-corrupt-'))
+    t.after(() => fs.rm(dir, { recursive: true, force: true }))
+    const json = JSON.stringify({ dim: 1, count: 1, chunks: ['Generated content.'] })
+    const bin = Buffer.from([0])
+    await writeFile(join(dir, 'code-chunks.json'), json)
+    await writeFile(join(dir, 'code-chunks.bin'), bin)
+
+    const result = await runCliCommand(['search_docs', 'generated content'], {
+      env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true', CDS_MCP_OFFLINE_DIR: dir }
+    })
+
+    assert.equal(result.code, 1, result.stderr)
+    assert(result.stderr.includes('Corrupted files'), result.stderr)
+    assert(!result.stderr.includes('fetch disabled'), result.stderr)
+    assert.equal(await readFile(join(dir, 'code-chunks.json'), 'utf8'), json)
+    assert.deepEqual(await readFile(join(dir, 'code-chunks.bin')), bin)
+  })
+
   test('CDS_MCP_OFFLINE_DIR is ignored outside offline mode', async () => {
     const result = await runCliCommand(['search_docs', 'select statement'], {
       env: {

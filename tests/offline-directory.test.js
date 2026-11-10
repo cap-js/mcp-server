@@ -50,7 +50,11 @@ describe('offline directory selection', () => {
       const result = await searchMarkdownDocs('documentation', 1)
 
       assert.equal(result, 'Generated documentation.')
-      assert.deepEqual(loadChunks.mock.calls.at(-1).arguments, ['code-chunks', dir])
+      assert.deepEqual(loadChunks.mock.calls.at(-1).arguments, [
+        'code-chunks',
+        dir,
+        { deleteCorrupted: false }
+      ])
       assert.equal(hybridSearch.mock.calls.at(-1).arguments[1].model, 'fixture/generated-model')
     }
     assert.equal(loadChunks.mock.callCount(), 2)
