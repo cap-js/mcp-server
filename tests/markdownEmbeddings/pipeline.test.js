@@ -1,12 +1,13 @@
 import { it, describe, before, mock } from 'node:test'
 import assert from 'node:assert'
 import { execFileSync } from 'node:child_process'
-import { readInput, embedText } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
+import { readFile } from 'node:fs/promises'
+import { formatEmbeddingText } from '../../lib/markdownEmbeddings/createMarkdownEmbeddings.js'
 import { runPipeline, stages } from '../../lib/markdownEmbeddings/chunker/pipeline.js'
 import { transformBlock as transformFn } from '../../lib/markdownEmbeddings/chunker/stages/05-transform.js'
 
 const INPUT = new URL('../fixtures/embeddings-generation.txt', import.meta.url)
-const RAW_TEXT = await readInput(INPUT)
+const RAW_TEXT = await readFile(INPUT, 'utf8')
 
 // Mock token measure: a deterministic ~4-chars-per-token approximation of a
 // real subword tokenizer, so the injected measure counts tokens (not chars)
@@ -1108,7 +1109,7 @@ function runE2ESuite(label, configOverrides) {
         it('should produce no rendered embedding text that exceeds maxTokens', () => {
           assert.ok(outputPackBlocks.length > 0)
           for (const chunk of outputPackBlocks) {
-            const text = embedText(chunk)
+            const text = formatEmbeddingText(chunk)
             assert.ok(
               config.measure(text) <= config.maxTokens,
               `embedding text exceeds maxTokens (${config.measure(text)} > ${config.maxTokens}) in section "${chunk.heading}": ${JSON.stringify(text.slice(0, 120))}`
@@ -1700,7 +1701,7 @@ describe('pipeline — focused fixture tests', () => {
       for (const chunk of alone) {
         assert.strictEqual(chunk.heading, '# Beta')
         assert.strictEqual(chunk.source, 'https://cap.cloud.sap/docs/beta')
-        assert.ok(config.measure(embedText(chunk)) <= config.maxTokens)
+        assert.ok(config.measure(formatEmbeddingText(chunk)) <= config.maxTokens)
       }
     })
 
@@ -1713,7 +1714,7 @@ describe('pipeline — focused fixture tests', () => {
       assert.strictEqual(sections.length, 1)
       assert.strictEqual(sections[0].embeddingBody, paragraph)
       assert.strictEqual(sections[0].displayBody, paragraph)
-      assert.strictEqual(config.measure(embedText(sections[0])), config.maxTokens)
+      assert.strictEqual(config.measure(formatEmbeddingText(sections[0])), config.maxTokens)
     })
 
     it('should split body-only fits using each heading and retain all embedding content', () => {
@@ -1740,8 +1741,8 @@ describe('pipeline — focused fixture tests', () => {
         assert.strictEqual(chunks.map((chunk) => chunk.embeddingBody).join(''), body)
         for (const chunk of chunks) {
           assert.strictEqual(chunk.displayBody, body)
-          assert.strictEqual(embedText(chunk), `${heading}\n\n${chunk.embeddingBody}`)
-          assert.ok(config.measure(embedText(chunk)) <= config.maxTokens)
+          assert.strictEqual(formatEmbeddingText(chunk), `${heading}\n\n${chunk.embeddingBody}`)
+          assert.ok(config.measure(formatEmbeddingText(chunk)) <= config.maxTokens)
         }
       }
     })
@@ -1760,7 +1761,8 @@ describe('pipeline — focused fixture tests', () => {
         [16, 9]
       )
       assert.strictEqual(sections.map((chunk) => chunk.embeddingBody).join(''), 'c'.repeat(25))
-      for (const chunk of sections) assert.ok(measure(embedText(chunk)) <= config.maxTokens)
+      for (const chunk of sections)
+        assert.ok(measure(formatEmbeddingText(chunk)) <= config.maxTokens)
     })
 
     it('should keep minTokens based on the body rather than heading overhead', (t) => {

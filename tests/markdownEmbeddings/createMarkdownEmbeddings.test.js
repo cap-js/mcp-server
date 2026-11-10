@@ -25,34 +25,17 @@ mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
   }
 })
 
-const { embedText, toMeta, parseArgs, readInput, config, createMarkdownEmbeddings } =
+const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, createMarkdownEmbeddings } =
   await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
 
 const exec = promisify(execFile)
 function runCLI(args) {
   const entry = new URL('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js', import.meta.url)
-  const writer = new URL('../../lib/calculateEmbeddings.js', import.meta.url)
-  const tokenizer = new URL('../../lib/markdownEmbeddings/chunker/tokenizer.js', import.meta.url)
-  const preload = `
-    import { mock } from 'node:test'
-    mock.module(${JSON.stringify(writer.href)}, {
-      namedExports: {
-        getActiveModel: () => 'fixture/default-model',
-        createEmbeddings: async (id, chunks, canonical, options) => {
-          console.log(JSON.stringify({ id, chunks, canonical, options }))
-        }
-      }
-    })
-    mock.module(${JSON.stringify(tokenizer.href)}, {
-      namedExports: {
-        createTokenMeasure: async () => ({ measure: text => text.length, maxTokens: 1024 })
-      }
-    })
-  `
+  const preload = new URL('../fixtures/markdown-embeddings-cli-preload.js', import.meta.url)
   return exec(process.execPath, [
     '--experimental-test-module-mocks',
     '--import',
-    `data:text/javascript,${encodeURIComponent(preload)}`,
+    preload.href,
     fileURLToPath(entry),
     ...args
   ])
@@ -64,7 +47,7 @@ async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {})
   try {
     await writeFile(input, text)
     return await createMarkdownEmbeddings(
-      { text: await readInput(input), ...chunkingConfig },
+      { text: await readFile(input, 'utf8'), ...chunkingConfig },
       embeddingConfig
     )
   } finally {
@@ -95,7 +78,7 @@ describe('Markdown embedding generation', () => {
       model: 'fixture/caller',
       capire: { commitId: 'caller' }
     })
-    const { overrides } = parseArgs([
+    const overrides = parseArgs([
       '--min-tokens',
       '0',
       '--model',
@@ -121,10 +104,10 @@ describe('Markdown embedding generation', () => {
   it('should retain supplied settings when no override is given and respect chunking precedence', async () => {
     const text = '# Retained\n\n> Source: /docs/retained\n\nRetained content.'
 
-    const resolved = await config(
+    const resolved = await resolveConfig(
       { text, chunking: { minTokens: 200, maxHeadingDepth: 2 }, minTokens: 0, maxTokens: 9999 },
       { id: 'retained', dir: '/retained', model: 'fixture/retained' },
-      parseArgs([]).overrides
+      parseArgs([])
     )
 
     assert.equal(resolved.text, text)
@@ -140,7 +123,7 @@ describe('Markdown embedding generation', () => {
   it('should fold deeper headings using an override even when chunking settings are supplied', async () => {
     const text =
       '# Parent\n\n> Source: /docs/parent\n\nParent content.\n\n## Child\n\n> Source: /docs/parent#child\n\nChild content.'
-    const { overrides } = parseArgs(['--max-heading-depth', '1'])
+    const overrides = parseArgs(['--max-heading-depth', '1'])
 
     await createMarkdownEmbeddings(
       { text, maxHeadingDepth: 4, chunking: { maxHeadingDepth: 3 } },
@@ -166,7 +149,7 @@ describe('Markdown embedding generation', () => {
     await createMarkdownEmbeddings(
       { text: '# Supplied\n\n> Source: /docs/supplied\n\nSupplied content.' },
       { id: 'retained' },
-      parseArgs(['--input', input]).overrides
+      parseArgs(['--input', input])
     )
 
     const [id, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
@@ -380,7 +363,7 @@ describe('Markdown embedding generation', () => {
     t.after(() => rm(root, { recursive: true, force: true }))
     const input = join(root, 'guide.md')
     await writeFile(input, '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.')
-    const { overrides } = parseArgs([
+    const overrides = parseArgs([
       '--input',
       input,
       '--model',
@@ -407,17 +390,17 @@ describe('Markdown embedding generation', () => {
 
 describe('migrated script helpers', () => {
   it('should omit all overrides when no arguments are supplied', () => {
-    assert.deepEqual(parseArgs([]), { overrides: {} })
+    assert.deepEqual(parseArgs([]), {})
   })
 
   it('should prefer min-tokens over its alias and preserve zero', () => {
-    const { overrides } = parseArgs(['--min-tokens', '0', '--min-chunk-size', '32'])
+    const overrides = parseArgs(['--min-tokens', '0', '--min-chunk-size', '32'])
 
     assert.equal(overrides.minTokens, 0)
   })
 
   it('should accept named input after other options', () => {
-    const { overrides } = parseArgs([
+    const overrides = parseArgs([
       '--model',
       'fixture/model',
       '--input',
@@ -465,11 +448,12 @@ describe('migrated script helpers', () => {
       '32'
     ])
 
-    assert.deepEqual(Object.keys(result), ['overrides'])
-    assert.equal(result.overrides.input, 'guide.md')
-    assert.equal(result.overrides.model, 'fixture/model')
-    assert.equal(result.overrides.output, 'chunks.json')
-    assert.equal(result.overrides.minTokens, 32)
+    assert.deepEqual(result, {
+      input: 'guide.md',
+      model: 'fixture/model',
+      output: 'chunks.json',
+      minTokens: 32
+    })
   })
 
   it('should retain embedding-text and source-metadata mapping', () => {
@@ -481,14 +465,36 @@ describe('migrated script helpers', () => {
       label: 'node'
     }
 
-    assert.equal(embedText(chunk), 'Heading\n\nBody')
+    assert.equal(formatEmbeddingText(chunk), 'Heading\n\nBody')
     assert.equal(toMeta(chunk).headingPath, 'Parent')
     assert.equal(toMeta(chunk).source, 'guide.md')
     assert.equal(toMeta(chunk).label, 'node')
   })
 
   it('should require a local input instead of fetching CAP documentation implicitly', async () => {
-    await assert.rejects(readInput(), /Markdown input file is required/)
+    await assert.rejects(resolveConfig(), /Markdown input file is required/)
+
+    assert.equal(tokenMeasure.mock.callCount(), 0)
+  })
+
+  it('should reject an empty input override even when Markdown is supplied', async () => {
+    await assert.rejects(
+      resolveConfig({ text: '# Supplied\n\nContent.' }, {}, parseArgs(['--input', ''])),
+      /Markdown input file is required/
+    )
+
+    assert.equal(tokenMeasure.mock.callCount(), 0)
+  })
+
+  it('should propagate file-read errors before initializing the tokenizer', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-missing-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+
+    await assert.rejects(resolveConfig({}, {}, { input: join(root, 'missing.md') }), {
+      code: 'ENOENT'
+    })
+
+    assert.equal(tokenMeasure.mock.callCount(), 0)
   })
 
   it('should reject missing input before invoking the writer', async () => {
@@ -508,7 +514,7 @@ describe('migrated script helpers', () => {
     )
     await writeFile(join(root, 'manifest.json'), 'caller-owned manifest')
     process.chdir(root)
-    const { overrides } = parseArgs(['--input', 'guide.md', '--output', 'code-chunks.json'])
+    const overrides = parseArgs(['--input', 'guide.md', '--output', 'code-chunks.json'])
 
     await createMarkdownEmbeddings({}, {}, overrides)
 
@@ -550,6 +556,7 @@ describe('migrated script helpers', () => {
 
     for (const [args, message] of [
       [[], /Markdown input file is required/],
+      [['--input', ''], /Markdown input file is required/],
       [['input.md'], /Unexpected argument.*input\.md/],
       [['--min-tokens=invalid'], /--min-tokens must be an integer/]
     ]) {
