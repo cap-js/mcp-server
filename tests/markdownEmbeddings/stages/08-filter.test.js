@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { filter } from '../../../lib/markdownEmbeddings/chunker/stages/08-filter.js'
+import { filter } from '../../../lib/capireEmbeddings/chunker/stages/08-filter.js'
 
 // A deterministic one-character-per-token measure for these unit fixtures.
 const measure = (text) => text.length

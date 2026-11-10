@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { splitByRuntime } from '../../../lib/markdownEmbeddings/chunker/stages/06-splitByRuntime.js'
+import { splitByRuntime } from '../../../lib/capireEmbeddings/chunker/stages/06-splitByRuntime.js'
 
 // Minimal block constructors — splitByRuntime only inspects runtime and parts.
 const para = (text, runtime) => ({

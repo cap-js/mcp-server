@@ -4,7 +4,7 @@ import {
   parseBlocks,
   isHtmlStub,
   detectRuntime
-} from '../../../lib/markdownEmbeddings/chunker/stages/04-parse-blocks.js'
+} from '../../../lib/capireEmbeddings/chunker/stages/04-parse-blocks.js'
 
 describe('parseBlocks', () => {
   describe('when isolating invocation heading maps', () => {

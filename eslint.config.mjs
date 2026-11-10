@@ -10,7 +10,7 @@ export default [
     }
   },
   {
-    files: ['lib/markdownEmbeddings/chunker/stages/**'],
+    files: ['lib/capireEmbeddings/chunker/stages/**'],
     rules: {
       'no-console': 'off'
     }

@@ -1,6 +1,6 @@
 import { it, describe } from 'node:test'
 import assert from 'node:assert'
-import { mergeSections } from '../../../lib/markdownEmbeddings/chunker/stages/03-mergeSections.js'
+import { mergeSections } from '../../../lib/capireEmbeddings/chunker/stages/03-mergeSections.js'
 
 const cfg = { maxTokens: 1000, minChunkSize: 100 }
 
