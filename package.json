@@ -45,6 +45,9 @@
   "devDependencies": {
     "oxfmt": ">=0.73.0"
   },
+  "engines": {
+    "node": ">=22.13.0"
+  },
   "cds": {
     "log": {
       "levels": {
