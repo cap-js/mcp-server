@@ -281,13 +281,28 @@ const result = await createCapireEmbeddings(
 
 ### Use generated embeddings in the MCP server
 
-Set `CDS_MCP_OFFLINE_DIR` to the folder that contains your generated embeddings, then start the server in offline mode:
+Test your created embeddings with `cds-mcp`:
 
 ```sh
-CDS_MCP_OFFLINE_DIR="/absolute/path/to/generated/output" node index.js --offline
+CDS_MCP_OFFLINE=true CDS_MCP_OFFLINE_DIR="/absolute/path/to/generated/output" cds-mcp search_docs "How do I define a service?"
 ```
 
-Use the same environment variable and `--offline` argument in your MCP client configuration.
+To use your generated embeddings, configure your MCP client with the folder that contains them:
+
+```json
+{
+  "mcpServers": {
+    "cds-mcp": {
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"],
+      "env": {
+        "CDS_MCP_OFFLINE": "true",
+        "CDS_MCP_OFFLINE_DIR": "/absolute/path/to/generated/output"
+      }
+    }
+  }
+}
+```
 
 ### Configuration
 
