@@ -3,9 +3,6 @@ import { afterEach, describe, it, mock } from 'node:test'
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
-import { fileURLToPath } from 'node:url'
 
 const writeEmbeddings = mock.fn(async (_id, chunks, _canonical, options) => ({
   count: chunks.length,
@@ -25,21 +22,8 @@ mock.module('../../lib/markdownEmbeddings/chunker/tokenizer.js', {
   }
 })
 
-const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, createMarkdownEmbeddings } =
+const { formatEmbeddingText, toMeta, parseArgs, resolveConfig, createMarkdownEmbeddings, runCli } =
   await import('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js')
-
-const exec = promisify(execFile)
-function runCLI(args) {
-  const entry = new URL('../../lib/markdownEmbeddings/createMarkdownEmbeddings.js', import.meta.url)
-  const preload = new URL('../fixtures/markdown-embeddings-cli-preload.js', import.meta.url)
-  return exec(process.execPath, [
-    '--experimental-test-module-mocks',
-    '--import',
-    preload.href,
-    fileURLToPath(entry),
-    ...args
-  ])
-}
 
 async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
@@ -527,7 +511,7 @@ describe('migrated script helpers', () => {
     assert.equal(await readFile(join(root, 'manifest.json'), 'utf8'), 'caller-owned manifest')
   })
 
-  describe('when invoked through the CLI entry point', () => {
+  describe('CLI generation', () => {
     it('should parse named arguments and generate with the selected output and model', async (t) => {
       const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-entry-'))
       t.after(() => rm(root, { recursive: true, force: true }))
@@ -535,7 +519,7 @@ describe('migrated script helpers', () => {
       const output = join(root, 'chunks.json')
       await writeFile(input, '# Input\n\n> Source: /docs/input\n\nUseful.')
 
-      const { stdout } = await runCLI([
+      await runCli([
         '--model',
         'fixture/cli',
         '--input',
@@ -546,12 +530,12 @@ describe('migrated script helpers', () => {
         '0'
       ])
 
-      const result = JSON.parse(stdout)
-      assert.equal(result.chunks.length, 1)
-      assert.equal(result.canonical[0], 'Useful.')
-      assert.equal(result.options.model, 'fixture/cli')
-      assert.equal(result.options.dir, root)
-      assert.equal(result.options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
+      const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
+      assert.equal(chunks.length, 1)
+      assert.equal(canonical[0], 'Useful.')
+      assert.equal(options.model, 'fixture/cli')
+      assert.equal(options.dir, root)
+      assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
     })
 
     for (const [args, message] of [
@@ -560,12 +544,16 @@ describe('migrated script helpers', () => {
       [['input.md'], /Unexpected argument.*input\.md/],
       [['--min-tokens=invalid'], /--min-tokens must be an integer/]
     ]) {
-      it(`should report ${args.length ? args.join(' ') : 'missing input'} with a failing exit code`, async () => {
-        await assert.rejects(runCLI(args), (err) => {
-          assert.match(err.stderr, message)
-          assert.equal(err.code, 1)
-          return true
-        })
+      it(`should reject ${args.length ? args.join(' ') : 'missing input'}`, async (t) => {
+        const fetchMock = t.mock.method(globalThis, 'fetch', () =>
+          assert.fail('Must not fetch with invalid arguments')
+        )
+
+        await assert.rejects(runCli(args), message)
+
+        assert.equal(fetchMock.mock.callCount(), 0)
+        assert.equal(writeEmbeddings.mock.callCount(), 0)
+        assert.equal(tokenMeasure.mock.callCount(), 0)
       })
     }
   })
