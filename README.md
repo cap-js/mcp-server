@@ -250,15 +250,21 @@ import { createCapireEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
 
 ### Generate capire embeddings from the command line
 
-From the repository root, generate CAP documentation embeddings with a custom model.
+Generate CAP documentation embeddings with a custom model.
 The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
 
 ```sh
-npm run generate-cap-embeddings -- --model nomic-ai/nomic-embed-text-v1.5
+cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
+```
+
+If the package is installed as a development dependency, use:
+
+```sh
+npm exec -- cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 ```
 
 See [Configuration](#configuration) for supported flags. Pass them after
-`npm run generate-cap-embeddings --`.
+`cds-mcp createCapireEmbeddings`.
 
 ### Generate capire embeddings programmatically
 
