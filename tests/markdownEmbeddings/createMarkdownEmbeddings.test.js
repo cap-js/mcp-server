@@ -77,6 +77,8 @@ describe('Markdown embedding generation', () => {
         'fixture/cli-model',
         '--input',
         input,
+        '--output',
+        join(root, 'chunks.json'),
         '--min-tokens',
         '0',
         '--max-heading-depth',
@@ -89,6 +91,8 @@ describe('Markdown embedding generation', () => {
       assert.equal(writeEmbeddings.mock.calls.length, 1)
       assert.equal(writeEmbeddings.mock.calls[0].arguments[1].length, 1)
       assert.equal(writeEmbeddings.mock.calls[0].arguments[3].model, 'fixture/cli-model')
+      assert.equal(writeEmbeddings.mock.calls[0].arguments[3].dir, root)
+      assert.equal(tokenMeasure.mock.calls.length, 1)
     } finally {
       await rm(root, { recursive: true, force: true })
     }

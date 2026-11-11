@@ -10,7 +10,12 @@ import { parseArgs } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
-import { configuredBoolean } from './lib/utils.js'
+import {
+  configuredBoolean,
+  embeddingCliOptions,
+  embeddingCliOverrides,
+  embeddingCliConfig
+} from './lib/utils.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -46,34 +51,45 @@ Commands:
   createCapireEmbeddings [--model <name>] [--input <file>] [--output <file>]
                         [--min-tokens <number>] [--max-heading-depth <number>]`
 
-if (process.argv[2] === 'createCapireEmbeddings') {
+const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
+let values, positionals
+try {
+  ;({ values, positionals } = parseArgs({
+    args: process.argv.slice(isEmbeddingCommand ? 3 : 2),
+    options: isEmbeddingCommand
+      ? embeddingCliOptions
+      : {
+          help: { type: 'boolean', short: 'h' },
+          version: { type: 'boolean', short: 'v' },
+          'download-embeddings': { type: 'boolean' },
+          download: { type: 'boolean' },
+          offline: { type: 'boolean' },
+          model: { type: 'string' }
+        },
+    allowPositionals: !isEmbeddingCommand,
+    strict: true
+  }))
+} catch (err) {
+  if (isEmbeddingCommand) {
+    process.stderr.write(`${err.stack}\n`)
+  } else {
+    console.error(helpText)
+  }
+  process.exit(1)
+}
+
+if (isEmbeddingCommand) {
   try {
-    const { runCli } = await import('./lib/capireEmbeddings/createCapireEmbeddings.js')
-    await runCli(process.argv.slice(3))
+    const { chunkingConfig, embeddingConfig } = await embeddingCliConfig(
+      embeddingCliOverrides(values)
+    )
+    const { createCapireEmbeddings } = await import('./lib/api.js')
+    await createCapireEmbeddings(chunkingConfig, embeddingConfig)
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1
   }
 } else {
-  let values, positionals
-  try {
-    ;({ values, positionals } = parseArgs({
-      options: {
-        help: { type: 'boolean', short: 'h' },
-        version: { type: 'boolean', short: 'v' },
-        'download-embeddings': { type: 'boolean' },
-        download: { type: 'boolean' },
-        offline: { type: 'boolean' },
-        model: { type: 'string' }
-      },
-      allowPositionals: true,
-      strict: true
-    }))
-  } catch {
-    console.error(helpText)
-    process.exit(1)
-  }
-
   // Set model BEFORE any import that triggers embeddings download side-effects.
   if (values.model !== undefined) process.env.CDS_MCP_MODEL = values.model
 
