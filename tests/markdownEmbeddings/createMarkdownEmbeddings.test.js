@@ -64,6 +64,36 @@ afterEach(() => {
 })
 
 describe('Markdown embedding generation', () => {
+  it('should generate embeddings through the cds-mcp subcommand', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-cli-embeddings-'))
+    const input = join(root, 'guide.md')
+    try {
+      await writeFile(input, '# CLI\n\n> Source: /docs/cli\n\nDocumentation for CLI generation.')
+      process.argv = [
+        process.execPath,
+        new URL('../../index.js', import.meta.url).pathname,
+        'createCapireEmbeddings',
+        '--model',
+        'fixture/cli-model',
+        '--input',
+        input,
+        '--min-tokens',
+        '0',
+        '--max-heading-depth',
+        '3'
+      ]
+
+      await import('../../index.js')
+
+      assert.equal(tokenMeasure.mock.calls[0].arguments[0], 'fixture/cli-model')
+      assert.equal(writeEmbeddings.mock.calls.length, 1)
+      assert.equal(writeEmbeddings.mock.calls[0].arguments[1].length, 1)
+      assert.equal(writeEmbeddings.mock.calls[0].arguments[3].model, 'fixture/cli-model')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('should apply implementation defaults when the public API receives only Markdown', async () => {
     const text = '# Defaults\n\n> Source: /docs/defaults\n\nDocumentation using default settings.'
 

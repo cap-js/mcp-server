@@ -40,58 +40,72 @@ Environment variables:
 
 Tools:
   search_model <projectPath> [name] [kind] [topN] [namesOnly]
-  search_docs <query> [maxResults]`
+  search_docs <query> [maxResults]
 
-let values, positionals
-try {
-  ;({ values, positionals } = parseArgs({
-    options: {
-      help: { type: 'boolean', short: 'h' },
-      version: { type: 'boolean', short: 'v' },
-      'download-embeddings': { type: 'boolean' },
-      download: { type: 'boolean' },
-      offline: { type: 'boolean' },
-      model: { type: 'string' }
-    },
-    allowPositionals: true,
-    strict: true
-  }))
-} catch {
-  console.error(helpText)
-  process.exit(1)
-}
+Commands:
+  createCapireEmbeddings [--model <name>] [--input <file>] [--output <file>]
+                        [--min-tokens <number>] [--max-heading-depth <number>]`
 
-// Set model BEFORE any import that triggers embeddings download side-effects.
-if (values.model !== undefined) process.env.CDS_MCP_MODEL = values.model
-
-// CDS interprets these names as mcp.offline and mcp.offline.dir, which conflict.
-// Keep the offline setting as a CLI flag before CDS reads the environment.
-if (process.env.CDS_MCP_OFFLINE_DIR !== undefined && configuredBoolean('CDS_MCP_OFFLINE')) {
-  if (!process.argv.includes('--offline')) process.argv.push('--offline')
-  delete process.env.CDS_MCP_OFFLINE
-}
-
-const { default: run, runTool } = await import('./lib/run.js')
-const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')
-
-if (values.download || values['download-embeddings']) {
-  const otherFlags = Object.entries(values).filter(
-    ([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings'
-  )
-  if (otherFlags.length > 0 || positionals.length > 0) {
-    console.error('--download must be the only argument (aside from --model)')
+if (process.argv[2] === 'createCapireEmbeddings') {
+  try {
+    const { runCli } = await import('./lib/capireEmbeddings/createCapireEmbeddings.js')
+    await runCli(process.argv.slice(3))
+  } catch (err) {
+    process.stderr.write(`${err.stack}\n`)
+    process.exitCode = 1
+  }
+} else {
+  let values, positionals
+  try {
+    ;({ values, positionals } = parseArgs({
+      options: {
+        help: { type: 'boolean', short: 'h' },
+        version: { type: 'boolean', short: 'v' },
+        'download-embeddings': { type: 'boolean' },
+        download: { type: 'boolean' },
+        offline: { type: 'boolean' },
+        model: { type: 'string' }
+      },
+      allowPositionals: true,
+      strict: true
+    }))
+  } catch {
+    console.error(helpText)
     process.exit(1)
   }
-  const result = await downloadEmbeddings()
-  console.log(JSON.stringify(result))
-} else if (values.help) {
-  console.log(helpText)
-} else if (values.version) {
-  const pkg = JSON.parse(await readFile(join(__dirname, 'package.json'), 'utf-8'))
-  console.log(pkg.version)
-} else if (positionals.length > 0) {
-  const [toolName, ...toolArgs] = positionals
-  runTool(toolName, ...toolArgs)
-} else {
-  run()
+
+  // Set model BEFORE any import that triggers embeddings download side-effects.
+  if (values.model !== undefined) process.env.CDS_MCP_MODEL = values.model
+
+  // CDS interprets these names as mcp.offline and mcp.offline.dir, which conflict.
+  // Keep the offline setting as a CLI flag before CDS reads the environment.
+  if (process.env.CDS_MCP_OFFLINE_DIR !== undefined && configuredBoolean('CDS_MCP_OFFLINE')) {
+    if (!process.argv.includes('--offline')) process.argv.push('--offline')
+    delete process.env.CDS_MCP_OFFLINE
+  }
+
+  const { default: run, runTool } = await import('./lib/run.js')
+  const { downloadEmbeddings } = await import('./lib/searchMarkdownDocs.js')
+
+  if (values.download || values['download-embeddings']) {
+    const otherFlags = Object.entries(values).filter(
+      ([k, v]) => v && k !== 'model' && k !== 'download' && k !== 'download-embeddings'
+    )
+    if (otherFlags.length > 0 || positionals.length > 0) {
+      console.error('--download must be the only argument (aside from --model)')
+      process.exit(1)
+    }
+    const result = await downloadEmbeddings()
+    console.log(JSON.stringify(result))
+  } else if (values.help) {
+    console.log(helpText)
+  } else if (values.version) {
+    const pkg = JSON.parse(await readFile(join(__dirname, 'package.json'), 'utf-8'))
+    console.log(pkg.version)
+  } else if (positionals.length > 0) {
+    const [toolName, ...toolArgs] = positionals
+    runTool(toolName, ...toolArgs)
+  } else {
+    run()
+  }
 }
