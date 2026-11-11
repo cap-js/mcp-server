@@ -1,44 +1,10 @@
 import { test } from 'node:test'
 import assert from 'node:assert'
-import { mkdtemp, writeFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
-import { tmpdir } from 'node:os'
 import {
   configuredBoolean,
   configuredNonEmptyString,
-  configuredPositiveInteger,
-  embeddingCliOverrides,
-  embeddingCliConfig
+  configuredPositiveInteger
 } from '../lib/utils.js'
-
-test('embedding CLI conversion leaves defaults to the API', async () => {
-  assert.deepStrictEqual(await embeddingCliConfig(embeddingCliOverrides({})), {
-    chunkingConfig: {},
-    embeddingConfig: {}
-  })
-})
-
-test('embedding CLI conversion reads input and maps flags to API configuration', async (t) => {
-  const root = await mkdtemp(join(tmpdir(), 'mcp-cli-config-'))
-  t.after(() => rm(root, { recursive: true, force: true }))
-  const input = join(root, 'input.md')
-  const text = '# Guide\n\nDocumentation.'
-  await writeFile(input, text)
-  const overrides = embeddingCliOverrides({
-    input,
-    output: join(root, 'chunks.json'),
-    model: 'fixture/model',
-    'min-tokens': '0',
-    'max-heading-depth': '3'
-  })
-  const original = { ...overrides }
-
-  assert.deepStrictEqual(await embeddingCliConfig(overrides), {
-    chunkingConfig: { text, minTokens: 0, maxHeadingDepth: 3 },
-    embeddingConfig: { model: 'fixture/model', dir: root }
-  })
-  assert.deepStrictEqual(overrides, original)
-})
 
 function withEnvironment(name, value, callback) {
   const previous = process.env[name]

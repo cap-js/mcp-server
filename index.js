@@ -10,12 +10,7 @@ import { parseArgs } from 'node:util'
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
-import {
-  configuredBoolean,
-  embeddingCliOptions,
-  embeddingCliOverrides,
-  embeddingCliConfig
-} from './lib/utils.js'
+import { configuredBoolean } from './lib/utils.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -57,7 +52,13 @@ try {
   ;({ values, positionals } = parseArgs({
     args: process.argv.slice(isEmbeddingCommand ? 3 : 2),
     options: isEmbeddingCommand
-      ? embeddingCliOptions
+      ? {
+          input: { type: 'string' },
+          output: { type: 'string' },
+          model: { type: 'string' },
+          'min-tokens': { type: 'string' },
+          'max-heading-depth': { type: 'string' }
+        }
       : {
           help: { type: 'boolean', short: 'h' },
           version: { type: 'boolean', short: 'v' },
@@ -80,11 +81,12 @@ try {
 
 if (isEmbeddingCommand) {
   try {
-    const { chunkingConfig, embeddingConfig } = await embeddingCliConfig(
-      embeddingCliOverrides(values)
-    )
+    const chunkingConfig = { input: values.input }
+    if (values['min-tokens'] !== undefined) chunkingConfig.minTokens = Number(values['min-tokens'])
+    if (values['max-heading-depth'] !== undefined)
+      chunkingConfig.maxHeadingDepth = Number(values['max-heading-depth'])
     const { createCapireEmbeddings } = await import('./lib/api.js')
-    await createCapireEmbeddings(chunkingConfig, embeddingConfig)
+    await createCapireEmbeddings(chunkingConfig, { model: values.model, output: values.output })
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1

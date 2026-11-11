@@ -263,6 +263,7 @@ See [Configuration](#configuration) for supported flags. Pass them after
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
+The CLI calls this same API. Configuration and tokenizer setup run once per call.
 
 Pass the chunking settings, custom model, and output settings to the API:
 
@@ -276,6 +277,16 @@ const result = await createCapireEmbeddings(
     model: 'nomic-ai/nomic-embed-text-v1.5',
     capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
   }
+)
+```
+
+To read a local file, use `chunkingConfig.input`. To supply Markdown directly,
+use `chunkingConfig.text`. An explicit input file takes precedence over supplied text.
+
+```js
+await createCapireEmbeddings(
+  { input: './guide.md', minTokens: 10 },
+  { dir: './embeddings', model: 'nomic-ai/nomic-embed-text-v1.5' }
 )
 ```
 
@@ -310,8 +321,10 @@ The CLI and JavaScript API use these settings:
 
 | CLI flag | API option | Description |
 | --- | --- | --- |
-| `--input <file>` | `chunkingConfig.text` | CAP documentation input. The CLI and API fetch `llms-full.txt` by default. This flag selects a local file with the same heading and source annotation structure instead. The API accepts supplied text. |
-| `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag uses the file's parent directory, not its name. |
+| `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
+| — | `chunkingConfig.text` | Markdown supplied directly to the API. |
+| `--output <file>` | `embeddingConfig.output` | Uses the file's parent directory, not its name. Takes precedence over `embeddingConfig.dir`. |
+| — | `embeddingConfig.dir` | Output directory; default `./embeddings`. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
