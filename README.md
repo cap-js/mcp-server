@@ -260,6 +260,8 @@ cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
 
+Use `--output ./embeddings` to select the output directory.
+
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
@@ -322,8 +324,7 @@ The CLI and JavaScript API use these settings:
 | --- | --- | --- |
 | `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
 | — | `chunkingConfig.text` | Markdown supplied directly to the API. |
-| `--output <file>` | `embeddingConfig.output` | Uses the file's parent directory, not its name. Takes precedence over `embeddingConfig.dir`. |
-| — | `embeddingConfig.dir` | Output directory; default `./embeddings`. |
+| `--output <directory>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |

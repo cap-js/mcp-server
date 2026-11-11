@@ -43,7 +43,7 @@ Tools:
   search_docs <query> [maxResults]
 
 Commands:
-  createCapireEmbeddings [--model <name>] [--input <file>] [--output <file>]
+  createCapireEmbeddings [--model <name>] [--input <file>] [--output <directory>]
                         [--min-tokens <number>] [--max-heading-depth <number>]`
 
 const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
@@ -86,7 +86,7 @@ if (isEmbeddingCommand) {
     if (values['max-heading-depth'] !== undefined)
       chunkingConfig.maxHeadingDepth = Number(values['max-heading-depth'])
     const { createCapireEmbeddings } = await import('./lib/api.js')
-    await createCapireEmbeddings(chunkingConfig, { model: values.model, output: values.output })
+    await createCapireEmbeddings(chunkingConfig, { model: values.model, dir: values.output })
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1

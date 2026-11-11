@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, it, mock } from 'node:test'
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
 
@@ -67,7 +67,7 @@ describe('Markdown embedding generation', () => {
         '--input',
         input,
         '--output',
-        join(root, 'chunks.json'),
+        join(root, 'generated'),
         '--min-tokens',
         '0',
         '--max-heading-depth',
@@ -80,7 +80,7 @@ describe('Markdown embedding generation', () => {
       assert.equal(writeEmbeddings.mock.calls.length, 1)
       assert.equal(writeEmbeddings.mock.calls[0].arguments[1].length, 1)
       assert.equal(writeEmbeddings.mock.calls[0].arguments[3].model, 'fixture/cli-model')
-      assert.equal(writeEmbeddings.mock.calls[0].arguments[3].dir, root)
+      assert.equal(writeEmbeddings.mock.calls[0].arguments[3].dir, join(root, 'generated'))
       assert.equal(tokenMeasure.mock.calls.length, 1)
     } finally {
       await rm(root, { recursive: true, force: true })
@@ -159,7 +159,6 @@ describe('Markdown embedding generation', () => {
     const embeddingConfig = Object.freeze({
       id: 'custom',
       dir: '/caller',
-      output: '/overridden/chunks.json',
       model: 'fixture/override',
       capireMetadata: { commitId: 'caller' }
     })
@@ -170,7 +169,7 @@ describe('Markdown embedding generation', () => {
     assert.equal(chunks.length, 1)
     assert.equal(canonical[0], 'Useful.')
     assert.equal(id, 'custom')
-    assert.equal(options.dir, '/overridden')
+    assert.equal(options.dir, '/caller')
     assert.equal(options.model, 'fixture/override')
     assert.equal(options.capire, embeddingConfig.capireMetadata)
     assert.equal(tokenMeasure.mock.callCount(), 1)
@@ -455,10 +454,7 @@ describe('Markdown embedding generation', () => {
     t.after(() => rm(root, { recursive: true, force: true }))
     const input = join(root, 'guide.md')
     await writeFile(input, '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.')
-    await generate(
-      { input },
-      { model: 'fixture/selected-model', output: '/output/code-chunks.json' }
-    )
+    await generate({ input }, { model: 'fixture/selected-model', dir: '/output' })
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.model, 'fixture/selected-model')
@@ -587,11 +583,10 @@ describe('configuration resolution and metadata', () => {
     )
     await writeFile(join(root, 'manifest.json'), 'caller-owned manifest')
     process.chdir(root)
-    await generate({ input: 'guide.md' }, { output: 'code-chunks.json' })
+    await generate({ input: 'guide.md' }, { dir: 'generated' })
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
-    const resolvedRoot = await realpath(root)
-    assert.equal(options.dir, resolvedRoot)
+    assert.equal(options.dir, 'generated')
     assert.equal(options.metadata.length, 1)
     assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/guide')
     assert.equal('capire' in options, false)
@@ -674,16 +669,16 @@ describe('configuration resolution and metadata', () => {
       const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-entry-'))
       t.after(() => rm(root, { recursive: true, force: true }))
       const input = join(root, 'input.md')
-      const output = join(root, 'chunks.json')
+      const dir = join(root, 'generated')
       await writeFile(input, '# Input\n\n> Source: /docs/input\n\nUseful.')
 
-      await generate({ input, minTokens: 0 }, { model: 'fixture/cli', output })
+      await generate({ input, minTokens: 0 }, { model: 'fixture/cli', dir })
 
       const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
       assert.equal(chunks.length, 1)
       assert.equal(canonical[0], 'Useful.')
       assert.equal(options.model, 'fixture/cli')
-      assert.equal(options.dir, root)
+      assert.equal(options.dir, dir)
       assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
     })
 
