@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
+import { createRequire } from 'node:module'
 import * as api from '@cap-js/mcp-server'
 
-const exec = promisify(execFile)
+const require = createRequire(import.meta.url)
 
 describe('public JavaScript API', () => {
   it('should expose only the generator and default model at the package root', () => {
@@ -13,27 +12,15 @@ describe('public JavaScript API', () => {
     assert.equal(typeof api.createCapireEmbeddings, 'function')
   })
 
-  it('should dynamically import from CommonJS without loading CDS or starting the CLI', async () => {
-    const script = `
-      const assert = require('node:assert/strict')
-      ;(async () => {
-        try {
-          const api = await import('@cap-js/mcp-server')
-          assert.equal(api.DEFAULT_MODEL, 'BAAI/bge-small-en-v1.5')
-          assert.equal(typeof api.createCapireEmbeddings, 'function')
-          assert.equal(Object.keys(require.cache).some(path => path.includes('/@sap/cds/')), false)
-          console.log('API imported without CDS')
-        } catch (error) {
-          console.error(error)
-          process.exitCode = 1
-        }
-      })()
-    `
+  it('should support CommonJS require without loading CDS', () => {
+    const commonJSAPI = require('@cap-js/mcp-server')
 
-    const { stdout, stderr } = await exec(process.execPath, ['--input-type=commonjs', '-e', script])
-
-    assert.equal(stdout.trim(), 'API imported without CDS')
-    assert.equal(stderr, '')
+    assert.equal(commonJSAPI.DEFAULT_MODEL, api.DEFAULT_MODEL)
+    assert.equal(commonJSAPI.createCapireEmbeddings, api.createCapireEmbeddings)
+    assert.equal(
+      Object.keys(require.cache).some((path) => path.includes('/@sap/cds/')),
+      false
+    )
   })
 
   it('should reject imports of private implementation paths', async () => {

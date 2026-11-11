@@ -3,6 +3,88 @@
 // A "bundle" is the server's binary frame: [4-byte BE meta length][meta JSON][bin].
 // `buildTestBundle` builds a real embeddings frame from TEST_CHUNKS.
 
+import { spawn } from 'node:child_process'
+import { readFile, writeFile, mkdir, rm, unlink } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join, dirname } from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// Serialized as a subprocess preload; keep its imports and state self-contained.
+async function mockBundleFetch() {
+  const { readFileSync } = await import('node:fs')
+  const { mock } = await import('node:test')
+  const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
+  const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
+  mock.method(
+    globalThis,
+    'fetch',
+    async () =>
+      new Response(prebuilt, {
+        status: 200,
+        headers: {
+          etag: `W/"${commitId}"`,
+          'x-embeddings-version': commitId,
+          'content-type': 'application/octet-stream'
+        }
+      })
+  )
+}
+
+export async function seedCliTestBundle() {
+  const { getActiveEmbeddingsDir } = await import('../../lib/calculateEmbeddings.js')
+  const { default: cds } = await import('@sap/cds')
+  const commitId = '__test_bundle__'
+  const frame = await buildTestBundle({
+    metadata: TEST_CHUNKS.map((_, i) => ({
+      headingPath: `Test Section ${i + 1}`,
+      source: 'https://cap.cloud.sap/docs/test'
+    }))
+  })
+  const metaLen = frame.readUInt32BE(0)
+  const meta = frame.subarray(4, 4 + metaLen)
+  const bin = frame.subarray(4 + metaLen)
+  const bundlePath = join(tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
+  const mockScriptUrl = `data:text/javascript,${encodeURIComponent(`await (${mockBundleFetch.toString()})()`)}`
+  const dir = join(getActiveEmbeddingsDir(), commitId)
+  const etagPath = join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
+  const savedEtag = await readFile(etagPath, 'utf8').catch(() => null)
+
+  await writeFile(bundlePath, frame)
+  await mkdir(dir, { recursive: true })
+  await writeFile(join(dir, 'code-chunks.json'), meta)
+  await writeFile(join(dir, 'code-chunks.bin'), bin)
+
+  async function cleanup() {
+    await rm(dir, { recursive: true, force: true }).catch(() => {})
+    await unlink(bundlePath).catch(() => {})
+    if (savedEtag !== null) {
+      await mkdir(dirname(etagPath), { recursive: true })
+      await writeFile(etagPath, savedEtag)
+    } else {
+      await rm(dirname(etagPath), { recursive: true, force: true }).catch(() => {})
+    }
+  }
+
+  return { bundlePath, mockScriptUrl, commitId, versionDir: dir, cleanup }
+}
+
+export function runCliCommand(args, options = {}) {
+  const cliPath = fileURLToPath(new URL('../../index.js', import.meta.url))
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [cliPath, ...args], { ...options, stdio: 'pipe' })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.on('data', (data) => {
+      stdout += data.toString()
+    })
+    child.stderr.on('data', (data) => {
+      stderr += data.toString()
+    })
+    child.on('close', (code) => resolve({ code, stdout, stderr }))
+    child.on('error', reject)
+  })
+}
+
 export const TEST_CHUNKS = [
   'To create a new CAP project, run: cds init my-project. The cds init command scaffolds a minimal project.',
   'Use cds add hana to add HANA support. First run cds init to bootstrap the project structure.',

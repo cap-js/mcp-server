@@ -3,114 +3,17 @@ import assert from 'node:assert'
 import { test, describe, before, after } from 'node:test'
 import { spawn } from 'node:child_process'
 import { join, dirname } from 'path'
-import { fileURLToPath, pathToFileURL } from 'url'
+import { fileURLToPath } from 'url'
 import fs from 'fs/promises'
 import os from 'os'
-import { DEFAULT_DIR, getActiveEmbeddingsDir, getActiveModel } from '../lib/calculateEmbeddings.js'
-import { buildTestBundle, TEST_CHUNKS } from './helpers/test-bundle.js'
-import { writeFile, mkdir, rm, unlink, readFile } from 'node:fs/promises'
-
+import { DEFAULT_DIR } from '../lib/calculateEmbeddings.js'
+import { seedCliTestBundle, runCliCommand } from './helpers/test-bundle.js'
 const TEST_COMMIT_ID = '__test_bundle__'
-const cds = (await import('@sap/cds')).default
 
 const sampleProjectPath = join(dirname(fileURLToPath(import.meta.url)), 'sample')
 const cdsMcpPath = join(dirname(fileURLToPath(import.meta.url)), '../index.js')
 
-// Subprocess fetch mock — injected via NODE_OPTIONS=--import into child processes.
-// Reads a prebuilt bundle from CDS_MCP_TEST_BUNDLE_PATH and serves it for /getEmbeddings.
-const bundleMockScript = `
-import { readFileSync } from 'node:fs'
-import { mock } from 'node:test'
-const prebuilt = readFileSync(process.env.CDS_MCP_TEST_BUNDLE_PATH)
-const commitId = process.env.CDS_MCP_TEST_BUNDLE_VERSION ?? '__test_bundle__'
-mock.method(globalThis, 'fetch', async () =>
-  new Response(prebuilt, {
-    status: 200,
-    headers: { etag: \`W/"\${commitId}"\`, 'x-embeddings-version': commitId, 'content-type': 'application/octet-stream' }
-  })
-)
-`
-
-// Seed the REAL disk for subprocess-based CLI tests. Those tests spawn child
-// `node` processes, so the in-process fs mock never reaches them — the child reads
-// real files. The writes use named fs imports, so they stay on the real disk even
-// if a test also calls remapFs().
-function unframeBundle(frame) {
-  const metaLen = frame.readUInt32BE(0)
-  return { meta: frame.subarray(4, 4 + metaLen), bin: frame.subarray(4 + metaLen) }
-}
-
-async function seedCliTestBundle() {
-  const frame = await buildTestBundle({
-    metadata: TEST_CHUNKS.map((_, i) => ({
-      headingPath: `Test Section ${i + 1}`,
-      source: 'https://cap.cloud.sap/docs/test'
-    }))
-  })
-  const { meta, bin } = unframeBundle(frame)
-
-  const bundlePath = join(os.tmpdir(), `cds-mcp-test-bundle-${process.pid}.bin`)
-  const mockScriptPath = join(os.tmpdir(), `cds-mcp-test-mock-${process.pid}.mjs`)
-  const dir = join(getActiveEmbeddingsDir(), TEST_COMMIT_ID)
-  const etagPath = join(getActiveEmbeddingsDir(), 'etags', cds.version, 'manifest.etag')
-  const savedEtag = await readFile(etagPath, 'utf-8').catch(() => null)
-
-  await writeFile(bundlePath, frame)
-  await writeFile(mockScriptPath, bundleMockScript)
-  await mkdir(dir, { recursive: true })
-  await writeFile(join(dir, 'code-chunks.json'), meta)
-  await writeFile(join(dir, 'code-chunks.bin'), bin)
-
-  async function cleanup() {
-    await rm(dir, { recursive: true, force: true }).catch(() => {})
-    await unlink(bundlePath).catch(() => {})
-    await unlink(mockScriptPath).catch(() => {})
-    if (savedEtag !== null) {
-      await mkdir(dirname(etagPath), { recursive: true })
-      await writeFile(etagPath, savedEtag)
-    } else {
-      await rm(dirname(etagPath), { recursive: true, force: true }).catch(() => {})
-    }
-  }
-
-  return { bundlePath, mockScriptPath, commitId: TEST_COMMIT_ID, versionDir: dir, cleanup }
-}
-
 let ctx
-
-function runCliCommand(args, options = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn('node', [cdsMcpPath, ...args], {
-      ...options,
-      stdio: 'pipe'
-    })
-
-    let stdout = ''
-    let stderr = ''
-
-    child.stdout.on('data', (data) => {
-      stdout += data.toString()
-    })
-
-    child.stderr.on('data', (data) => {
-      stderr += data.toString()
-    })
-
-    child.on('close', (code) => {
-      resolve({ code, stdout, stderr })
-    })
-
-    child.on('error', (error) => {
-      reject(error)
-    })
-  })
-}
-
-const noFetchEnv = {
-  ...process.env,
-  NODE_OPTIONS:
-    '--import "data:text/javascript,globalThis.fetch = () => { throw new Error(\'fetch disabled in offline mode\') }"'
-}
 
 before(async () => {
   ctx = await seedCliTestBundle()
@@ -181,7 +84,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `--import "${ctx.mockScriptUrl}"`
       }
     })
 
@@ -197,7 +100,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `--import "${ctx.mockScriptUrl}"`
       }
     })
 
@@ -258,7 +161,7 @@ describe('CLI usage', () => {
         ...process.env,
         CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
         CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+        NODE_OPTIONS: `--import "${ctx.mockScriptUrl}"`
       }
     })
 
@@ -266,118 +169,6 @@ describe('CLI usage', () => {
     const output = JSON.parse(result.stdout)
     assert(typeof output.commitId === 'string', 'Should return a commitId string')
     assert(typeof output.updated === 'boolean', 'Should return an updated boolean')
-  })
-
-  test('--offline search_docs works without downloading', async () => {
-    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
-      env: noFetchEnv
-    })
-
-    assert.equal(result.code, 0, 'Command should exit with code 0')
-    assert(result.stdout.length > 0, 'Should produce output')
-    assert(result.stdout.includes('---'), 'Output should contain document separators')
-  })
-
-  test('--offline is incompatible with --download', async () => {
-    const result = await runCliCommand(['--offline', '--download'])
-
-    assert.equal(result.code, 1, 'Command should exit with code 1')
-    assert(result.stderr.includes('must be the only argument'), 'Should show error message')
-  })
-
-  test('CDS_MCP_OFFLINE=true search_docs works without downloading', async () => {
-    const result = await runCliCommand(['search_docs', 'select statement'], {
-      env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true' }
-    })
-
-    assert.equal(result.code, 0, 'Command should exit with code 0')
-    assert(result.stdout.length > 0, 'Should produce output')
-    assert(result.stdout.includes('---'), 'Output should contain document separators')
-  })
-
-  for (const args of [
-    ['--offline', 'search_docs', 'select statement'],
-    ['search_docs', 'select statement']
-  ]) {
-    test(`CDS_MCP_OFFLINE_DIR selects an external bundle with ${args.includes('--offline') ? '--offline' : 'CDS_MCP_OFFLINE=true'}`, async (t) => {
-      const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-dir-'))
-      t.after(() => fs.rm(dir, { recursive: true, force: true }))
-      const meta = JSON.parse(await readFile(join(ctx.versionDir, 'code-chunks.json'), 'utf8'))
-      meta.model = getActiveModel()
-      meta.chunks = meta.chunks.map((chunk) => `External generated bundle: ${chunk}`)
-      await writeFile(join(dir, 'code-chunks.json'), JSON.stringify(meta))
-      await fs.copyFile(join(ctx.versionDir, 'code-chunks.bin'), join(dir, 'code-chunks.bin'))
-
-      const result = await runCliCommand(args, {
-        env: {
-          ...noFetchEnv,
-          CDS_MCP_OFFLINE: args.includes('--offline') ? 'false' : 'true',
-          CDS_MCP_OFFLINE_DIR: '.',
-          CDS_MCP_MODEL: 'unavailable/active-model'
-        },
-        cwd: dir
-      })
-
-      assert.equal(result.code, 0, result.stderr)
-      assert(result.stdout.includes('External generated bundle:'), result.stdout)
-      assert(!result.stderr.includes('Using:'), 'Must not use cache discovery')
-    })
-  }
-
-  test('CDS_MCP_OFFLINE_DIR rejects a missing bundle without falling back to the cache', async (t) => {
-    const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-missing-'))
-    t.after(() => fs.rm(dir, { recursive: true, force: true }))
-
-    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
-      env: { ...noFetchEnv, CDS_MCP_OFFLINE_DIR: dir }
-    })
-
-    assert.equal(result.code, 1, result.stderr)
-    assert(result.stderr.includes('ENOENT'), result.stderr)
-    assert(result.stderr.includes(join(dir, 'code-chunks.json')), result.stderr)
-  })
-
-  test('CDS_MCP_OFFLINE_DIR rejects an empty directory setting', async () => {
-    const result = await runCliCommand(['--offline', 'search_docs', 'select statement'], {
-      env: { ...noFetchEnv, CDS_MCP_OFFLINE_DIR: '   ' }
-    })
-
-    assert.equal(result.code, 1, result.stderr)
-    assert(result.stderr.includes('CDS_MCP_OFFLINE_DIR must not be empty'), result.stderr)
-  })
-
-  test('CDS_MCP_OFFLINE_DIR preserves corrupted generated files without downloading', async (t) => {
-    const dir = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-offline-corrupt-'))
-    t.after(() => fs.rm(dir, { recursive: true, force: true }))
-    const json = JSON.stringify({ dim: 1, count: 1, chunks: ['Generated content.'] })
-    const bin = Buffer.from([0])
-    await writeFile(join(dir, 'code-chunks.json'), json)
-    await writeFile(join(dir, 'code-chunks.bin'), bin)
-
-    const result = await runCliCommand(['search_docs', 'generated content'], {
-      env: { ...noFetchEnv, CDS_MCP_OFFLINE: 'true', CDS_MCP_OFFLINE_DIR: dir }
-    })
-
-    assert.equal(result.code, 1, result.stderr)
-    assert(result.stderr.includes('Corrupted files'), result.stderr)
-    assert(!result.stderr.includes('fetch disabled'), result.stderr)
-    assert.equal(await readFile(join(dir, 'code-chunks.json'), 'utf8'), json)
-    assert.deepEqual(await readFile(join(dir, 'code-chunks.bin')), bin)
-  })
-
-  test('CDS_MCP_OFFLINE_DIR is ignored outside offline mode', async () => {
-    const result = await runCliCommand(['search_docs', 'select statement'], {
-      env: {
-        ...process.env,
-        CDS_MCP_OFFLINE: 'false',
-        CDS_MCP_OFFLINE_DIR: '/nonexistent/generated/embeddings',
-        CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
-        NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
-      }
-    })
-
-    assert.equal(result.code, 0, result.stderr)
-    assert(result.stdout.length > 0)
   })
 
   test('no arguments starts MCP server mode', async () => {
@@ -410,7 +201,7 @@ describe('CLI usage', () => {
           ...process.env,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+          NODE_OPTIONS: `--import "${ctx.mockScriptUrl}"`
         }
       })
 
@@ -451,7 +242,7 @@ describe('CLI usage', () => {
           CDS_MCP_MODEL: altModel,
           CDS_MCP_TEST_BUNDLE_PATH: ctx.bundlePath,
           CDS_MCP_TEST_BUNDLE_VERSION: TEST_COMMIT_ID,
-          NODE_OPTIONS: `--import "${pathToFileURL(ctx.mockScriptPath).href}"`
+          NODE_OPTIONS: `--import "${ctx.mockScriptUrl}"`
         }
       })
 

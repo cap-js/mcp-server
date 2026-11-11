@@ -55,6 +55,51 @@ describe('loadChunks', () => {
       assert.ok(binGone, 'bin file must be deleted on CORRUPTED')
     })
 
+    test('preserves caller-owned files after corruption', async () => {
+      for (const [name, json, bin] of [
+        ['invalid JSON', 'invalid json content', new Float32Array([1])],
+        [
+          'invalid binary size',
+          { dim: 2, count: 1, chunks: ['Generated content.'] },
+          new Float32Array([1])
+        ],
+        [
+          'inconsistent count',
+          { dim: 1, count: 2, chunks: ['Generated content.'] },
+          new Float32Array([1])
+        ]
+      ]) {
+        await seedCode(json, bin)
+        const dir = getActiveEmbeddingsDir()
+        const expectedJSON = typeof json === 'string' ? json : JSON.stringify(json)
+        await fsp.writeFile(path.join(dir, 'code.etag'), 'caller-owned etag')
+
+        await assert.rejects(
+          loadChunks('code', dir, { deleteCorrupted: false }),
+          {
+            code: 'EMBEDDINGS_CORRUPTED'
+          },
+          name
+        )
+
+        assert.strictEqual(
+          await fsp.readFile(path.join(dir, 'code.json'), 'utf8'),
+          expectedJSON,
+          name
+        )
+        assert.deepStrictEqual(
+          await fsp.readFile(path.join(dir, 'code.bin')),
+          Buffer.from(bin.buffer),
+          name
+        )
+        assert.strictEqual(
+          await fsp.readFile(path.join(dir, 'code.etag'), 'utf8'),
+          'caller-owned etag',
+          name
+        )
+      }
+    })
+
     test('throws CORRUPTED when JSON is valid but missing dim field', async () => {
       await seedCode({ chunks: ['test'] }, new Float32Array([1, 2, 3, 4])) // missing dim
       await assert.rejects(loadChunks('code'), (err) => err.code === 'EMBEDDINGS_CORRUPTED')
