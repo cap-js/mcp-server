@@ -260,6 +260,8 @@ cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
 
+Use `--output ./generated-embeddings` to select the output directory.
+
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
