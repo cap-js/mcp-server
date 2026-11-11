@@ -158,7 +158,7 @@ describe('Markdown embedding generation', () => {
     })
     const embeddingConfig = Object.freeze({
       id: 'custom',
-      dir: '/caller',
+      output: '/caller',
       model: 'fixture/override',
       capireMetadata: { commitId: 'caller' }
     })
@@ -181,12 +181,12 @@ describe('Markdown embedding generation', () => {
 
     const resolved = await resolveConfig(
       { text, minTokens: 0, maxHeadingDepth: 2, maxTokens: 9999 },
-      { id: 'retained', dir: '/retained', model: 'fixture/retained' }
+      { id: 'retained', output: '/retained', model: 'fixture/retained' }
     )
 
     assert.equal(resolved.chunkingConfig.text, text)
     assert.equal(resolved.embeddingConfig.id, 'retained')
-    assert.equal(resolved.embeddingConfig.dir, '/retained')
+    assert.equal(resolved.embeddingConfig.output, '/retained')
     assert.equal(resolved.embeddingConfig.model, 'fixture/retained')
     assert.equal(resolved.chunkingConfig.minTokens, 0)
     assert.equal(resolved.chunkingConfig.maxHeadingDepth, 2)
@@ -436,7 +436,7 @@ describe('Markdown embedding generation', () => {
       {},
       {
         id: 'guide',
-        dir: '/output',
+        output: '/output',
         model: 'fixture/selected-model',
         capireMetadata
       }
@@ -454,7 +454,7 @@ describe('Markdown embedding generation', () => {
     t.after(() => rm(root, { recursive: true, force: true }))
     const input = join(root, 'guide.md')
     await writeFile(input, '# Guide\n\n> Source: /docs/guide\n\nGeneral documentation content.')
-    await generate({ input }, { model: 'fixture/selected-model', dir: '/output' })
+    await generate({ input }, { model: 'fixture/selected-model', output: '/output' })
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.model, 'fixture/selected-model')
@@ -583,7 +583,7 @@ describe('configuration resolution and metadata', () => {
     )
     await writeFile(join(root, 'manifest.json'), 'caller-owned manifest')
     process.chdir(root)
-    await generate({ input: 'guide.md' }, { dir: 'generated' })
+    await generate({ input: 'guide.md' }, { output: 'generated' })
 
     const [, , , options] = writeEmbeddings.mock.calls[0].arguments
     assert.equal(options.dir, 'generated')
@@ -669,16 +669,16 @@ describe('configuration resolution and metadata', () => {
       const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-entry-'))
       t.after(() => rm(root, { recursive: true, force: true }))
       const input = join(root, 'input.md')
-      const dir = join(root, 'generated')
+      const output = join(root, 'generated')
       await writeFile(input, '# Input\n\n> Source: /docs/input\n\nUseful.')
 
-      await generate({ input, minTokens: 0 }, { model: 'fixture/cli', dir })
+      await generate({ input, minTokens: 0 }, { model: 'fixture/cli', output })
 
       const [, chunks, canonical, options] = writeEmbeddings.mock.calls[0].arguments
       assert.equal(chunks.length, 1)
       assert.equal(canonical[0], 'Useful.')
       assert.equal(options.model, 'fixture/cli')
-      assert.equal(options.dir, dir)
+      assert.equal(options.dir, output)
       assert.equal(options.metadata[0].source, 'https://cap.cloud.sap/docs/input')
     })
 

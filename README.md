@@ -274,7 +274,7 @@ import { createCapireEmbeddings } from '@cap-js/mcp-server'
 const result = await createCapireEmbeddings(
   { minTokens: 10, maxHeadingDepth: 5 },
   {
-    dir: './embeddings',
+    output: './embeddings',
     model: 'nomic-ai/nomic-embed-text-v1.5',
     capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
   }
@@ -287,7 +287,7 @@ use `chunkingConfig.text`. An explicit input file takes precedence over supplied
 ```js
 await createCapireEmbeddings(
   { input: './guide.md', minTokens: 10 },
-  { dir: './embeddings', model: 'nomic-ai/nomic-embed-text-v1.5' }
+  { output: './embeddings', model: 'nomic-ai/nomic-embed-text-v1.5' }
 )
 ```
 
@@ -324,7 +324,7 @@ The CLI and JavaScript API use these settings:
 | --- | --- | --- |
 | `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
 | — | `chunkingConfig.text` | Markdown supplied directly to the API. |
-| `--output <directory>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. |
+| `--output <directory>` | `embeddingConfig.output` | Output directory; default `./embeddings`. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
