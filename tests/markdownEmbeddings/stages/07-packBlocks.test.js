@@ -1352,6 +1352,49 @@ describe('chunk', () => {
   })
 
   describe('when enforcing the rendered token budget', () => {
+    for (const openerLength of [70, 120]) {
+      it(`should charge a ${openerLength}-character list opener once and keep a nested warning intact`, () => {
+        const opener =
+          '- ' +
+          'word '.repeat(Math.floor((openerLength - 2) / 5)) +
+          'x'.repeat((openerLength - 2) % 5)
+        const warningText = 'Path expressions are not writable. Annotate associations as readonly.'
+        const warning = {
+          text: `::: warning Paths\n${warningText}\n:::`,
+          opener: '::: warning Paths',
+          closer: ':::',
+          type: 'container',
+          supressCut: true,
+          parts: [{ text: warningText, type: 'paragraph', supressCut: false }]
+        }
+        const original = `${opener}\n${warning.text}`
+        const blocks = [
+          {
+            text: original,
+            opener,
+            type: 'bullet-item',
+            supressCut: false,
+            parts: [warning]
+          }
+        ]
+
+        const result = packBlocks(blocks, { maxTokens: 100, measure: (text) => text.length })
+
+        const openerFragments = openerLength > 100 ? 2 : 1
+        assert.strictEqual(result.length, openerFragments + 1)
+        assert.strictEqual(result.at(-1).embeddingBody, warning.text)
+        assert.strictEqual(
+          result
+            .slice(0, openerFragments)
+            .map((c) => c.embeddingBody)
+            .join(' '),
+          opener
+        )
+        assert.ok(result.every((c) => c.embeddingBody.length <= 100))
+        assert.ok(result.every((c) => c.displayBody === original))
+      })
+    }
+
     it('should remeasure later fragments after a heading context is consumed', () => {
       const words = 'one two three four five six seven eight nine ten'
       const blocks = [
