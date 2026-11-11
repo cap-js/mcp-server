@@ -263,7 +263,6 @@ See [Configuration](#configuration) for supported flags. Pass them after
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
-The CLI calls this same API. Configuration and tokenizer setup run once per call.
 
 Pass the chunking settings, custom model, and output settings to the API:
 
