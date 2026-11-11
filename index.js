@@ -44,7 +44,8 @@ Tools:
 
 Commands:
   createCapireEmbeddings [--model <name>] [--input <file>] [--output <directory>]
-                        [--min-tokens <number>] [--max-heading-depth <number>]`
+                        [--capireMetadata <json>] [--min-tokens <number>] [--max-heading-depth <number>]
+                        Repeat --model to generate multiple models. Results are JSON on stdout.`
 
 const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
 let values, positionals
@@ -55,7 +56,8 @@ try {
       ? {
           input: { type: 'string' },
           output: { type: 'string' },
-          model: { type: 'string' },
+          model: { type: 'string', multiple: true },
+          capireMetadata: { type: 'string' },
           'min-tokens': { type: 'string' },
           'max-heading-depth': { type: 'string' }
         }
@@ -80,16 +82,44 @@ try {
 }
 
 if (isEmbeddingCommand) {
+  const originalLog = console.log
+  const originalInfo = console.info
   try {
     const chunkingConfig = { input: values.input }
     if (values['min-tokens'] !== undefined) chunkingConfig.minTokens = Number(values['min-tokens'])
     if (values['max-heading-depth'] !== undefined)
       chunkingConfig.maxHeadingDepth = Number(values['max-heading-depth'])
+    let capireMetadata
+    if (values.capireMetadata !== undefined) {
+      capireMetadata = JSON.parse(values.capireMetadata)
+      if (!capireMetadata || typeof capireMetadata !== 'object' || Array.isArray(capireMetadata))
+        throw new Error('--capireMetadata must contain a JSON object')
+      const { commitId } = capireMetadata
+      if (
+        commitId !== undefined &&
+        (typeof commitId !== 'string' ||
+          !commitId.trim() ||
+          commitId === '.' ||
+          commitId === '..' ||
+          /[/\\]/.test(commitId))
+      )
+        throw new Error('metadata commitId must be a single directory name')
+    }
+    // Keep generation diagnostics separate from machine-readable results.
+    console.log = console.info = (...args) => console.error(...args)
     const { createCapireEmbeddings } = await import('./lib/api.js')
-    await createCapireEmbeddings(chunkingConfig, { model: values.model, output: values.output })
+    const result = await createCapireEmbeddings(chunkingConfig, {
+      model: values.model,
+      output: values.output,
+      capireMetadata
+    })
+    process.stdout.write(`${JSON.stringify(Array.isArray(result) ? result : [result])}\n`)
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1
+  } finally {
+    console.log = originalLog
+    console.info = originalInfo
   }
 } else {
   // Set model BEFORE any import that triggers embeddings download side-effects.

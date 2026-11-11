@@ -181,6 +181,22 @@ describe('CLI usage', () => {
     assert(result.stderr.includes('Markdown text is required'), result.stderr)
   })
 
+  test('createCapireEmbeddings rejects invalid publication metadata before generation', async () => {
+    for (const [text, error] of [
+      ['{', 'SyntaxError'],
+      ['null', 'JSON object'],
+      ['[]', 'JSON object'],
+      ['{"commitId":"../outside"}', 'single directory name'],
+      ['{"commitId":".."}', 'single directory name'],
+      ['{"commitId":123}', 'single directory name']
+    ]) {
+      const result = await runCliCommand(['createCapireEmbeddings', '--capireMetadata', text])
+      assert.equal(result.code, 1)
+      assert.equal(result.stdout, '')
+      assert(result.stderr.includes(error), result.stderr)
+    }
+  })
+
   test('--version shows version number', async () => {
     const result = await runCliCommand(['--version'])
 

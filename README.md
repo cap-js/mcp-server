@@ -262,6 +262,31 @@ See [Configuration](#configuration) for supported flags. Pass them after
 
 Use `--output ./embeddings` to select the output directory.
 
+Repeat `--model` to generate multiple models from one documentation read or fetch.
+Use `--capireMetadata <json>` to pass Capire publication metadata as a JSON string:
+
+```sh
+cds-mcp createCapireEmbeddings --output ./embeddings \
+  --capireMetadata '{"commitId":"documentation-revision","version":"1.0.0","cdsDependency":{"node":">=10.1.0","java":">=5.1.0"}}' \
+  --model BAAI/bge-small-en-v1.5 --model nomic-ai/nomic-embed-text-v1.5
+```
+
+The JSON string can contain these fields:
+
+```json
+{
+  "commitId": "documentation-revision",
+  "version": "1.0.0",
+  "cdsDependency": { "node": ">=10.1.0", "java": ">=5.1.0" }
+}
+```
+
+The command writes a JSON array of generation results to stdout. Each result
+contains `dim`, `count`, `outDir`, and `modelFolderName`. Diagnostics go to stderr.
+The array is written only after all models succeed. A failed batch can leave
+generated files for earlier models; the CLI does not update a publication manifest.
+Version retention and manifest updates remain the publisher's responsibility.
+
 ### Generate capire embeddings programmatically
 
 The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
@@ -280,6 +305,10 @@ const result = await createCapireEmbeddings(
   }
 )
 ```
+
+To generate multiple models programmatically, pass an array to
+`embeddingConfig.model`. The API returns an array of results in the same order.
+A single model name, or an omitted model, still returns one result object.
 
 To read a local file, use `chunkingConfig.input`. To supply Markdown directly,
 use `chunkingConfig.text`. An explicit input file takes precedence over supplied text.
@@ -325,10 +354,10 @@ The CLI and JavaScript API use these settings:
 | `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
 | — | `chunkingConfig.text` | Markdown supplied directly to the API. |
 | `--output <directory>` | `embeddingConfig.output` | Output directory; default `./embeddings`. |
-| `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
+| `--model <name>` | `embeddingConfig.model` | Embedding model. Repeat the flag or pass an API array for multiple models. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
-| — | `embeddingConfig.capireMetadata` | Optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. |
+| `--capireMetadata <json>` | `embeddingConfig.capireMetadata` | JSON string with optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. CLI `commitId` must be a single directory name. |
 
 ## Support, Feedback, Contributing
 
