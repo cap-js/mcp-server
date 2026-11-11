@@ -132,6 +132,53 @@ describe('CLI usage', () => {
     assert(result.stdout.includes('Usage: cds-mcp'), 'Should show usage line')
     assert(result.stdout.includes('--help'), 'Should list --help option')
     assert(result.stdout.includes('search_model'), 'Should list search_model tool')
+    assert(result.stdout.includes('createCapireEmbeddings'), 'Should list embedding command')
+  })
+
+  test('createCapireEmbeddings rejects unknown generation flags', async () => {
+    const result = await runCliCommand(['createCapireEmbeddings', '--foo'])
+
+    assert.equal(result.code, 1)
+    assert(result.stderr.includes("Unknown option '--foo'"), result.stderr)
+    assert(!result.stderr.includes('Usage: cds-mcp'), 'Should use the generation argument parser')
+  })
+
+  for (const flag of ['--offline', '--download']) {
+    test(`createCapireEmbeddings rejects ${flag}`, async () => {
+      const result = await runCliCommand(['createCapireEmbeddings', flag])
+      assert.equal(result.code, 1)
+      assert(result.stderr.includes(`Unknown option '${flag}'`), result.stderr)
+    })
+  }
+
+  test('createCapireEmbeddings rejects positional input', async () => {
+    const result = await runCliCommand(['createCapireEmbeddings', 'input.md'])
+    assert.equal(result.code, 1)
+    assert(result.stderr.includes('Unexpected argument'), result.stderr)
+  })
+
+  test('server commands reject generation-only flags', async () => {
+    const result = await runCliCommand(['search_docs', 'query', '--min-tokens', '0'])
+    assert.equal(result.code, 1)
+    assert(result.stderr.includes('Usage: cds-mcp'), result.stderr)
+  })
+
+  test('createCapireEmbeddings reports input errors', async (t) => {
+    const root = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-cli-input-'))
+    t.after(() => fs.rm(root, { recursive: true, force: true }))
+    const input = join(root, 'empty.md')
+    await fs.writeFile(input, '')
+
+    const result = await runCliCommand([
+      'createCapireEmbeddings',
+      '--model',
+      'fixture/custom-model',
+      '--input',
+      input
+    ])
+
+    assert.equal(result.code, 1)
+    assert(result.stderr.includes('Markdown text is required'), result.stderr)
   })
 
   test('--version shows version number', async () => {
