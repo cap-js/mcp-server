@@ -257,12 +257,6 @@ The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
 cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 ```
 
-If the package is installed as a development dependency, use:
-
-```sh
-npm exec -- cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
-```
-
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
 
