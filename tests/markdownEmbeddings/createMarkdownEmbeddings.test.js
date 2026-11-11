@@ -61,9 +61,11 @@ async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {})
 
 const originalArgv = process.argv
 const originalCwd = process.cwd()
+const originalExitCode = process.exitCode
 afterEach(() => {
   process.argv = originalArgv
   process.chdir(originalCwd)
+  process.exitCode = originalExitCode
   writeEmbeddings.mock.resetCalls()
   tokenMeasure.mock.resetCalls()
 })
@@ -129,7 +131,7 @@ describe('Markdown embedding generation', () => {
     assert.equal(JSON.parse(stdout[0]).length, 1)
   })
 
-  it('should pass metadata and repeated models through the CLI with JSON-only stdout', async (t) => {
+  it('should save batch results separately from normal CLI diagnostics without changing console functions', async (t) => {
     const root = await mkdtemp(join(tmpdir(), 'mcp-cli-metadata-'))
     t.after(() => rm(root, { recursive: true, force: true }))
     const metadata = {
@@ -143,7 +145,10 @@ describe('Markdown embedding generation', () => {
       '# Release\n\n> Source: /docs/releases/v1\n\nRelease documentation to discard.'
     const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
     const stdout = captureStdout(t)
-    const diagnostics = t.mock.method(console, 'error', () => {})
+    const diagnostics = t.mock.method(console, 'log', () => {})
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    const originalInfo = console.info
+    const resultsFile = join(root, 'batch results.json')
     process.argv = [
       process.execPath,
       new URL('../../index.js', import.meta.url).pathname,
@@ -155,7 +160,9 @@ describe('Markdown embedding generation', () => {
       '--model',
       'fixture/second',
       '--output',
-      root
+      root,
+      '--results',
+      resultsFile
     ]
 
     await import('../../index.js?cli-batch')
@@ -164,7 +171,12 @@ describe('Markdown embedding generation', () => {
     assert.equal(tokenMeasure.mock.calls.length, 2)
     assert.equal(writeEmbeddings.mock.calls.length, 2)
     assert(diagnostics.mock.calls.some((call) => String(call.arguments[0]).includes('[filter]')))
-    const results = JSON.parse(stdout[0])
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    assert.equal(console.log, diagnostics)
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    assert.equal(console.info, originalInfo)
+    assert.deepEqual(stdout, [])
+    const results = JSON.parse(await readFile(resultsFile, 'utf8'))
     assert.deepEqual(
       results.map((result) => result.model),
       ['fixture/first', 'fixture/second']
@@ -173,6 +185,63 @@ describe('Markdown embedding generation', () => {
       assert.deepEqual(call.arguments[3].capire, metadata)
       assert.equal(call.arguments[3].dir, root)
     }
+  })
+
+  it('should preserve an existing results file when a later CLI model fails', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-results-failure-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const resultsFile = join(root, 'results.json')
+    await writeFile(resultsFile, 'previous results')
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response('# Guide\n\n> Source: /docs/guide\n\nDocumentation content.')
+    )
+    t.mock.method(process.stderr, 'write', () => true)
+    tokenMeasure.mock.mockImplementationOnce(async () => {
+      throw new Error('Second model failed')
+    }, 1)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--model',
+      'fixture/first',
+      '--model',
+      'fixture/second',
+      '--results',
+      resultsFile
+    ]
+
+    await import('../../index.js?cli-results-failure')
+
+    assert.equal(process.exitCode, 1)
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert.equal(await readFile(resultsFile, 'utf8'), 'previous results')
+  })
+
+  it('should exit with an error when the results file cannot be written', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-results-write-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response('# Guide\n\n> Source: /docs/guide\n\nDocumentation content.')
+    )
+    const stderr = t.mock.method(process.stderr, 'write', () => true)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--results',
+      root
+    ]
+
+    await import('../../index.js?cli-results-write-error')
+
+    assert.equal(process.exitCode, 1)
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert(stderr.mock.calls.some((call) => String(call.arguments[0]).includes('EISDIR')))
   })
 
   it('should share one fetched document across programmatic model batches', async (t) => {
@@ -221,7 +290,9 @@ describe('Markdown embedding generation', () => {
       '--input',
       'guide.md',
       '--model',
-      'fixture/file-model'
+      'fixture/file-model',
+      '--results',
+      './generation results.json'
     ]
     const stdout = captureStdout(t)
 
@@ -230,7 +301,9 @@ describe('Markdown embedding generation', () => {
     assert.equal(writeEmbeddings.mock.calls.length, 1)
     assert.deepEqual(writeEmbeddings.mock.calls[0].arguments[3].capire, metadata)
     assert.equal(tokenMeasure.mock.calls.length, 1)
-    assert.equal(JSON.parse(stdout[0])[0].modelFolderName, 'fixture--file-model')
+    assert.deepEqual(stdout, [])
+    const results = JSON.parse(await readFile(join(root, 'generation results.json'), 'utf8'))
+    assert.equal(results[0].modelFolderName, 'fixture--file-model')
   })
 
   it('should not reread a batch input file after the first model', async (t) => {

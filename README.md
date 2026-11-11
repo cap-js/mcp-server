@@ -260,13 +260,11 @@ cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
 
-Use `--output ./embeddings` to select the output directory.
-
 Repeat `--model` to generate multiple models from one documentation read or fetch.
 Use `--capireMetadata <json>` to pass Capire publication metadata as a JSON string:
 
 ```sh
-cds-mcp createCapireEmbeddings --output ./embeddings \
+cds-mcp createCapireEmbeddings \
   --capireMetadata '{"commitId":"documentation-revision","version":"1.0.0","cdsDependency":{"node":">=10.1.0","java":">=5.1.0"}}' \
   --model BAAI/bge-small-en-v1.5 --model nomic-ai/nomic-embed-text-v1.5
 ```
@@ -284,13 +282,9 @@ The JSON string can contain these fields:
 You can also pass a JSON file path. Relative paths use the current working directory:
 
 ```sh
-cds-mcp createCapireEmbeddings --capireMetadata ./publication.json --output ./embeddings
+cds-mcp createCapireEmbeddings --capireMetadata ./publication.json
 ```
 
-The command writes a JSON array of generation results to stdout. Each result
-contains `dim`, `count`, `outDir`, and `modelFolderName`. Diagnostics go to stderr.
-The array is written only after all models succeed. A failed batch can leave
-generated files for earlier models; the CLI does not update a publication manifest.
 Version retention and manifest updates remain the publisher's responsibility.
 
 ### Generate capire embeddings programmatically
@@ -305,7 +299,6 @@ import { createCapireEmbeddings } from '@cap-js/mcp-server'
 const result = await createCapireEmbeddings(
   { minTokens: 10, maxHeadingDepth: 5 },
   {
-    output: './embeddings',
     model: 'nomic-ai/nomic-embed-text-v1.5',
     capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
   }
@@ -322,7 +315,7 @@ use `chunkingConfig.text`. An explicit input file takes precedence over supplied
 ```js
 await createCapireEmbeddings(
   { input: './guide.md', minTokens: 10 },
-  { output: './embeddings', model: 'nomic-ai/nomic-embed-text-v1.5' }
+  { model: 'nomic-ai/nomic-embed-text-v1.5' }
 )
 ```
 
@@ -360,6 +353,7 @@ The CLI and JavaScript API use these settings:
 | `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
 | — | `chunkingConfig.text` | Markdown supplied directly to the API. |
 | `--output <directory>` | `embeddingConfig.output` | Output directory; default `./embeddings`. |
+| `--results <file>` | — | Save a JSON result array (`dim`, `count`, `outDir`, `modelFolderName`) after all models succeed. Relative paths use the current working directory; the parent directory must exist. Generation failures leave an existing results file unchanged, but can leave files for earlier models. Without this flag, results appear alongside diagnostics on stdout. |
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Repeat the flag or pass an API array for multiple models. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |

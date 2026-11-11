@@ -7,7 +7,7 @@ process.emitWarning = (warning, ...args) => {
 }
 
 import { parseArgs } from 'node:util'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import { configuredBoolean } from './lib/utils.js'
@@ -44,8 +44,9 @@ Tools:
 
 Commands:
   createCapireEmbeddings [--model <name>] [--input <file>] [--output <directory>]
-                        [--capireMetadata <json-or-file>] [--min-tokens <number>] [--max-heading-depth <number>]
-                        Repeat --model to generate multiple models. Results are JSON on stdout.`
+                        [--capireMetadata <json-or-file>] [--results <file>]
+                        [--min-tokens <number>] [--max-heading-depth <number>]
+                        Repeat --model to generate multiple models. Use --results to save JSON results.`
 
 const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
 let values, positionals
@@ -58,6 +59,7 @@ try {
           output: { type: 'string' },
           model: { type: 'string', multiple: true },
           capireMetadata: { type: 'string' },
+          results: { type: 'string' },
           'min-tokens': { type: 'string' },
           'max-heading-depth': { type: 'string' }
         }
@@ -82,8 +84,6 @@ try {
 }
 
 if (isEmbeddingCommand) {
-  const originalLog = console.log
-  const originalInfo = console.info
   try {
     const chunkingConfig = { input: values.input }
     if (values['min-tokens'] !== undefined) chunkingConfig.minTokens = Number(values['min-tokens'])
@@ -112,21 +112,18 @@ if (isEmbeddingCommand) {
       )
         throw new Error('metadata commitId must be a single directory name')
     }
-    // Keep generation diagnostics separate from machine-readable results.
-    console.log = console.info = (...args) => console.error(...args)
     const { createCapireEmbeddings } = await import('./lib/api.js')
     const result = await createCapireEmbeddings(chunkingConfig, {
       model: values.model,
       output: values.output,
       capireMetadata
     })
-    process.stdout.write(`${JSON.stringify(Array.isArray(result) ? result : [result])}\n`)
+    const json = `${JSON.stringify(Array.isArray(result) ? result : [result])}\n`
+    if (values.results !== undefined) await writeFile(values.results, json, 'utf8')
+    else process.stdout.write(json)
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1
-  } finally {
-    console.log = originalLog
-    console.info = originalInfo
   }
 } else {
   // Set model BEFORE any import that triggers embeddings download side-effects.
