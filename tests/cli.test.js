@@ -181,6 +181,36 @@ describe('CLI usage', () => {
     assert(result.stderr.includes('Markdown text is required'), result.stderr)
   })
 
+  test('createCapireEmbeddings rejects invalid publication metadata before generation', async (t) => {
+    const root = await fs.mkdtemp(join(os.tmpdir(), 'cds-mcp-metadata-'))
+    t.after(() => fs.rm(root, { recursive: true, force: true }))
+    const file = join(root, 'metadata.json')
+    for (const [text, error] of [
+      ['{', 'SyntaxError'],
+      ['null', 'JSON object'],
+      ['[]', 'JSON object'],
+      ['{"commitId":"../outside"}', 'single directory name'],
+      ['{"commitId":".."}', 'single directory name'],
+      ['{"commitId":123}', 'single directory name']
+    ]) {
+      await fs.writeFile(file, text)
+      for (const input of [text, file]) {
+        const result = await runCliCommand(['createCapireEmbeddings', '--capireMetadata', input])
+        assert.equal(result.code, 1)
+        assert.equal(result.stdout, '')
+        assert(result.stderr.includes(error), result.stderr)
+      }
+    }
+    const missing = await runCliCommand([
+      'createCapireEmbeddings',
+      '--capireMetadata',
+      join(root, 'missing.json')
+    ])
+    assert.equal(missing.code, 1)
+    assert.equal(missing.stdout, '')
+    assert(missing.stderr.includes('ENOENT'), missing.stderr)
+  })
+
   test('--version shows version number', async () => {
     const result = await runCliCommand(['--version'])
 

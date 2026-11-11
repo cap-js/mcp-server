@@ -7,7 +7,7 @@ process.emitWarning = (warning, ...args) => {
 }
 
 import { parseArgs } from 'node:util'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { join, dirname } from 'node:path'
 import { configuredBoolean } from './lib/utils.js'
@@ -44,7 +44,9 @@ Tools:
 
 Commands:
   createCapireEmbeddings [--model <name>] [--input <file>] [--output <directory>]
-                        [--min-tokens <number>] [--max-heading-depth <number>]`
+                        [--capireMetadata <json-or-file>] [--results <file>]
+                        [--min-tokens <number>] [--max-heading-depth <number>]
+                        Repeat --model to generate multiple models. Use --results to save JSON results.`
 
 const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
 let values, positionals
@@ -55,7 +57,9 @@ try {
       ? {
           input: { type: 'string' },
           output: { type: 'string' },
-          model: { type: 'string' },
+          model: { type: 'string', multiple: true },
+          capireMetadata: { type: 'string' },
+          results: { type: 'string' },
           'min-tokens': { type: 'string' },
           'max-heading-depth': { type: 'string' }
         }
@@ -85,8 +89,38 @@ if (isEmbeddingCommand) {
     if (values['min-tokens'] !== undefined) chunkingConfig.minTokens = Number(values['min-tokens'])
     if (values['max-heading-depth'] !== undefined)
       chunkingConfig.maxHeadingDepth = Number(values['max-heading-depth'])
+    let capireMetadata
+    if (values.capireMetadata !== undefined) {
+      try {
+        capireMetadata = JSON.parse(values.capireMetadata)
+      } catch (error) {
+        // Malformed JSON objects and arrays are not file paths.
+        const input = values.capireMetadata.trimStart()
+        if (input.startsWith('{') || input.startsWith('[')) throw error
+        capireMetadata = JSON.parse(await readFile(values.capireMetadata, 'utf8'))
+      }
+      if (!capireMetadata || typeof capireMetadata !== 'object' || Array.isArray(capireMetadata))
+        throw new Error('--capireMetadata must contain a JSON object or name a file containing one')
+      const { commitId } = capireMetadata
+      if (
+        commitId !== undefined &&
+        (typeof commitId !== 'string' ||
+          !commitId.trim() ||
+          commitId === '.' ||
+          commitId === '..' ||
+          /[/\\]/.test(commitId))
+      )
+        throw new Error('metadata commitId must be a single directory name')
+    }
     const { createCapireEmbeddings } = await import('./lib/api.js')
-    await createCapireEmbeddings(chunkingConfig, { model: values.model, output: values.output })
+    const result = await createCapireEmbeddings(chunkingConfig, {
+      model: values.model,
+      output: values.output,
+      capireMetadata
+    })
+    const json = `${JSON.stringify(Array.isArray(result) ? result : [result])}\n`
+    if (values.results !== undefined) await writeFile(values.results, json, 'utf8')
+    else process.stdout.write(json)
   } catch (err) {
     process.stderr.write(`${err.stack}\n`)
     process.exitCode = 1

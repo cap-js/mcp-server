@@ -10,7 +10,12 @@ const writeEmbeddings = mock.fn(async (_id, chunks, canonical, options) => {
     throw new Error('metadata length must match chunks length')
   if (canonical.length !== chunks.length)
     throw new Error('canonicalChunks length must match chunks length')
-  return { count: chunks.length, model: options.model, outDir: options.dir }
+  return {
+    count: chunks.length,
+    model: options.model,
+    outDir: options.dir,
+    modelFolderName: options.model.replace(/\//g, '--')
+  }
 })
 const tokenMeasure = mock.fn(async () => ({ measure: (text) => text.length, maxTokens: 1024 }))
 mock.module('../../lib/calculateEmbeddings.js', {
@@ -29,6 +34,17 @@ const { formatEmbeddingText, toMeta, resolveConfig } =
   await import('../../lib/capireEmbeddings/createCapireEmbeddings.js')
 const { createCapireEmbeddings: generate } = await import('@cap-js/mcp-server')
 
+function captureStdout(t) {
+  const output = []
+  const write = process.stdout.write
+  t.mock.method(process.stdout, 'write', function (chunk, ...args) {
+    if (typeof chunk !== 'string') return write.call(this, chunk, ...args)
+    output.push(chunk)
+    return true
+  })
+  return output
+}
+
 async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {}) {
   const root = await mkdtemp(join(tmpdir(), 'mcp-markdown-input-'))
   const input = join(root, 'guide.md')
@@ -45,15 +61,18 @@ async function generateMarkdown(text, chunkingConfig = {}, embeddingConfig = {})
 
 const originalArgv = process.argv
 const originalCwd = process.cwd()
+const originalExitCode = process.exitCode
 afterEach(() => {
   process.argv = originalArgv
   process.chdir(originalCwd)
+  process.exitCode = originalExitCode
   writeEmbeddings.mock.resetCalls()
   tokenMeasure.mock.resetCalls()
 })
 
 describe('Markdown embedding generation', () => {
-  it('should generate embeddings through the cds-mcp subcommand', async () => {
+  it('should generate embeddings through the cds-mcp subcommand', async (t) => {
+    const stdout = captureStdout(t)
     const root = await mkdtemp(join(tmpdir(), 'mcp-cli-embeddings-'))
     const input = join(root, 'guide.md')
     try {
@@ -82,12 +101,16 @@ describe('Markdown embedding generation', () => {
       assert.equal(writeEmbeddings.mock.calls[0].arguments[3].model, 'fixture/cli-model')
       assert.equal(writeEmbeddings.mock.calls[0].arguments[3].dir, join(root, 'generated'))
       assert.equal(tokenMeasure.mock.calls.length, 1)
+      const results = JSON.parse(stdout[0])
+      assert.equal(results.length, 1)
+      assert.equal(results[0].modelFolderName, 'fixture--cli-model')
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
 
   it('should use the same entry point for CLI defaults and documentation fetching', async (t) => {
+    const stdout = captureStdout(t)
     const text = '# Guide\n\n> Source: /docs/guide\n\nDocumentation for CLI generation.'
     const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
     process.argv = [
@@ -105,7 +128,212 @@ describe('Markdown embedding generation', () => {
     assert.equal(canonical[0], 'Documentation for CLI generation.')
     assert.equal(options.model, 'fixture/default-model')
     assert.equal(options.dir, join(originalCwd, 'embeddings'))
+    assert.equal(JSON.parse(stdout[0]).length, 1)
   })
+
+  it('should save batch results separately from normal CLI diagnostics without changing console functions', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-cli-metadata-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const metadata = {
+      commitId: 'fixture-commit',
+      version: '1.0.0',
+      cdsDependency: { node: '>=10', java: '>=5' },
+      custom: { source: 'workflow' }
+    }
+    const text =
+      '# Guide\n\n> Source: /docs/guide\n\nDocumentation for all models.\n\n' +
+      '# Release\n\n> Source: /docs/releases/v1\n\nRelease documentation to discard.'
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
+    const stdout = captureStdout(t)
+    const diagnostics = t.mock.method(console, 'log', () => {})
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    const originalInfo = console.info
+    const resultsFile = join(root, 'batch results.json')
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--capireMetadata',
+      JSON.stringify(metadata),
+      '--model',
+      'fixture/first',
+      '--model',
+      'fixture/second',
+      '--output',
+      root,
+      '--results',
+      resultsFile
+    ]
+
+    await import('../../index.js?cli-batch')
+
+    assert.equal(fetchMock.mock.calls.length, 1)
+    assert.equal(tokenMeasure.mock.calls.length, 2)
+    assert.equal(writeEmbeddings.mock.calls.length, 2)
+    assert(diagnostics.mock.calls.some((call) => String(call.arguments[0]).includes('[filter]')))
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    assert.equal(console.log, diagnostics)
+    // eslint-disable-next-line no-console -- Check that the CLI preserves console functions.
+    assert.equal(console.info, originalInfo)
+    assert.deepEqual(stdout, [])
+    const results = JSON.parse(await readFile(resultsFile, 'utf8'))
+    assert.deepEqual(
+      results.map((result) => result.model),
+      ['fixture/first', 'fixture/second']
+    )
+    for (const call of writeEmbeddings.mock.calls) {
+      assert.deepEqual(call.arguments[3].capire, metadata)
+      assert.equal(call.arguments[3].dir, root)
+    }
+  })
+
+  it('should preserve an existing results file when a later CLI model fails', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-results-failure-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const resultsFile = join(root, 'results.json')
+    await writeFile(resultsFile, 'previous results')
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response('# Guide\n\n> Source: /docs/guide\n\nDocumentation content.')
+    )
+    t.mock.method(process.stderr, 'write', () => true)
+    tokenMeasure.mock.mockImplementationOnce(async () => {
+      throw new Error('Second model failed')
+    }, 1)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--model',
+      'fixture/first',
+      '--model',
+      'fixture/second',
+      '--results',
+      resultsFile
+    ]
+
+    await import('../../index.js?cli-results-failure')
+
+    assert.equal(process.exitCode, 1)
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert.equal(await readFile(resultsFile, 'utf8'), 'previous results')
+  })
+
+  it('should exit with an error when the results file cannot be written', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-results-write-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    t.mock.method(
+      globalThis,
+      'fetch',
+      async () => new Response('# Guide\n\n> Source: /docs/guide\n\nDocumentation content.')
+    )
+    const stderr = t.mock.method(process.stderr, 'write', () => true)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--results',
+      root
+    ]
+
+    await import('../../index.js?cli-results-write-error')
+
+    assert.equal(process.exitCode, 1)
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert(stderr.mock.calls.some((call) => String(call.arguments[0]).includes('EISDIR')))
+  })
+
+  it('should share one fetched document across programmatic model batches', async (t) => {
+    const text = '# Guide\n\n> Source: /docs/guide\n\nShared documentation.'
+    const fetchMock = t.mock.method(globalThis, 'fetch', async () => new Response(text))
+    const embeddingConfig = Object.freeze({
+      model: Object.freeze(['fixture/first', 'fixture/second']),
+      output: '/batch',
+      capireMetadata: { commitId: 'batch' }
+    })
+
+    const results = await generate(undefined, embeddingConfig)
+
+    assert.equal(fetchMock.mock.calls.length, 1)
+    assert.deepEqual(
+      tokenMeasure.mock.calls.map((call) => call.arguments[0]),
+      embeddingConfig.model
+    )
+    assert.equal(results.length, 2)
+    assert(
+      writeEmbeddings.mock.calls.every((call) => call.arguments[2][0] === 'Shared documentation.')
+    )
+  })
+
+  it('should read CLI metadata from a caller-relative file path containing spaces', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-metadata-file-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const metadata = {
+      commitId: 'file-commit',
+      version: '2.0.0',
+      cdsDependency: { node: '>=10', java: '>=5' },
+      custom: { source: 'file' }
+    }
+    await writeFile(join(root, 'publication metadata.json'), JSON.stringify(metadata))
+    await writeFile(
+      join(root, 'guide.md'),
+      '# Guide\n\n> Source: /docs/guide\n\nDocumentation content.'
+    )
+    process.chdir(root)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--capireMetadata',
+      './publication metadata.json',
+      '--input',
+      'guide.md',
+      '--model',
+      'fixture/file-model',
+      '--results',
+      './generation results.json'
+    ]
+    const stdout = captureStdout(t)
+
+    await import('../../index.js?cli-metadata-file')
+
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert.deepEqual(writeEmbeddings.mock.calls[0].arguments[3].capire, metadata)
+    assert.equal(tokenMeasure.mock.calls.length, 1)
+    assert.deepEqual(stdout, [])
+    const results = JSON.parse(await readFile(join(root, 'generation results.json'), 'utf8'))
+    assert.equal(results[0].modelFolderName, 'fixture--file-model')
+  })
+
+  it('should not reread a batch input file after the first model', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-batch-input-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const input = join(root, 'guide.md')
+    await writeFile(input, '# Guide\n\n> Source: /docs/guide\n\nShared file documentation.')
+    tokenMeasure.mock.mockImplementationOnce(async () => {
+      await rm(input)
+      return { measure: (text) => text.length, maxTokens: 1024 }
+    })
+
+    const results = await generate({ input }, { model: ['fixture/first', 'fixture/second'] })
+
+    assert.equal(results.length, 2)
+    assert(
+      writeEmbeddings.mock.calls.every(
+        (call) => call.arguments[2][0] === 'Shared file documentation.'
+      )
+    )
+  })
+
+  for (const models of [[], ['fixture/model', ''], [123]]) {
+    it(`should reject invalid model batches ${JSON.stringify(models)} before fetching`, async (t) => {
+      const fetchMock = t.mock.method(globalThis, 'fetch', () => assert.fail('Must not fetch'))
+      await assert.rejects(generate(undefined, { model: models }), /non-empty array of model names/)
+      assert.equal(fetchMock.mock.calls.length, 0)
+      assert.equal(tokenMeasure.mock.calls.length, 0)
+    })
+  }
 
   it('should apply implementation defaults when the public API receives only Markdown', async () => {
     const text = '# Defaults\n\n> Source: /docs/defaults\n\nDocumentation using default settings.'
