@@ -44,7 +44,7 @@ Tools:
 
 Commands:
   createCapireEmbeddings [--model <name>] [--input <file>] [--output <directory>]
-                        [--capireMetadata <json>] [--min-tokens <number>] [--max-heading-depth <number>]
+                        [--capireMetadata <json-or-file>] [--min-tokens <number>] [--max-heading-depth <number>]
                         Repeat --model to generate multiple models. Results are JSON on stdout.`
 
 const isEmbeddingCommand = process.argv[2] === 'createCapireEmbeddings'
@@ -91,9 +91,16 @@ if (isEmbeddingCommand) {
       chunkingConfig.maxHeadingDepth = Number(values['max-heading-depth'])
     let capireMetadata
     if (values.capireMetadata !== undefined) {
-      capireMetadata = JSON.parse(values.capireMetadata)
+      try {
+        capireMetadata = JSON.parse(values.capireMetadata)
+      } catch (error) {
+        // Malformed JSON objects and arrays are not file paths.
+        const input = values.capireMetadata.trimStart()
+        if (input.startsWith('{') || input.startsWith('[')) throw error
+        capireMetadata = JSON.parse(await readFile(values.capireMetadata, 'utf8'))
+      }
       if (!capireMetadata || typeof capireMetadata !== 'object' || Array.isArray(capireMetadata))
-        throw new Error('--capireMetadata must contain a JSON object')
+        throw new Error('--capireMetadata must contain a JSON object or name a file containing one')
       const { commitId } = capireMetadata
       if (
         commitId !== undefined &&

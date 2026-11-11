@@ -197,6 +197,42 @@ describe('Markdown embedding generation', () => {
     )
   })
 
+  it('should read CLI metadata from a caller-relative file path containing spaces', async (t) => {
+    const root = await mkdtemp(join(tmpdir(), 'mcp-metadata-file-'))
+    t.after(() => rm(root, { recursive: true, force: true }))
+    const metadata = {
+      commitId: 'file-commit',
+      version: '2.0.0',
+      cdsDependency: { node: '>=10', java: '>=5' },
+      custom: { source: 'file' }
+    }
+    await writeFile(join(root, 'publication metadata.json'), JSON.stringify(metadata))
+    await writeFile(
+      join(root, 'guide.md'),
+      '# Guide\n\n> Source: /docs/guide\n\nDocumentation content.'
+    )
+    process.chdir(root)
+    process.argv = [
+      process.execPath,
+      new URL('../../index.js', import.meta.url).pathname,
+      'createCapireEmbeddings',
+      '--capireMetadata',
+      './publication metadata.json',
+      '--input',
+      'guide.md',
+      '--model',
+      'fixture/file-model'
+    ]
+    const stdout = captureStdout(t)
+
+    await import('../../index.js?cli-metadata-file')
+
+    assert.equal(writeEmbeddings.mock.calls.length, 1)
+    assert.deepEqual(writeEmbeddings.mock.calls[0].arguments[3].capire, metadata)
+    assert.equal(tokenMeasure.mock.calls.length, 1)
+    assert.equal(JSON.parse(stdout[0])[0].modelFolderName, 'fixture--file-model')
+  })
+
   it('should not reread a batch input file after the first model', async (t) => {
     const root = await mkdtemp(join(tmpdir(), 'mcp-batch-input-'))
     t.after(() => rm(root, { recursive: true, force: true }))

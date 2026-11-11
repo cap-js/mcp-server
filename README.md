@@ -281,6 +281,12 @@ The JSON string can contain these fields:
 }
 ```
 
+You can also pass a JSON file path. Relative paths use the current working directory:
+
+```sh
+cds-mcp createCapireEmbeddings --capireMetadata ./publication.json --output ./embeddings
+```
+
 The command writes a JSON array of generation results to stdout. Each result
 contains `dim`, `count`, `outDir`, and `modelFolderName`. Diagnostics go to stderr.
 The array is written only after all models succeed. A failed batch can leave
@@ -357,7 +363,7 @@ The CLI and JavaScript API use these settings:
 | `--model <name>` | `embeddingConfig.model` | Embedding model. Repeat the flag or pass an API array for multiple models. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
-| `--capireMetadata <json>` | `embeddingConfig.capireMetadata` | JSON string with optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. CLI `commitId` must be a single directory name. |
+| `--capireMetadata <json-or-file>` | `embeddingConfig.capireMetadata` | JSON string or file containing an object with optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. CLI `commitId` must be a single directory name. |
 
 ## Support, Feedback, Contributing
 
