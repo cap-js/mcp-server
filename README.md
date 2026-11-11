@@ -250,42 +250,15 @@ import { createCapireEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
 
 ### Generate capire embeddings from the command line
 
-Generate CAP documentation embeddings with a custom model.
+Generate CAP documentation embeddings with the default settings.
 The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
 
 ```sh
-cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
+cds-mcp createCapireEmbeddings
 ```
 
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
-
-Repeat `--model` to generate multiple models from one documentation read or fetch.
-Use `--capireMetadata <json>` to pass Capire publication metadata as a JSON string:
-
-```sh
-cds-mcp createCapireEmbeddings \
-  --capireMetadata '{"commitId":"documentation-revision","version":"1.0.0","cdsDependency":{"node":">=10.1.0","java":">=5.1.0"}}' \
-  --model BAAI/bge-small-en-v1.5 --model nomic-ai/nomic-embed-text-v1.5
-```
-
-The JSON string can contain these fields:
-
-```json
-{
-  "commitId": "documentation-revision",
-  "version": "1.0.0",
-  "cdsDependency": { "node": ">=10.1.0", "java": ">=5.1.0" }
-}
-```
-
-You can also pass a JSON file path. Relative paths use the current working directory:
-
-```sh
-cds-mcp createCapireEmbeddings --capireMetadata ./publication.json
-```
-
-Version retention and manifest updates remain the publisher's responsibility.
 
 ### Generate capire embeddings programmatically
 
