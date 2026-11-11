@@ -30,6 +30,7 @@ The server helps AI models answer questions such as:
 - [Available Tools](#available-tools)
   - [`search_model`](#search_model)
   - [`search_docs`](#search_docs)
+- [JavaScript API](#javascript-api)
 - [Support, Feedback, Contributing](#support-feedback-contributing)
 - [Security / Disclosure](#security--disclosure)
 - [Code of Conduct](#code-of-conduct)
@@ -166,6 +167,7 @@ opencode mcp add --global cds-mcp \
 | Variable | Description |
 | --- | --- |
 | `CDS_MCP_OFFLINE` | Set to `true` to use locally cached embeddings without checking for updates. Accepts `true` or `false`. |
+| `CDS_MCP_OFFLINE_DIR` | In offline mode, use this folder instead of the local cache. |
 | `CDS_MCP_MODEL` | Non-empty embedding model name. |
 | `CDS_MCP_MANIFEST_TIMEOUT` | Manifest request timeout in positive integer milliseconds. Defaults to `15000`. |
 | `CDS_MCP_DOWNLOAD_TIMEOUT` | Bundle response-header timeout in positive integer milliseconds. Defaults to `30000`. |
@@ -237,6 +239,83 @@ CDS compiles all your `.cds` files into a unified model representation that incl
 - HTTP endpoints
 
 The fuzzy search algorithm matches definition names and allows for partial matches, making it easy to find entities like "Books" even when searching for "book".
+
+## JavaScript API
+
+Import the supported named exports from the package root:
+
+```js
+import { createCapireEmbeddings, DEFAULT_MODEL } from '@cap-js/mcp-server'
+```
+
+### Generate capire embeddings from the command line
+
+From the repository root, generate CAP documentation embeddings with a custom model.
+The CLI fetches `https://cap.cloud.sap/docs/llms-full.txt` automatically:
+
+```sh
+npm run generate-cap-embeddings -- --model nomic-ai/nomic-embed-text-v1.5
+```
+
+See [Configuration](#configuration) for supported flags. Pass them after
+`npm run generate-cap-embeddings --`.
+
+### Generate capire embeddings programmatically
+
+The API fetches CAP documentation from `https://cap.cloud.sap/docs/llms-full.txt` by default.
+
+Pass the chunking settings, custom model, and output settings to the API:
+
+```js
+import { createCapireEmbeddings } from '@cap-js/mcp-server'
+
+const result = await createCapireEmbeddings(
+  { minTokens: 10, maxHeadingDepth: 5 },
+  {
+    dir: './embeddings',
+    model: 'nomic-ai/nomic-embed-text-v1.5',
+    capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
+  }
+)
+```
+
+### Use generated embeddings in the MCP server
+
+Test your created embeddings with `cds-mcp`:
+
+```sh
+CDS_MCP_OFFLINE=true CDS_MCP_OFFLINE_DIR="/absolute/path/to/generated/output" cds-mcp search_docs "How do I define a service?"
+```
+
+To use your generated embeddings, configure your MCP client with the folder that contains them:
+
+```json
+{
+  "mcpServers": {
+    "cds-mcp": {
+      "command": "npx",
+      "args": ["-y", "@cap-js/mcp-server"],
+      "env": {
+        "CDS_MCP_OFFLINE": "true",
+        "CDS_MCP_OFFLINE_DIR": "/absolute/path/to/generated/output"
+      }
+    }
+  }
+}
+```
+
+### Configuration
+
+The CLI and JavaScript API use these settings:
+
+| CLI flag | API option | Description |
+| --- | --- | --- |
+| `--input <file>` | `chunkingConfig.text` | CAP documentation input. The CLI and API fetch `llms-full.txt` by default. This flag selects a local file with the same heading and source annotation structure instead. The API accepts supplied text. |
+| `--output <file>` | `embeddingConfig.dir` | Output directory; default `./embeddings`. The CLI flag uses the file's parent directory, not its name. |
+| `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
+| `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
+| `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
+| — | `embeddingConfig.capireMetadata` | Optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. |
 
 ## Support, Feedback, Contributing
 

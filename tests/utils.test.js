@@ -34,6 +34,12 @@ test('configuredBoolean accepts only true and false', () => {
   )
 })
 
+test('configuredNonEmptyString returns undefined for an unset optional value', () => {
+  withEnvironment('TEST_STRING', undefined, () =>
+    assert.strictEqual(configuredNonEmptyString('TEST_STRING'), undefined)
+  )
+})
+
 test('configuredNonEmptyString rejects empty values', () => {
   withEnvironment('TEST_STRING', undefined, () =>
     assert.strictEqual(configuredNonEmptyString('TEST_STRING', 'default'), 'default')

@@ -8,5 +8,11 @@ export default [
     rules: {
       'no-unused-vars': ['error', { argsIgnorePattern: '^_' }]
     }
+  },
+  {
+    files: ['lib/capireEmbeddings/chunker/stages/**'],
+    rules: {
+      'no-console': 'off'
+    }
   }
 ]
