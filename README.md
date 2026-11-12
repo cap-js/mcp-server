@@ -260,7 +260,7 @@ cds-mcp createCapireEmbeddings --model nomic-ai/nomic-embed-text-v1.5
 See [Configuration](#configuration) for supported flags. Pass them after
 `cds-mcp createCapireEmbeddings`.
 
-Use `--output ./embeddings` to select the output directory.
+Use `--output ./generated-embeddings` to select the output directory.
 
 ### Generate capire embeddings programmatically
 
@@ -274,12 +274,15 @@ import { createCapireEmbeddings } from '@cap-js/mcp-server'
 const result = await createCapireEmbeddings(
   { minTokens: 10, maxHeadingDepth: 5 },
   {
-    output: './embeddings',
     model: 'nomic-ai/nomic-embed-text-v1.5',
     capireMetadata: { commitId: 'documentation-revision', version: '1.0.0' }
   }
 )
 ```
+
+To generate multiple models programmatically, pass an array to
+`embeddingConfig.model`. The API returns an array of results in the same order.
+A single model name, or an omitted model, still returns one result object.
 
 To read a local file, use `chunkingConfig.input`. To supply Markdown directly,
 use `chunkingConfig.text`. An explicit input file takes precedence over supplied text.
@@ -287,7 +290,7 @@ use `chunkingConfig.text`. An explicit input file takes precedence over supplied
 ```js
 await createCapireEmbeddings(
   { input: './guide.md', minTokens: 10 },
-  { output: './embeddings', model: 'nomic-ai/nomic-embed-text-v1.5' }
+  { model: 'nomic-ai/nomic-embed-text-v1.5' }
 )
 ```
 
@@ -325,10 +328,11 @@ The CLI and JavaScript API use these settings:
 | `--input <file>` | `chunkingConfig.input` | Local CAP documentation file with the same heading and source annotation structure. Takes precedence over `chunkingConfig.text`. If neither is supplied, fetches `llms-full.txt`. |
 | — | `chunkingConfig.text` | Markdown supplied directly to the API. |
 | `--output <directory>` | `embeddingConfig.output` | Output directory; default `./embeddings`. |
-| `--model <name>` | `embeddingConfig.model` | Embedding model. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
+| `--results <file>` | — | Save a JSON result array (`dim`, `count`, `outDir`, `modelFolderName`) after all models succeed. Relative paths use the current working directory; the parent directory must exist. Generation failures leave an existing results file unchanged, but can leave files for earlier models. Without this flag, results appear alongside diagnostics on stdout. |
+| `--model <name>` | `embeddingConfig.model` | Embedding model. Repeat the flag or pass an API array for multiple models. Defaults to `CDS_MCP_MODEL` or `DEFAULT_MODEL` (`BAAI/bge-small-en-v1.5`). |
 | `--min-tokens <number>` | `chunkingConfig.minTokens` | Minimum chunk size in tokens. Integer greater than or equal to `0`; default `10`. |
 | `--max-heading-depth <number>` | `chunkingConfig.maxHeadingDepth` | Maximum heading depth. Integer greater than or equal to `1`; default `5`. |
-| — | `embeddingConfig.capireMetadata` | Optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. |
+| `--capireMetadata <json-or-file>` | `embeddingConfig.capireMetadata` | JSON string or file containing an object with optional Capire metadata, such as `version`, `commitId`, `cdsDependency: { node, java }`, and caller-defined fields. CLI `commitId` must be a single directory name. |
 
 ## Support, Feedback, Contributing
 
