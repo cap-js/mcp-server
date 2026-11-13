@@ -11,7 +11,10 @@ env:
   NPM_CONFIG_IGNORE_SCRIPTS: true
 
 jobs:
+  package-install:
+    uses: ./.github/workflows/package-install.yml
   publish-npm:
+    needs: package-install
     runs-on: ubuntu-latest
     environment: npm
     steps:

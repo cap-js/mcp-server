@@ -36,3 +36,11 @@ The following rule governs code contributions:
 * We use GitHub issues to track bugs and enhancement requests.
 
 * Please provide as much context as possible when you open an issue. The information you provide must be comprehensive enough to reproduce that issue for the assignee.
+
+## Testing Package Installations
+
+Run `npm run test:package` to pack the checkout and install it globally into a temporary prefix. The check verifies that the native runtime consumers resolve the same ONNX Runtime version, real embedding inference, and the installed `search_docs` CLI against a local documentation fixture. If a shrinkwrap is present, the check also verifies that it is published, retained, and honored by those runtime consumers; it does not require adopting one.
+
+The check enables dependency installation scripts and downloads the default model from Hugging Face into a private model cache. Installed packages, model files, and fixture documents are removed after the check. To check another checkout's artifact with the same harness, run `npm run test:package -- /absolute/path/to/checkout`.
+
+CI and the release workflow run this check on Linux, Windows, and macOS with Node.js 22 and 24, using the bundled CPU runtime without optional CUDA downloads. Hosted Windows runners test Windows Server compatibility, not every desktop DLL configuration; a machine-specific failure still needs its actual DLL load trace.
