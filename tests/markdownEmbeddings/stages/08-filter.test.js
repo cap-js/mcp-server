@@ -311,7 +311,7 @@ describe('filter', () => {
     })
   })
 
-  describe('when deduplicating by body hash', () => {
+  describe('when deduplicating embedding and display text', () => {
     it('should drop an exact duplicate body under a second source anchor', () => {
       const prose =
         'This is the exact same prose content appearing under two different section anchors on the same page.'
@@ -338,18 +338,44 @@ describe('filter', () => {
       assert.strictEqual(filter([c1, c2], cfg0).length, 2)
     })
 
-    it('should deduplicate same prose under different headings (heading is ignored)', () => {
+    it('should keep the same prose under different headings', () => {
       const prose =
         'Same prose body text that is repeated verbatim under two different anchor headings on the page.'
       const c1 = {
         ...chunk(prose),
+        heading: '## Input Validation',
         source: '> Source: https://cap.cloud.sap/docs/page#one'
       }
       const c2 = {
         ...chunk(prose),
+        heading: '## Custom Messages',
         source: '> Source: https://cap.cloud.sap/docs/page#two'
       }
-      assert.strictEqual(filter([c1, c2], cfg0).length, 1)
+      assert.deepStrictEqual(filter([c1, c2], cfg0), [c1, c2])
+    })
+
+    it('should keep identical embedding text with different display context', () => {
+      const c1 = chunk('GET request.\n\nShared response.')
+      const c2 = chunk('PUT request.\n\nShared response.')
+      c1.embeddingBody = c2.embeddingBody = 'Shared response.'
+
+      assert.deepStrictEqual(filter([c1, c2], cfg0), [c1, c2])
+    })
+
+    it('should keep distinct embedding fragments that share one display body', () => {
+      const c1 = chunk('First sentence. Second sentence.')
+      const c2 = { ...c1 }
+      c1.embeddingBody = 'First sentence.'
+      c2.embeddingBody = 'Second sentence.'
+
+      assert.deepStrictEqual(filter([c1, c2], cfg0), [c1, c2])
+    })
+
+    it('should keep identical text with different runtime labels', () => {
+      const c1 = { ...chunk('Shared runtime content.'), label: 'java' }
+      const c2 = { ...c1, label: 'node' }
+
+      assert.deepStrictEqual(filter([c1, c2], cfg0), [c1, c2])
     })
   })
 
