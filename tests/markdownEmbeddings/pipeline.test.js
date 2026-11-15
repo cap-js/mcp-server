@@ -1176,15 +1176,19 @@ function runE2ESuite(label, configOverrides) {
           }
         })
 
-        it('should emit no duplicate embeddingBodies in filter output', () => {
-          const seen = new Set()
+        it('should emit no duplicate embedding and display text for the same label', () => {
+          const seen = new Map()
           for (const c of outputFilter) {
-            const key = `${c.label ?? ''}\0${c.embeddingBody}`
+            const key = JSON.stringify([
+              c.label ?? '',
+              formatEmbeddingText(c).trim(),
+              c.displayBody.trim()
+            ])
             assert.ok(
               !seen.has(key),
-              `duplicate label+embeddingBody found (label=${c.label ?? 'none'}): ${JSON.stringify(c.embeddingBody.slice(0, 80))}`
+              `duplicate embedding and display text found (label=${c.label ?? 'none'}): ${JSON.stringify(formatEmbeddingText(c).slice(0, 80))}`
             )
-            seen.add(key)
+            seen.set(key, true)
           }
         })
 
@@ -1312,6 +1316,67 @@ describe('pipeline — focused fixture tests', () => {
     measure: mockMeasure
   }
   describe('when cross-stage transform + chunk', () => {
+    it('should retain a complete nested warning after a long list opener', () => {
+      const opener =
+        '- This list item describes the requirements for writing through projected associations.'
+      const warning = [
+        '::: warning Paths',
+        'Path expressions are not writable. Annotate associations as readonly.',
+        ':::'
+      ].join('\n')
+      const text = [
+        '# Root',
+        '',
+        '> Source: /docs/root',
+        '',
+        opener,
+        '',
+        ...warning.split('\n').map((line) => `    ${line}`)
+      ].join('\n')
+      const config = { ...configP, maxTokens: 110, measure: (value) => value.length }
+
+      const sections = runPipeline(text, config)
+
+      assert.strictEqual(sections.length, 2)
+      assert.strictEqual(sections[0].embeddingBody, opener)
+      assert.strictEqual(sections[1].embeddingBody, warning)
+      for (const section of sections) {
+        assert.strictEqual(section.displayBody, `${opener}\n${warning}`)
+        assert.strictEqual(section.source, 'https://cap.cloud.sap/docs/root')
+        assert.ok(config.measure(formatEmbeddingText(section)) <= config.maxTokens)
+      }
+    })
+
+    it('should retain repeated body text when the rendered headings differ', () => {
+      const body = 'Start the stopped database instance before deployment.'
+      const text = [
+        '# Root',
+        '',
+        '> Source: /docs/root',
+        '',
+        '## Deployment Error',
+        '',
+        '> Source: /docs/root#deployment',
+        '',
+        body,
+        '',
+        '## SSL Error',
+        '',
+        '> Source: /docs/root#ssl',
+        '',
+        body
+      ].join('\n')
+
+      const sections = runPipeline(text, configP)
+
+      assert.strictEqual(sections.length, 2)
+      assert.deepStrictEqual(
+        sections.map((c) => c.heading),
+        ['## Deployment Error', '## SSL Error']
+      )
+      assert.ok(sections.every((c) => c.embeddingBody === body))
+    })
+
     it('should make split runtime wrappers share one body and carry the label on each embeddingBody', () => {
       const text = [
         '# Feature',
