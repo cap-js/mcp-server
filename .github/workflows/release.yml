@@ -36,7 +36,7 @@ jobs:
 
       - name: parse changelog
         id: parse-changelog
-        uses: schwma/parse-changelog-action@1c2b2005ccf594cc3a45d33c10af4ab924d3a1c5 # v1.2.0
+        uses: schwma/parse-changelog-action@7676697ef5e08612fa8b30b385cc318d29b71567 # v1.2.1
         with:
           version: '${{ steps.package-version.outputs.current-version }}'
 
